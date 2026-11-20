@@ -1,0 +1,440 @@
+{
+ "design": "screen18",
+ "factors": {
+  "peak_learning_rate": {
+   "column": 1,
+   "levels": [
+    3e-06,
+    1e-05
+   ]
+  },
+  "replay_share": {
+   "column": 2,
+   "levels": [
+    0.55,
+    0.7,
+    0.85
+   ]
+  },
+  "synthetic_share_of_non_replay": {
+   "column": 3,
+   "levels": [
+    0.0,
+    0.25,
+    0.5
+   ]
+  },
+  "hard_share_of_real": {
+   "column": 4,
+   "levels": [
+    0.25,
+    0.5,
+    0.75
+   ]
+  },
+  "math_share_of_hard": {
+   "column": 5,
+   "levels": [
+    0.25,
+    0.5,
+    0.75
+   ]
+  },
+  "long_context": {
+   "column": 6,
+   "levels": [
+    "none",
+    "random",
+    "semantic"
+   ]
+  },
+  "schedule": {
+   "column": 7,
+   "levels": [
+    "uniform",
+    "late",
+    "early"
+   ]
+  }
+ },
+ "runs": [
+  {
+   "run": "screen18_r01",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.25,
+    "long_context": "none",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.0,
+    "curated": 0.3375,
+    "math": 0.028125,
+    "code": 0.084375,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r02",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.5,
+    "long_context": "random",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.0675,
+    "curated": 0.10125,
+    "math": 0.050625,
+    "code": 0.050625,
+    "long_random": 0.18,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r03",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.75,
+    "long_context": "semantic",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.135,
+    "curated": 0.03375,
+    "math": 0.075937,
+    "code": 0.025312,
+    "long_random": 0.0,
+    "long_semantic": 0.18
+   }
+  },
+  {
+   "run": "screen18_r04",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.5,
+    "long_context": "random",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.0,
+    "curated": 0.135,
+    "math": 0.0225,
+    "code": 0.0225,
+    "long_random": 0.12,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r05",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.75,
+    "long_context": "semantic",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.045,
+    "curated": 0.0675,
+    "math": 0.050625,
+    "code": 0.016875,
+    "long_random": 0.0,
+    "long_semantic": 0.12
+   }
+  },
+  {
+   "run": "screen18_r06",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.25,
+    "long_context": "none",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.15,
+    "curated": 0.0375,
+    "math": 0.028125,
+    "code": 0.084375,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r07",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.25,
+    "long_context": "semantic",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.0,
+    "curated": 0.045,
+    "math": 0.01125,
+    "code": 0.03375,
+    "long_random": 0.0,
+    "long_semantic": 0.06
+   }
+  },
+  {
+   "run": "screen18_r08",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.5,
+    "long_context": "none",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.0375,
+    "curated": 0.028125,
+    "math": 0.042188,
+    "code": 0.042188,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r09",
+   "levels": {
+    "peak_learning_rate": 3e-06,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.75,
+    "long_context": "random",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.045,
+    "curated": 0.03375,
+    "math": 0.008438,
+    "code": 0.002813,
+    "long_random": 0.06,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r10",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.75,
+    "long_context": "random",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.0,
+    "curated": 0.0675,
+    "math": 0.151875,
+    "code": 0.050625,
+    "long_random": 0.18,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r11",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.25,
+    "long_context": "semantic",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.0675,
+    "curated": 0.151875,
+    "math": 0.012656,
+    "code": 0.037969,
+    "long_random": 0.0,
+    "long_semantic": 0.18
+   }
+  },
+  {
+   "run": "screen18_r12",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.55,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.5,
+    "long_context": "none",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.55,
+    "synthetic": 0.225,
+    "curated": 0.1125,
+    "math": 0.05625,
+    "code": 0.05625,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r13",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.75,
+    "long_context": "none",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.0,
+    "curated": 0.15,
+    "math": 0.1125,
+    "code": 0.0375,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r14",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.25,
+    "long_context": "random",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.045,
+    "curated": 0.03375,
+    "math": 0.025313,
+    "code": 0.075938,
+    "long_random": 0.12,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r15",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.7,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.5,
+    "long_context": "semantic",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.7,
+    "synthetic": 0.09,
+    "curated": 0.0675,
+    "math": 0.01125,
+    "code": 0.01125,
+    "long_random": 0.0,
+    "long_semantic": 0.12
+   }
+  },
+  {
+   "run": "screen18_r16",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.0,
+    "hard_share_of_real": 0.75,
+    "math_share_of_hard": 0.5,
+    "long_context": "semantic",
+    "schedule": "uniform"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.0,
+    "curated": 0.0225,
+    "math": 0.03375,
+    "code": 0.03375,
+    "long_random": 0.0,
+    "long_semantic": 0.06
+   }
+  },
+  {
+   "run": "screen18_r17",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.25,
+    "hard_share_of_real": 0.25,
+    "math_share_of_hard": 0.75,
+    "long_context": "none",
+    "schedule": "late"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.0375,
+    "curated": 0.084375,
+    "math": 0.021094,
+    "code": 0.007031,
+    "long_random": 0.0,
+    "long_semantic": 0.0
+   }
+  },
+  {
+   "run": "screen18_r18",
+   "levels": {
+    "peak_learning_rate": 1e-05,
+    "replay_share": 0.85,
+    "synthetic_share_of_non_replay": 0.5,
+    "hard_share_of_real": 0.5,
+    "math_share_of_hard": 0.25,
+    "long_context": "random",
+    "schedule": "early"
+   },
+   "shares": {
+    "replay": 0.85,
+    "synthetic": 0.045,
+    "curated": 0.0225,
+    "math": 0.005625,
+    "code": 0.016875,
+    "long_random": 0.06,
+    "long_semantic": 0.0
+   }
+  }
+ ]
+}

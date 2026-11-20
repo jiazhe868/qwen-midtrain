@@ -1,0 +1,23 @@
+# Written by `python -m midtrain.mixing_law design`; do not edit by hand.
+# Factor levels: {"peak_learning_rate": 1e-05, "replay_share": 0.7, "synthetic_share_of_non_replay": 0.5, "hard_share_of_real": 0.25, "math_share_of_hard": 0.5, "long_context": "semantic", "schedule": "late"}
+# Shares of all tokens: {"replay": 0.7, "synthetic": 0.09, "curated": 0.0675, "math": 0.01125, "code": 0.01125, "long_random": 0.0, "long_semantic": 0.12}
+name: screen18_r15
+token_budget: 40009728
+context_length: 4096
+components:
+  replay_web: 0.676138
+  wiki_zh: 0.119318
+  wiki_en: 0.019176
+  textbooks: 0.023011
+  papers: 0.015341
+  forum_qa: 0.019176
+  synthetic_rephrase: 0.051136
+  synthetic_qa: 0.051136
+  math_web: 0.012784
+  code: 0.012784
+schedule: late
+seed: 1
+long_context:
+  token_share: 0.12
+  sequence_length: 16384
+  pack: semantic_16k

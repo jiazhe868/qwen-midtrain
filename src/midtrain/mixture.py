@@ -20,7 +20,13 @@ What a recipe controls (a YAML file, see configs/recipes/):
     seed
 
 A sequence is a slice of one source's stream: its documents in the seeded order, an end-of-text token after each. A
-document can continue into the next sequence of the same source, as in ordinary pretraining.
+document can continue into the next sequence of the same source, as in ordinary pretraining. A long sequence is the
+first `sequence_length` tokens of one pack, so that its documents are the ones the pack put together.
+
+No document that the decontamination gate flagged (data_hygiene.py, README §11) can reach a run: every stream leaves
+flagged documents out, and a recipe that names a source the gate has not scanned stops with an error. The first gate
+run flagged 6,030 of 2,686,237 documents (2026-11-20); most matches are number sequences that also occur in a
+benchmark's examples, and all of them are dropped, because 0.2% of the pool costs nothing and a real leak would.
 
 Commands (after `source scripts/env.sh`):
     $MIDTRAIN_PYTHON -m midtrain.mixture show configs/recipes/pilot_replay_only.yaml       # realized shares, no GPU
@@ -30,7 +36,9 @@ Commands (after `source scripts/env.sh`):
 from __future__ import annotations
 
 import argparse
+import functools
 import json
+import os
 import zlib
 from pathlib import Path
 from typing import Iterator
@@ -124,6 +132,49 @@ def component_shares_at_progress(recipe: dict, progress: float, source_specifica
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# the decontamination gate: which documents may not be trained on
+# ---------------------------------------------------------------------------------------------------------------
+@functools.lru_cache(maxsize=1)
+def load_decontamination_gate() -> dict:
+    """The gate's verdicts: `scanned_document_count` per source and the set of flagged document ids per source.
+
+    MIDTRAIN_ALLOW_UNCHECKED_POOL=1 switches the gate off; it exists for tests on made-up text and must never be
+    set for a run that is evaluated."""
+    if os.environ.get("MIDTRAIN_ALLOW_UNCHECKED_POOL") == "1":
+        return {"is_switched_off": True, "scanned_document_count": {}, "flagged_document_ids": {}}
+    import pyarrow.parquet as pq
+
+    from midtrain.data_sources import repository_root
+
+    report_path = repository_root / "results" / "hygiene_decontamination.json"
+    flagged_path = data_root() / "hygiene" / "decontamination_flagged.parquet"
+    assert report_path.exists() and flagged_path.exists(), (
+        "the pool has not passed the decontamination gate: run `python -m midtrain.data_hygiene decontaminate` first")
+    report = json.loads(report_path.read_text())
+    flagged = pq.read_table(flagged_path, columns=["doc_id", "source"]).to_pydict()
+    flagged_document_ids: dict[str, set] = {}
+    for document_id, source_name in zip(flagged["doc_id"], flagged["source"]):
+        flagged_document_ids.setdefault(source_name, set()).add(document_id)
+    return {"is_switched_off": False, "flagged_document_ids": flagged_document_ids,
+            "scanned_document_count": {name: entry["documents"] for name, entry in report["scanned_by_source"].items()}}
+
+
+def is_document_flagged(source_name: str, document_ids: list[str]) -> np.ndarray:
+    """One boolean per train document of the source: True when the gate flagged it."""
+    gate = load_decontamination_gate()
+    if gate["is_switched_off"]:
+        return np.zeros(len(document_ids), dtype=bool)
+    assert source_name in gate["scanned_document_count"], (
+        f"the decontamination gate has not scanned {source_name}: rerun `data_hygiene decontaminate` after adding a source")
+    # the gate scans train and validation documents together, so it must have seen at least the train documents
+    assert gate["scanned_document_count"][source_name] >= len(document_ids), (
+        f"{source_name} has {len(document_ids):,} train documents but the gate scanned "
+        f"{gate['scanned_document_count'][source_name]:,}: the pool changed after the gate ran, rerun it")
+    flagged_ids = gate["flagged_document_ids"].get(source_name, set())
+    return np.fromiter((document_id in flagged_ids for document_id in document_ids), dtype=bool, count=len(document_ids))
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # streams: an endless, seeded walk through the documents of one source or of one pack
 # ---------------------------------------------------------------------------------------------------------------
 def seed_for(recipe_seed: int, stream_name: str, epoch_index: int) -> list[int]:
@@ -144,6 +195,8 @@ def open_source_stream(source_name: str, subset_name: str | None, recipe_seed: i
     token_source = open_token_source(source_name, "train")
     document_count = len(token_source["document_offsets"]) - 1
     positions = subset_document_positions(source_name, subset_name, document_count)
+    positions = positions[~is_document_flagged(source_name, token_source["document_ids"])[positions]]
+    assert len(positions) > 0, f"{source_name}: no document is left after the decontamination gate"
     stream = {"name": source_name, "token_sources": [token_source], "source_of_reference": np.zeros(len(positions), np.int16),
               "document_of_reference": positions, "shuffle": True, "seed": recipe_seed, "epochs_started": 0,
               "reference_cursor": 0, "token_cursor_in_document": 0, "order": None}
@@ -151,8 +204,12 @@ def open_source_stream(source_name: str, subset_name: str | None, recipe_seed: i
     return stream
 
 
-def open_pack_stream(pack_name: str, recipe_seed: int) -> dict:
-    """A pack lists documents of several sources in the order they should be read (document_packing.py)."""
+def open_pack_stream(pack_name: str, recipe_seed: int, sequence_length: int) -> dict:
+    """A pack lists documents of several sources in the order they should be read (document_packing.py).
+
+    Checked here, because a silent miss would change what the experiment compares: every pack is at least one
+    sequence long (a shorter one would be topped up with the next pack's unrelated documents), and no packed
+    document is one the decontamination gate flagged."""
     pack_directory = data_root() / "packs" / pack_name
     assert pack_directory.exists(), f"no pack {pack_name!r}: run `document_packing build` first"
     source_names = json.loads((pack_directory / "source_names.json").read_text())
@@ -162,6 +219,18 @@ def open_pack_stream(pack_name: str, recipe_seed: int) -> dict:
               "pack_start_references": np.load(pack_directory / "pack_start_references.npy"),
               "shuffle": False, "seed": recipe_seed, "epochs_started": 0, "reference_cursor": 0,
               "token_cursor_in_document": 0, "order": None}
+    reference_count = len(stream["document_of_reference"])
+    tokens_of_reference = np.zeros(reference_count, dtype=np.int64)
+    for source_index, (source_name, token_source) in enumerate(zip(source_names, stream["token_sources"])):
+        of_this_source = stream["source_of_reference"] == source_index
+        document_positions = stream["document_of_reference"][of_this_source]
+        assert not is_document_flagged(source_name, token_source["document_ids"])[document_positions].any(), (
+            f"pack {pack_name} holds documents of {source_name} that the decontamination gate flagged: rebuild the pack")
+        document_lengths = np.diff(token_source["document_offsets"])
+        tokens_of_reference[of_this_source] = document_lengths[document_positions] + 1       # + the end-of-text token
+    tokens_of_pack = np.add.reduceat(tokens_of_reference, stream["pack_start_references"])
+    assert tokens_of_pack.min() >= sequence_length, (
+        f"pack {pack_name}: the shortest pack has {tokens_of_pack.min():,} tokens, a long sequence needs {sequence_length:,}")
     start_next_epoch(stream)
     return stream
 
@@ -177,6 +246,10 @@ def start_next_epoch(stream: dict) -> None:
         pack_stops = np.append(pack_starts[1:], reference_count)
         pack_order = random_generator.permutation(len(pack_starts))
         stream["order"] = np.concatenate([np.arange(pack_starts[pack], pack_stops[pack]) for pack in pack_order])
+        # where each pack begins in this epoch's order, for read_one_pack_as_sequence
+        sizes_in_order = (pack_stops - pack_starts)[pack_order]
+        stream["pack_start_cursors"] = np.concatenate([[0], np.cumsum(sizes_in_order)[:-1]])
+        stream["pack_cursor"] = 0
     stream["epochs_started"] += 1
     stream["reference_cursor"] = 0
     stream["token_cursor_in_document"] = 0
@@ -208,6 +281,17 @@ def read_tokens_from_stream(stream: dict, token_count: int, end_of_text_id: int)
     return output
 
 
+def read_one_pack_as_sequence(stream: dict, token_count: int, end_of_text_id: int) -> np.ndarray:
+    """One long training sequence: the first `token_count` tokens of the next pack. What the pack holds beyond
+    that is skipped, so that the next sequence starts at the next pack and never straddles two of them."""
+    if stream["pack_cursor"] >= len(stream["pack_start_cursors"]):
+        start_next_epoch(stream)
+    stream["reference_cursor"] = int(stream["pack_start_cursors"][stream["pack_cursor"]])
+    stream["token_cursor_in_document"] = 0
+    stream["pack_cursor"] += 1
+    return read_tokens_from_stream(stream, token_count, end_of_text_id)
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # steps: which stream every sequence slot of the run reads from
 # ---------------------------------------------------------------------------------------------------------------
@@ -223,7 +307,7 @@ def iterate_training_steps(recipe: dict, tokens_per_step: int) -> Iterator[dict]
     long_share = recipe["long_context"].get("token_share", 0.0)
     long_length = recipe["long_context"].get("sequence_length", 0)
     if long_share > 0:
-        streams["long_context"] = open_pack_stream(recipe["long_context"]["pack"], recipe["seed"])
+        streams["long_context"] = open_pack_stream(recipe["long_context"]["pack"], recipe["seed"], long_length)
 
     step_count = recipe["token_budget"] // tokens_per_step
     slots_per_step = tokens_per_step // context_length
@@ -243,7 +327,7 @@ def iterate_training_steps(recipe: dict, tokens_per_step: int) -> Iterator[dict]
             long_sequences_this_step = min(int(credit_of_long_sequences), slots_per_step // slots_per_long_sequence)
             credit_of_long_sequences -= long_sequences_this_step
             if long_sequences_this_step:
-                rows = [read_tokens_from_stream(streams["long_context"], long_length, end_of_text_id)
+                rows = [read_one_pack_as_sequence(streams["long_context"], long_length, end_of_text_id)
                         for _ in range(long_sequences_this_step)]
                 micro_batches.append(np.stack(rows))
                 tokens_by_stream["long_context"] = long_sequences_this_step * long_length

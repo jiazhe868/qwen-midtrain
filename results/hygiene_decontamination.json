@@ -1,0 +1,423 @@
+{
+  "settings": {
+    "methods": [
+      "ngram"
+    ],
+    "ngram_word_count": 13,
+    "min_word_count_for_whole_text_key": 8,
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "similarity_threshold": 0.9,
+    "window_token_count": 256
+  },
+  "evaluation_items_by_task": {
+    "arc_challenge": {
+      "items": 1177,
+      "ngram_keys": 15146,
+      "items_without_ngram_key": 52
+    },
+    "cmmlu": {
+      "items": 1005,
+      "ngram_keys": 26822,
+      "items_without_ngram_key": 10
+    },
+    "commonsenseqa": {
+      "items": 1226,
+      "ngram_keys": 3752,
+      "items_without_ngram_key": 120
+    },
+    "gsm8k": {
+      "items": 1327,
+      "ngram_keys": 162795,
+      "items_without_ngram_key": 0
+    },
+    "hellaswag": {
+      "items": 1005,
+      "ngram_keys": 91808,
+      "items_without_ngram_key": 0
+    },
+    "humaneval": {
+      "items": 164,
+      "ngram_keys": 23408,
+      "items_without_ngram_key": 0
+    },
+    "math500": {
+      "items": 505,
+      "ngram_keys": 106731,
+      "items_without_ngram_key": 0
+    },
+    "mbpp": {
+      "items": 264,
+      "ngram_keys": 10796,
+      "items_without_ngram_key": 0
+    },
+    "mmlu_pro": {
+      "items": 1205,
+      "ngram_keys": 56658,
+      "items_without_ngram_key": 21
+    },
+    "triviaqa": {
+      "items": 1008,
+      "ngram_keys": 3678,
+      "items_without_ngram_key": 82
+    }
+  },
+  "flagged": {
+    "ngram": {
+      "by_source": {
+        "code": {
+          "documents": 303,
+          "tokens": 1219716
+        },
+        "forum_qa": {
+          "documents": 215,
+          "tokens": 534747
+        },
+        "math_web": {
+          "documents": 3095,
+          "tokens": 16557818
+        },
+        "papers": {
+          "documents": 829,
+          "tokens": 26702159
+        },
+        "replay_web": {
+          "documents": 183,
+          "tokens": 582973
+        },
+        "replay_web_edu": {
+          "documents": 273,
+          "tokens": 873961
+        },
+        "textbooks": {
+          "documents": 248,
+          "tokens": 1816074
+        },
+        "wiki_en": {
+          "documents": 62,
+          "tokens": 233378
+        },
+        "wiki_zh": {
+          "documents": 822,
+          "tokens": 3488475
+        }
+      },
+      "by_task_and_source": {
+        "arc_challenge": {
+          "math_web": {
+            "documents": 13,
+            "tokens": 40674
+          },
+          "replay_web": {
+            "documents": 6,
+            "tokens": 4686
+          },
+          "replay_web_edu": {
+            "documents": 12,
+            "tokens": 21296
+          },
+          "textbooks": {
+            "documents": 12,
+            "tokens": 41541
+          },
+          "wiki_en": {
+            "documents": 7,
+            "tokens": 16785
+          }
+        },
+        "cmmlu": {
+          "code": {
+            "documents": 1,
+            "tokens": 1498
+          },
+          "math_web": {
+            "documents": 2,
+            "tokens": 34535
+          },
+          "papers": {
+            "documents": 1,
+            "tokens": 33399
+          },
+          "replay_web": {
+            "documents": 1,
+            "tokens": 2530
+          },
+          "wiki_zh": {
+            "documents": 709,
+            "tokens": 2994588
+          }
+        },
+        "commonsenseqa": {
+          "papers": {
+            "documents": 4,
+            "tokens": 59367
+          }
+        },
+        "gsm8k": {
+          "math_web": {
+            "documents": 4,
+            "tokens": 75943
+          }
+        },
+        "hellaswag": {
+          "forum_qa": {
+            "documents": 1,
+            "tokens": 475
+          },
+          "math_web": {
+            "documents": 2,
+            "tokens": 3973
+          }
+        },
+        "humaneval": {
+          "code": {
+            "documents": 210,
+            "tokens": 934366
+          },
+          "forum_qa": {
+            "documents": 194,
+            "tokens": 501395
+          },
+          "math_web": {
+            "documents": 2093,
+            "tokens": 11700955
+          },
+          "papers": {
+            "documents": 561,
+            "tokens": 16867477
+          },
+          "replay_web": {
+            "documents": 77,
+            "tokens": 336884
+          },
+          "replay_web_edu": {
+            "documents": 63,
+            "tokens": 143490
+          },
+          "textbooks": {
+            "documents": 96,
+            "tokens": 555951
+          },
+          "wiki_en": {
+            "documents": 12,
+            "tokens": 49285
+          },
+          "wiki_zh": {
+            "documents": 31,
+            "tokens": 153477
+          }
+        },
+        "math500": {
+          "code": {
+            "documents": 6,
+            "tokens": 25306
+          },
+          "forum_qa": {
+            "documents": 6,
+            "tokens": 9452
+          },
+          "math_web": {
+            "documents": 591,
+            "tokens": 3204093
+          },
+          "papers": {
+            "documents": 211,
+            "tokens": 8786413
+          },
+          "replay_web_edu": {
+            "documents": 3,
+            "tokens": 2743
+          },
+          "textbooks": {
+            "documents": 50,
+            "tokens": 278010
+          }
+        },
+        "mbpp": {
+          "code": {
+            "documents": 185,
+            "tokens": 799452
+          },
+          "forum_qa": {
+            "documents": 91,
+            "tokens": 207135
+          },
+          "math_web": {
+            "documents": 1749,
+            "tokens": 9116221
+          },
+          "papers": {
+            "documents": 349,
+            "tokens": 9899116
+          },
+          "replay_web": {
+            "documents": 145,
+            "tokens": 402316
+          },
+          "replay_web_edu": {
+            "documents": 198,
+            "tokens": 640453
+          },
+          "textbooks": {
+            "documents": 89,
+            "tokens": 525725
+          },
+          "wiki_en": {
+            "documents": 39,
+            "tokens": 160236
+          },
+          "wiki_zh": {
+            "documents": 40,
+            "tokens": 213441
+          }
+        },
+        "mmlu_pro": {
+          "code": {
+            "documents": 2,
+            "tokens": 5813
+          },
+          "math_web": {
+            "documents": 83,
+            "tokens": 757727
+          },
+          "papers": {
+            "documents": 4,
+            "tokens": 125861
+          },
+          "replay_web": {
+            "documents": 4,
+            "tokens": 5672
+          },
+          "replay_web_edu": {
+            "documents": 18,
+            "tokens": 34566
+          },
+          "textbooks": {
+            "documents": 51,
+            "tokens": 663964
+          },
+          "wiki_en": {
+            "documents": 1,
+            "tokens": 1046
+          }
+        },
+        "triviaqa": {
+          "code": {
+            "documents": 1,
+            "tokens": 1105
+          },
+          "forum_qa": {
+            "documents": 1,
+            "tokens": 733
+          },
+          "math_web": {
+            "documents": 4,
+            "tokens": 5347
+          },
+          "papers": {
+            "documents": 1,
+            "tokens": 17536
+          },
+          "replay_web": {
+            "documents": 23,
+            "tokens": 108497
+          },
+          "replay_web_edu": {
+            "documents": 28,
+            "tokens": 136797
+          },
+          "textbooks": {
+            "documents": 16,
+            "tokens": 117979
+          },
+          "wiki_en": {
+            "documents": 7,
+            "tokens": 22729
+          },
+          "wiki_zh": {
+            "documents": 60,
+            "tokens": 229343
+          }
+        }
+      }
+    },
+    "either": {
+      "by_source": {
+        "code": {
+          "documents": 303,
+          "tokens": 1219716
+        },
+        "forum_qa": {
+          "documents": 215,
+          "tokens": 534747
+        },
+        "math_web": {
+          "documents": 3095,
+          "tokens": 16557818
+        },
+        "papers": {
+          "documents": 829,
+          "tokens": 26702159
+        },
+        "replay_web": {
+          "documents": 183,
+          "tokens": 582973
+        },
+        "replay_web_edu": {
+          "documents": 273,
+          "tokens": 873961
+        },
+        "textbooks": {
+          "documents": 248,
+          "tokens": 1816074
+        },
+        "wiki_en": {
+          "documents": 62,
+          "tokens": 233378
+        },
+        "wiki_zh": {
+          "documents": 822,
+          "tokens": 3488475
+        }
+      }
+    }
+  },
+  "scanned_by_source": {
+    "code": {
+      "documents": 319596,
+      "tokens": 298867200
+    },
+    "forum_qa": {
+      "documents": 365381,
+      "tokens": 258847044
+    },
+    "math_web": {
+      "documents": 308181,
+      "tokens": 480211280
+    },
+    "papers": {
+      "documents": 59795,
+      "tokens": 978803261
+    },
+    "replay_web": {
+      "documents": 665813,
+      "tokens": 479280685
+    },
+    "replay_web_edu": {
+      "documents": 495539,
+      "tokens": 519317874
+    },
+    "textbooks": {
+      "documents": 94096,
+      "tokens": 226955391
+    },
+    "wiki_en": {
+      "documents": 221959,
+      "tokens": 253681974
+    },
+    "wiki_zh": {
+      "documents": 155877,
+      "tokens": 228747796
+    }
+  },
+  "flagged_file_name": "decontamination_flagged.parquet"
+}

@@ -39,7 +39,7 @@ import numpy as np
 import torch
 import torch.nn.functional as torch_functional
 
-from midtrain.data_sources import data_root, open_token_source
+from midtrain.data_sources import data_root, open_token_source, repository_root
 from midtrain.mixture import iterate_training_steps, iterate_validation_sequences, load_recipe
 
 loss_chunk_token_count = 1024           # 1,024 tokens of logits over 248,320 words are 1 GB in FP32
@@ -298,6 +298,10 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
                "tokens_by_stream": tokens_by_stream_total, "passes_over_each_stream": step["epochs_started"],
                "validation_before": validation_record["loss"], "validation_after": final_validation}
     (run_directory / "training_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+    # the committed copy: every number in the README has to come from a file under results/
+    committed_copy = repository_root / "results" / "training" / f"{arguments.run_name}.json"
+    committed_copy.parent.mkdir(parents=True, exist_ok=True)
+    committed_copy.write_text(json.dumps(summary, indent=1) + "\n")
     print(f"{arguments.run_name}: done in {summary['hours']} h; validation after: "
           + ", ".join(f"{name} {entry['nats_per_token']:.3f}" for name, entry in final_validation.items()), flush=True)
 

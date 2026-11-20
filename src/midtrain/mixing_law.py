@@ -1,0 +1,454 @@
+"""Design the mixture experiments, queue them, and turn their results into a mixing law.
+
+Why this file exists. The mixture has many knobs (how much replay, how much rewritten text, how much math and code,
+long sequences or not, when to spend the non-replay share, the learning rate), the shares sum to one, and the knobs
+interact. Sweeping one knob at a time needs many runs and cannot see an interaction. An orthogonal array varies all
+knobs at once: every level of every factor meets every level of every other factor equally often, so the effect of
+one factor is an average over all settings of the others. The L18 array used here holds one factor with two levels
+and up to seven with three in 18 runs; the full grid would need 2 x 3^6 = 1,458.
+
+What the file does, in the order the stages run:
+    design    a design file (configs/designs/*.yaml) -> 18 recipes with exact shares, and the table of runs
+    queue     one task per run for a model size: continued pretraining, then the regression suite, then the probe
+    analyze   level means per factor; a regression on the absolute token shares (the mixing law); the same law for
+              every measurement side by side (the interference matrix); the best mixture inside the tested ranges
+              under the constraint that the regression suite does not fall; rank agreement between two model sizes
+
+The factors are ratios (replay share of all tokens, rewritten share of the non-replay text, ...) because the
+questions are about ratios. The law is fitted on absolute shares, with replay as what remains, so a coefficient
+reads: the change of a measurement when this component takes one unit of share from replay (README §6.3).
+
+Commands (after `source scripts/env.sh`):
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law design configs/designs/screen18.yaml
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law queue configs/designs/screen18.yaml --model-size 0.8B \
+        --queue $MIDTRAIN_DATA/queue_local
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B --compare-with 2B
+"""
+from __future__ import annotations
+
+import argparse
+import itertools
+import json
+import os
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+from midtrain.data_sources import repository_root
+
+# The L18 orthogonal array (Taguchi), levels counted from 0: column 0 has two levels, columns 1 to 7 have three.
+# check_array_is_orthogonal() runs at import, so a typing mistake in this table cannot go unnoticed.
+l18_array = np.array([
+    [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 1, 1, 1, 1, 1], [0, 0, 2, 2, 2, 2, 2, 2],
+    [0, 1, 0, 0, 1, 1, 2, 2], [0, 1, 1, 1, 2, 2, 0, 0], [0, 1, 2, 2, 0, 0, 1, 1],
+    [0, 2, 0, 1, 0, 2, 1, 2], [0, 2, 1, 2, 1, 0, 2, 0], [0, 2, 2, 0, 2, 1, 0, 1],
+    [1, 0, 0, 2, 2, 1, 1, 0], [1, 0, 1, 0, 0, 2, 2, 1], [1, 0, 2, 1, 1, 0, 0, 2],
+    [1, 1, 0, 1, 2, 0, 2, 1], [1, 1, 1, 2, 0, 1, 0, 2], [1, 1, 2, 0, 1, 2, 1, 0],
+    [1, 2, 0, 2, 1, 2, 0, 1], [1, 2, 1, 0, 2, 0, 1, 2], [1, 2, 2, 1, 0, 1, 2, 0]])
+
+# the components of the law, in the order of its columns; replay is what remains and has no column
+law_component_names = ["synthetic", "curated", "math", "code", "long_random", "long_semantic"]
+# per model size: the base checkpoint folder under $MIDTRAIN_MODELS, where the 32-bit master weights live (they fit
+# on the GPU next to the 0.8B model only: 12 GB with the Adam moments), and how many GPUs one run takes
+settings_of_model_size = {
+    "0.8B": {"folder": "qwen35_0.8B_base", "master_weights_on": "gpu", "task_kind": "gpu"},
+    "2B": {"folder": "qwen35_2B_base", "master_weights_on": "cpu", "task_kind": "gpu"},
+    "4B": {"folder": "qwen35_4B_base", "master_weights_on": "cpu", "task_kind": "gpu"},
+    "9B": {"folder": "qwen35_9B_base", "master_weights_on": "cpu", "task_kind": "node"},
+}
+
+
+def check_array_is_orthogonal(array: np.ndarray) -> None:
+    """Every pair of columns must show every pair of levels equally often."""
+    for first_column, second_column in itertools.combinations(range(array.shape[1]), 2):
+        pairs, counts = np.unique(array[:, [first_column, second_column]], axis=0, return_counts=True)
+        level_pair_count = len(np.unique(array[:, first_column])) * len(np.unique(array[:, second_column]))
+        assert len(pairs) == level_pair_count and len(set(counts)) == 1, (
+            f"columns {first_column} and {second_column} of the array are not balanced: {dict(zip(map(tuple, pairs), counts))}")
+
+
+check_array_is_orthogonal(l18_array)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# design: from factor levels to the exact shares of every run
+# ---------------------------------------------------------------------------------------------------------------
+def load_design(design_path: str | Path) -> dict:
+    design = yaml.safe_load(Path(design_path).read_text())
+    design.setdefault("name", Path(design_path).stem)
+    used_columns = [factor["column"] for factor in design["factors"].values()]
+    assert len(set(used_columns)) == len(used_columns), f"{design['name']}: two factors share a column"
+    for factor_name, factor in design["factors"].items():
+        level_count_of_column = len(np.unique(l18_array[:, factor["column"] - 1]))
+        assert len(factor["levels"]) == level_count_of_column, (
+            f"{design['name']}: {factor_name} has {len(factor['levels'])} levels, column {factor['column']} has {level_count_of_column}")
+    for split_name in ("replay_split", "curated_split", "synthetic_split"):
+        assert abs(sum(design[split_name].values()) - 1.0) < 1e-9, f"{design['name']}: {split_name} does not sum to 1"
+    return design
+
+
+def shares_of_all_tokens(levels: dict, design: dict) -> dict[str, float]:
+    """The share of all training tokens that each component of the law gets, replay included (they sum to 1).
+
+    The factors nest: replay first; a fixed part of the rest goes to long sequences when the run has them; what is
+    left is split into rewritten and real text; the real text into hard and curated; the hard text into math and code.
+    """
+    replay = levels["replay_share"]
+    non_replay = 1.0 - replay
+    long = design["long_context"]["share_of_non_replay"] * non_replay if levels["long_context"] != "none" else 0.0
+    short_non_replay = non_replay - long
+    synthetic = levels["synthetic_share_of_non_replay"] * short_non_replay
+    real = short_non_replay - synthetic
+    hard = levels["hard_share_of_real"] * real
+    math = levels["math_share_of_hard"] * hard
+    shares = {"replay": replay, "synthetic": synthetic, "curated": real - hard, "math": math, "code": hard - math,
+              "long_random": long if levels["long_context"] == "random" else 0.0,
+              "long_semantic": long if levels["long_context"] == "semantic" else 0.0}
+    assert abs(sum(shares.values()) - 1.0) < 1e-9, f"shares sum to {sum(shares.values())}"
+    return shares
+
+
+def recipe_of_run(run_name: str, levels: dict, design: dict) -> dict:
+    """The recipe (midtrain.mixture) of one run. `components` are shares of the ordinary sequences, so they are the
+    shares of all tokens divided by what the long sequences leave."""
+    shares = shares_of_all_tokens(levels, design)
+    long_share = shares["long_random"] + shares["long_semantic"]
+    source_shares: dict[str, float] = {}
+    splits = {"replay": design["replay_split"], "curated": design["curated_split"], "synthetic": design["synthetic_split"],
+              "math": {"math_web": 1.0}, "code": {"code": 1.0}}
+    for component_name, split in splits.items():
+        for source_name, part in split.items():
+            share_of_short_tokens = shares[component_name] * part / (1.0 - long_share)
+            if share_of_short_tokens > 0:
+                source_shares[source_name] = round(share_of_short_tokens, 6)
+    # rounding to six decimals leaves a few millionths over: the largest replay source takes them
+    largest_replay_source = max(design["replay_split"], key=design["replay_split"].get)
+    source_shares[largest_replay_source] = round(source_shares[largest_replay_source] + 1.0 - sum(source_shares.values()), 6)
+    recipe = {"name": run_name, "token_budget": design["token_budget"], "context_length": design["context_length"],
+              "components": source_shares, "schedule": levels["schedule"], "seed": design["seed"]}
+    if long_share > 0:
+        recipe["long_context"] = {"token_share": round(long_share, 6), "sequence_length": design["long_context"]["sequence_length"],
+                                  "pack": design["long_context"]["packs"][levels["long_context"]]}
+    return recipe
+
+
+def run_table_of_design(design: dict) -> list[dict]:
+    """One entry per run: its name, the level of every factor, the shares of all tokens, the recipe."""
+    runs = []
+    for run_index, array_row in enumerate(l18_array):
+        levels = {factor_name: factor["levels"][array_row[factor["column"] - 1]] for factor_name, factor in design["factors"].items()}
+        level_indices = {factor_name: int(array_row[factor["column"] - 1]) for factor_name, factor in design["factors"].items()}
+        run_name = f"{design['name']}_r{run_index + 1:02d}"
+        runs.append({"run": run_name, "levels": levels, "level_indices": level_indices,
+                     "empty_column_levels": {f"empty_column_{column + 1}": int(array_row[column]) for column in range(8)
+                                             if column + 1 not in [factor["column"] for factor in design["factors"].values()]},
+                     "shares": {name: round(share, 6) for name, share in shares_of_all_tokens(levels, design).items()},
+                     "recipe": recipe_of_run(run_name, levels, design)})
+    return runs
+
+
+def write_design_files(design: dict) -> list[dict]:
+    """Write one recipe per run under configs/recipes/<design>/ and the table of runs under results/designs/."""
+    runs = run_table_of_design(design)
+    recipe_directory = repository_root / "configs" / "recipes" / design["name"]
+    recipe_directory.mkdir(parents=True, exist_ok=True)
+    for run in runs:
+        header = (f"# Written by `python -m midtrain.mixing_law design`; do not edit by hand.\n"
+                  f"# Factor levels: {json.dumps(run['levels'])}\n# Shares of all tokens: {json.dumps(run['shares'])}\n")
+        (recipe_directory / f"{run['run']}.yaml").write_text(header + yaml.safe_dump(run["recipe"], sort_keys=False))
+    table_path = repository_root / "results" / "designs" / f"{design['name']}.json"
+    table_path.parent.mkdir(parents=True, exist_ok=True)
+    table_path.write_text(json.dumps({"design": design["name"], "factors": design["factors"],
+                                      "runs": [{key: run[key] for key in ("run", "levels", "shares")} for run in runs]}, indent=1) + "\n")
+    print(f"{design['name']}: {len(runs)} recipes in {recipe_directory.relative_to(repository_root)}, table in {table_path.relative_to(repository_root)}")
+    print(f"{'run':>14s} " + " ".join(f"{name[:11]:>11s}" for name in ["lr", "replay", *law_component_names, "schedule"]))
+    for run in runs:
+        print(f"{run['run']:>14s} {run['levels']['peak_learning_rate']:>11.0e} {run['shares']['replay']:>11.3f} "
+              + " ".join(f"{run['shares'][name]:>11.3f}" for name in law_component_names) + f" {run['levels']['schedule']:>11s}")
+    return runs
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# queue: one restartable task per run
+# ---------------------------------------------------------------------------------------------------------------
+def write_queue_tasks(design: dict, model_size: str, queue_directory: str, code_root: str, task_prefix: str,
+                      stages: list[str]) -> None:
+    """One shell script per run in <queue>/pending. A stage whose result file exists is skipped, so a task that
+    failed in its last stage can be queued again without repeating the first ones."""
+    size_settings = settings_of_model_size[model_size]
+    pending_directory = Path(queue_directory) / "pending"
+    pending_directory.mkdir(parents=True, exist_ok=True)
+    for run in run_table_of_design(design):
+        run_name = f"{run['run']}_{model_size}"
+        checkpoint = f"$MIDTRAIN_DATA/runs/{run_name}/checkpoint_final"
+        stage_commands = {
+            "train": (f"[ -f {checkpoint}/config.json ] || $MIDTRAIN_PYTHON -m midtrain.train_continue "
+                      f"--base-model $MIDTRAIN_MODELS/{size_settings['folder']} --recipe configs/recipes/{design['name']}/{run['run']}.yaml "
+                      f"--run-name {run_name} --peak-learning-rate {run['levels']['peak_learning_rate']} "
+                      f"--master-weights-on {size_settings['master_weights_on']}"),
+            "regression": (f"[ -f results/regression/{run_name}.json ] || $MIDTRAIN_PYTHON -m midtrain.base_regression run "
+                           f"--checkpoint {checkpoint} --run-name {run_name}"),
+            "probe": (f"[ -f results/probe/{run_name}.json ] || $MIDTRAIN_PYTHON -m midtrain.sft_probe run "
+                      f"--checkpoint {checkpoint} --run-name {run_name} --master-weights-on {size_settings['master_weights_on']}"),
+        }
+        lines = ["#!/bin/bash", f"# {design['name']} run {run['run']} on the {model_size} model: " + ", then ".join(stages),
+                 f"# factor levels: {json.dumps(run['levels'])}", "set -e", f"cd {code_root} && source scripts/env.sh"]
+        lines += [stage_commands[stage] for stage in stages]
+        task_path = pending_directory / f"{size_settings['task_kind']}__{task_prefix}{run_name}.sh"
+        task_path.write_text("\n".join(lines) + "\n")
+        task_path.chmod(0o755)
+    print(f"{len(l18_array)} tasks for the {model_size} model in {pending_directory}")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# analyze: collect the measurements of every run
+# ---------------------------------------------------------------------------------------------------------------
+def read_json_if_present(file_path: Path) -> dict | None:
+    return json.loads(file_path.read_text()) if file_path.exists() else None
+
+
+def measurements_of_run(run_name: str) -> dict[str, float]:
+    """Every number a finished run left under results/, under one flat name each:
+    loss/<source> (bits per byte after training), probe/<task>/pass@k, regression/<score name>."""
+    measurements: dict[str, float] = {}
+    training = read_json_if_present(repository_root / "results" / "training" / f"{run_name}.json")
+    if training:
+        for source_name, entry in training["validation_after"].items():
+            measurements[f"loss/{source_name}"] = entry["bits_per_byte"]
+    probe = read_json_if_present(repository_root / "results" / "probe" / f"{run_name}.json")
+    if probe:
+        for k in (1, 16, 64):
+            values = [task[f"pass@{k}"]["value"] for task in probe["tasks"].values() if f"pass@{k}" in task]
+            for task_name, task in probe["tasks"].items():
+                if f"pass@{k}" in task:
+                    measurements[f"probe/{task_name}/pass@{k}"] = task[f"pass@{k}"]["value"]
+            if values:
+                measurements[f"probe/mean/pass@{k}"] = float(np.mean(values))
+    regression = read_json_if_present(repository_root / "results" / "regression" / f"{run_name}.json")
+    if regression:
+        for score_name, value in regression["scores"].items():
+            measurements[f"regression/{score_name}"] = value
+    return measurements
+
+
+def collect_measurements(design: dict, model_size: str) -> tuple[list[dict], dict[str, np.ndarray]]:
+    """The runs of the design that have results, and for every measurement all of them share an array over those runs."""
+    runs = run_table_of_design(design)
+    per_run = [measurements_of_run(f"{run['run']}_{model_size}") for run in runs]
+    finished = [index for index, measurements in enumerate(per_run) if measurements]
+    shared_names = sorted(set.intersection(*(set(per_run[index]) for index in finished))) if finished else []
+    return ([runs[index] for index in finished],
+            {name: np.array([per_run[index][name] for index in finished]) for name in shared_names})
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# analyze: level means, the law, the interference matrix, the best mixture, agreement between sizes
+# ---------------------------------------------------------------------------------------------------------------
+def level_means_of_factors(runs: list[dict], values: np.ndarray) -> dict:
+    """For every factor (and every empty column) the mean measurement at each level, and the range of those means.
+    The range of an empty column is what a factor without any effect would show: the yardstick for the others."""
+    result = {}
+    columns = {**{name: [run["level_indices"][name] for run in runs] for name in runs[0]["level_indices"]},
+               **{name: [run["empty_column_levels"][name] for run in runs] for name in runs[0]["empty_column_levels"]}}
+    for factor_name, level_of_run in columns.items():
+        level_of_run = np.array(level_of_run)
+        means = [float(values[level_of_run == level].mean()) for level in sorted(set(level_of_run.tolist()))]
+        result[factor_name] = {"level_means": [round(mean, 4) for mean in means], "range": round(max(means) - min(means), 4)}
+    return result
+
+
+def regressors_of_runs(runs: list[dict]) -> tuple[np.ndarray, list[str]]:
+    """The design matrix of the law: intercept, one column per component share, two schedule indicators and one
+    for the higher learning rate. The intercept is the prediction for replay only, uniform schedule, lower rate."""
+    learning_rates = sorted({run["levels"]["peak_learning_rate"] for run in runs})
+    names = ["intercept", *law_component_names, "schedule_late", "schedule_early", "higher_learning_rate"]
+    rows = [[1.0, *[run["shares"][name] for name in law_component_names],
+             float(run["levels"]["schedule"] == "late"), float(run["levels"]["schedule"] == "early"),
+             float(run["levels"]["peak_learning_rate"] == learning_rates[-1] and len(learning_rates) > 1)] for run in runs]
+    return np.array(rows), names
+
+
+def fit_mixing_law(runs: list[dict], values: np.ndarray) -> dict:
+    """Least squares of one measurement on the regressors. Returns the coefficients with their standard errors, the
+    residual standard deviation (the noise of one run) and its degrees of freedom."""
+    design_matrix, names = regressors_of_runs(runs)
+    degrees_of_freedom = len(values) - design_matrix.shape[1]
+    assert degrees_of_freedom > 0, f"{len(values)} runs cannot fit {design_matrix.shape[1]} coefficients"
+    coefficients, _, rank, _ = np.linalg.lstsq(design_matrix, values, rcond=None)
+    assert rank == design_matrix.shape[1], "the regressors are linearly dependent: a component never varies in these runs"
+    residuals = values - design_matrix @ coefficients
+    residual_variance = float(residuals @ residuals) / degrees_of_freedom
+    standard_errors = np.sqrt(np.diag(residual_variance * np.linalg.inv(design_matrix.T @ design_matrix)))
+    return {"coefficients": {name: float(value) for name, value in zip(names, coefficients)},
+            "standard_errors": {name: float(value) for name, value in zip(names, standard_errors)},
+            "residual_standard_deviation": residual_variance ** 0.5, "degrees_of_freedom": degrees_of_freedom,
+            "condition_number": float(np.linalg.cond(design_matrix))}
+
+
+def interference_matrix(runs: list[dict], measurements: dict[str, np.ndarray], share_step: float = 0.10) -> dict:
+    """For every measurement, its change when a component takes `share_step` of all tokens from replay, with the
+    ratio of that change to its standard error. Rows are measurements, columns are components."""
+    matrix = {}
+    for measurement_name, values in measurements.items():
+        law = fit_mixing_law(runs, values)
+        matrix[measurement_name] = {
+            component: {"change": round(share_step * law["coefficients"][component], 4),
+                        "change_over_standard_error": round(law["coefficients"][component] / max(1e-12, law["standard_errors"][component]), 2)}
+            for component in law_component_names}
+    return matrix
+
+
+def predict_from_law(law: dict, shares: dict, schedule: str, is_higher_learning_rate: bool) -> float:
+    coefficients = law["coefficients"]
+    return (coefficients["intercept"] + sum(coefficients[name] * shares[name] for name in law_component_names)
+            + coefficients["schedule_late"] * (schedule == "late") + coefficients["schedule_early"] * (schedule == "early")
+            + coefficients["higher_learning_rate"] * is_higher_learning_rate)
+
+
+def best_mixture_under_constraint(design: dict, target_law: dict, guard_law: dict | None, guard_tolerance: float,
+                                  steps_per_factor: int = 5) -> dict:
+    """Search the tested ranges of the factors on a grid for the mixture with the highest predicted target whose
+    predicted guard measurement is at most `guard_tolerance` below the replay-only prediction.
+
+    The search never leaves the ranges of the design: the law is a fit, not a theory, and outside the runs that
+    produced it nothing supports it. With a linear law the best point lies on the edge of the ranges; the caller
+    should read that as "the range was too small on this side" and extend the design there (README §6.4)."""
+    factors = design["factors"]
+    grids = {}
+    for factor_name, factor in factors.items():
+        levels = factor["levels"]
+        is_numeric = all(isinstance(level, (int, float)) for level in levels)
+        grids[factor_name] = (list(np.linspace(min(levels), max(levels), steps_per_factor))
+                              if is_numeric and factor_name != "peak_learning_rate" else levels)
+    learning_rates = sorted(factors["peak_learning_rate"]["levels"])
+    replay_only_guard = guard_law["coefficients"]["intercept"] if guard_law else None
+    candidates = []
+    for combination in itertools.product(*grids.values()):
+        levels = dict(zip(grids, combination))
+        shares = shares_of_all_tokens(levels, design)
+        is_higher = levels["peak_learning_rate"] == learning_rates[-1] and len(learning_rates) > 1
+        predicted_target = predict_from_law(target_law, shares, levels["schedule"], is_higher)
+        predicted_guard = predict_from_law(guard_law, shares, levels["schedule"], is_higher) if guard_law else None
+        if guard_law and predicted_guard < replay_only_guard - guard_tolerance:
+            continue
+        candidates.append({"levels": {name: (float(f"{value:.4g}") if isinstance(value, (int, float)) else value)
+                                      for name, value in levels.items()},
+                           "shares": {name: round(float(share), 4) for name, share in shares.items()},
+                           "predicted_target": round(float(predicted_target), 4),
+                           "predicted_guard": None if predicted_guard is None else round(float(predicted_guard), 4)})
+    assert candidates, "no mixture inside the tested ranges keeps the guard measurement: loosen the tolerance or look at the guard's law"
+    candidates.sort(key=lambda candidate: -candidate["predicted_target"])
+    best = candidates[0]
+    on_edge = [name for name, value in best["levels"].items()
+               if isinstance(value, float) and name != "peak_learning_rate"
+               and (abs(value - min(factors[name]["levels"])) < 1e-9 or abs(value - max(factors[name]["levels"])) < 1e-9)]
+    return {"best": best, "next_best": candidates[1:5], "factors_at_the_edge_of_their_range": on_edge,
+            "candidates_within_the_guard": len(candidates)}
+
+
+def spearman_with_interval(first_values: np.ndarray, second_values: np.ndarray, resample_count: int = 2000) -> dict:
+    """Rank correlation of two orderings of the same runs, with a 95% interval from resampling the runs."""
+    from scipy.stats import spearmanr
+
+    random_generator = np.random.default_rng(0)
+    resampled = []
+    for _ in range(resample_count):
+        picked = random_generator.integers(0, len(first_values), len(first_values))
+        if len(set(first_values[picked])) > 1 and len(set(second_values[picked])) > 1:
+            resampled.append(spearmanr(first_values[picked], second_values[picked])[0])
+    low, high = np.percentile(resampled, [2.5, 97.5])
+    return {"spearman": round(float(spearmanr(first_values, second_values)[0]), 3), "low": round(float(low), 3), "high": round(float(high), 3)}
+
+
+def analyze_design(design: dict, model_size: str, target_name: str, guard_name: str, guard_tolerance: float,
+                   compare_with: str | None) -> dict:
+    runs, measurements = collect_measurements(design, model_size)
+    assert len(runs) >= 12, f"only {len(runs)} of {len(l18_array)} runs of {design['name']} have results for the {model_size} model"
+    analysis = {"design": design["name"], "model_size": model_size, "runs_with_results": len(runs),
+                "level_means": {name: level_means_of_factors(runs, values) for name, values in measurements.items()},
+                "laws": {name: fit_mixing_law(runs, values) for name, values in measurements.items()},
+                "interference_matrix": interference_matrix(runs, measurements)}
+    if target_name in measurements:
+        guard_law = analysis["laws"].get(guard_name)
+        analysis["best_mixture"] = {"target": target_name, "guard": guard_name if guard_law else None, "guard_tolerance": guard_tolerance,
+                                    **best_mixture_under_constraint(design, analysis["laws"][target_name], guard_law, guard_tolerance)}
+    if compare_with:
+        other_runs, other_measurements = collect_measurements(design, compare_with)
+        shared_run_names = [run["run"] for run in runs if run["run"] in {other["run"] for other in other_runs}]
+        position, other_position = ({run["run"]: index for index, run in enumerate(runs)},
+                                    {run["run"]: index for index, run in enumerate(other_runs)})
+        agreement = {}
+        for name in sorted(set(measurements) & set(other_measurements)):
+            first = measurements[name][[position[run_name] for run_name in shared_run_names]]
+            second = other_measurements[name][[other_position[run_name] for run_name in shared_run_names]]
+            agreement[name] = spearman_with_interval(first, second)
+            other_law = fit_mixing_law(other_runs, other_measurements[name])
+            agreement[name]["components_with_the_same_sign"] = [
+                component for component in law_component_names
+                if analysis["laws"][name]["coefficients"][component] * other_law["coefficients"][component] > 0]
+        analysis["rank_agreement"] = {"with_model_size": compare_with, "shared_runs": len(shared_run_names), "measurements": agreement}
+    output_path = repository_root / "results" / "designs" / f"{design['name']}_{model_size}_analysis.json"
+    output_path.write_text(json.dumps(analysis, indent=1) + "\n")
+    return analysis
+
+
+def print_analysis(analysis: dict, shown_measurements: list[str]) -> None:
+    for name in shown_measurements:
+        if name not in analysis["laws"]:
+            continue
+        law = analysis["laws"][name]
+        print(f"\n{name}: noise of one run {law['residual_standard_deviation']:.3f} ({law['degrees_of_freedom']} degrees of freedom)")
+        for factor_name, entry in analysis["level_means"][name].items():
+            print(f"  {factor_name:32s} level means {entry['level_means']}  range {entry['range']}")
+        print("  per +10% of all tokens taken from replay: " + ", ".join(
+            f"{component} {values['change']:+.3f} ({values['change_over_standard_error']:+.1f} se)"
+            for component, values in analysis["interference_matrix"][name].items()))
+    if "best_mixture" in analysis:
+        best = analysis["best_mixture"]
+        print(f"\nbest mixture for {best['target']} with {best['guard']} within {best['guard_tolerance']}: "
+              f"{json.dumps(best['best'])}\n  at the edge of the tested range: {best['factors_at_the_edge_of_their_range']}")
+    if "rank_agreement" in analysis:
+        print(f"\nrank agreement with the {analysis['rank_agreement']['with_model_size']} model over {analysis['rank_agreement']['shared_runs']} runs:")
+        for name in shown_measurements:
+            if name in analysis["rank_agreement"]["measurements"]:
+                print(f"  {name:32s} {json.dumps(analysis['rank_agreement']['measurements'][name])}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    commands = parser.add_subparsers(dest="command", required=True)
+    design_parser = commands.add_parser("design")
+    design_parser.add_argument("design")
+    queue_parser = commands.add_parser("queue")
+    queue_parser.add_argument("design")
+    queue_parser.add_argument("--model-size", required=True, choices=list(settings_of_model_size))
+    queue_parser.add_argument("--queue", required=True, help="the queue folder (scripts/cluster/node_worker.sh)")
+    queue_parser.add_argument("--code-root", default=str(repository_root), help="where the repository lives on the machines that run the queue")
+    queue_parser.add_argument("--task-prefix", default="", help="text put before the run name: tasks are claimed in the order of their names")
+    queue_parser.add_argument("--stages", nargs="+", default=["train", "regression", "probe"], choices=["train", "regression", "probe"])
+    analyze_parser = commands.add_parser("analyze")
+    analyze_parser.add_argument("design")
+    analyze_parser.add_argument("--model-size", required=True)
+    analyze_parser.add_argument("--target", default="probe/mean/pass@16")
+    analyze_parser.add_argument("--guard", default="regression/knowledge_mean")
+    analyze_parser.add_argument("--guard-tolerance", type=float, default=0.5,
+                                help="how far below the replay-only prediction the guard may fall, in its own unit")
+    analyze_parser.add_argument("--compare-with", default=None, help="a second model size, for rank agreement")
+    analyze_parser.add_argument("--show", nargs="+", default=["probe/mean/pass@1", "probe/mean/pass@16", "probe/mean/pass@64",
+                                                             "regression/knowledge_mean", "loss/math_web", "loss/code", "loss/replay_web"])
+    arguments = parser.parse_args()
+    design = load_design(arguments.design)
+    if arguments.command == "design":
+        write_design_files(design)
+    elif arguments.command == "queue":
+        write_queue_tasks(design, arguments.model_size, arguments.queue, arguments.code_root, arguments.task_prefix, arguments.stages)
+    else:
+        analysis = analyze_design(design, arguments.model_size, arguments.target, arguments.guard, arguments.guard_tolerance,
+                                  arguments.compare_with)
+        print_analysis(analysis, arguments.show)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,42 @@
+# The screening design of README §6.2: 18 runs of the L18 orthogonal array over seven factors.
+#
+# The factors are ratios, because the questions are about ratios (how much replay, how much of the rest rewritten,
+# how much of the real text hard). mixing_law.py turns the levels of a run into exact token shares and a recipe.
+# Column 8 of the array is left empty on purpose: the "effect" of an empty column shows how large an effect of
+# nothing is, which is the yardstick for the seven real ones.
+
+name: screen18
+token_budget: 40009728            # 1,221 steps of 32,768 tokens; the pilot's 20M moved the math loss by 2.8% at a 30% share
+context_length: 4096
+seed: 1
+
+replay_split: {replay_web: 0.85, wiki_zh: 0.15}          # the pilot's replay: web text plus the model's second main language
+curated_split: {wiki_en: 0.25, textbooks: 0.30, papers: 0.20, forum_qa: 0.25}
+synthetic_split: {synthetic_rephrase: 0.5, synthetic_qa: 0.5}
+long_context:
+  share_of_non_replay: 0.4        # with long sequences on, 40% of the non-replay tokens: 6% to 18% of all tokens
+  sequence_length: 16384
+  packs: {random: random_16k, semantic: semantic_16k}    # the same documents, grouped at random or by topic
+
+factors:                          # column of the array (1 to 8) and the level for each of its level numbers
+  peak_learning_rate:             # column 1 has two levels; its interaction with column 2 is free of every other column
+    column: 1
+    levels: [3.0e-6, 1.0e-5]      # 3e-5 made the 0.8B model worse on every source in the pilot (README §1.2)
+  replay_share:
+    column: 2
+    levels: [0.55, 0.70, 0.85]
+  synthetic_share_of_non_replay:
+    column: 3
+    levels: [0.0, 0.25, 0.5]
+  hard_share_of_real:
+    column: 4
+    levels: [0.25, 0.5, 0.75]
+  math_share_of_hard:
+    column: 5
+    levels: [0.25, 0.5, 0.75]
+  long_context:
+    column: 6
+    levels: [none, random, semantic]
+  schedule:
+    column: 7
+    levels: [uniform, late, early]

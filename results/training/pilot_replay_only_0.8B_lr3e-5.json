@@ -1,0 +1,89 @@
+{
+ "run_name": "pilot_replay_only_0.8B_lr3e-5",
+ "tokens_seen": 19988480,
+ "hours": 0.72,
+ "tokens_by_stream": {
+  "replay_web": 16990208,
+  "wiki_zh": 2998272
+ },
+ "passes_over_each_stream": {
+  "replay_web": 1,
+  "wiki_zh": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 1.9867,
+   "bits_per_byte": 0.7575
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9435,
+   "bits_per_byte": 1.0281
+  },
+  "math_web": {
+   "nats_per_token": 1.9822,
+   "bits_per_byte": 0.8542
+  },
+  "papers": {
+   "nats_per_token": 1.4875,
+   "bits_per_byte": 0.6871
+  },
+  "replay_web": {
+   "nats_per_token": 2.8895,
+   "bits_per_byte": 0.9298
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.5856,
+   "bits_per_byte": 0.8079
+  },
+  "textbooks": {
+   "nats_per_token": 1.4887,
+   "bits_per_byte": 0.5002
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5172,
+   "bits_per_byte": 0.8834
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0253,
+   "bits_per_byte": 1.1799
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 2.1514,
+   "bits_per_byte": 0.8203
+  },
+  "forum_qa": {
+   "nats_per_token": 3.0637,
+   "bits_per_byte": 1.0701
+  },
+  "math_web": {
+   "nats_per_token": 2.1207,
+   "bits_per_byte": 0.914
+  },
+  "papers": {
+   "nats_per_token": 1.6542,
+   "bits_per_byte": 0.7641
+  },
+  "replay_web": {
+   "nats_per_token": 2.9018,
+   "bits_per_byte": 0.9338
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.6341,
+   "bits_per_byte": 0.823
+  },
+  "textbooks": {
+   "nats_per_token": 1.5563,
+   "bits_per_byte": 0.5229
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5977,
+   "bits_per_byte": 0.9117
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0694,
+   "bits_per_byte": 1.1971
+  }
+ }
+}

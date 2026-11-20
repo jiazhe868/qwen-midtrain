@@ -387,12 +387,19 @@ def grade_samples_of_items(items: list[dict], completions_per_item: list[list[st
 
 
 def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_style: str = "chat",
-                       item_count_limit: int | None = None) -> dict:
-    """Serve the checkpoint, sample every test item `sample_count` times, grade, and return pass@k per task."""
-    configuration = load_probe_configuration()["evaluation"]
+                       item_count_limit: int | None = None, evaluation_settings: dict | None = None) -> dict:
+    """Serve the checkpoint, sample every test item `sample_count` times, grade, and return pass@k per task.
+
+    `evaluation_settings` replaces the `evaluation` block of configs/probe.yaml; the regression suite uses it to
+    ask a base checkpoint few-shot questions with its own tasks and sample counts (base_regression.py). A task may
+    set its own `sample_count` and `temperature`."""
+    configuration = evaluation_settings or load_probe_configuration()["evaluation"]
     if item_count_limit:        # the quick end-to-end test: few items, 8 samples each
         configuration["sample_count"] = 8
         configuration["pass_at_k"] = [k for k in configuration["pass_at_k"] if k <= 8]
+        for task_settings in configuration["tasks"].values():
+            if "sample_count" in task_settings:      # a greedy task keeps its single sample: the server refuses more
+                task_settings["sample_count"] = min(8, task_settings["sample_count"])
     run_directory = data_root() / "runs" / run_name
     run_directory.mkdir(parents=True, exist_ok=True)
     server_process = start_inference_server(checkpoint_path, port, run_directory / f"server_{prompt_style}.log")
@@ -408,22 +415,31 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
                 prompts = [eval_tasks.render_base_prompt(item, few_shot_items) for item in items]
                 stop_sequences = eval_tasks.base_completion_stop_sequences(items[0])[:4]      # the server takes 4 at most
             started = time.time()
-            with concurrent.futures.ThreadPoolExecutor(16) as request_pool:
+            sample_count = task_settings.get("sample_count", configuration["sample_count"])
+            temperature = task_settings.get("temperature", configuration["temperature"])
+            # as many requests in flight as fill the server's 1,024 sequence slots
+            with concurrent.futures.ThreadPoolExecutor(max(16, 1024 // sample_count)) as request_pool:
                 completions_per_item = list(request_pool.map(
-                    lambda prompt: sample_completions(port, prompt, configuration["sample_count"],
-                                                      task_settings["maximum_new_tokens"], configuration["temperature"],
-                                                      configuration["top_p"], stop_sequences), prompts))
+                    lambda prompt: sample_completions(port, prompt, sample_count, task_settings["maximum_new_tokens"],
+                                                      temperature, configuration["top_p"], stop_sequences), prompts))
             sampling_minutes = (time.time() - started) / 60
             correct_counts = grade_samples_of_items(items, completions_per_item, prompt_style)
-            task_result = {f"pass@{k}": pass_at_k_with_interval(correct_counts, configuration["sample_count"], k)
-                           for k in configuration["pass_at_k"]}
+            # the raw samples stay next to the run (never under results/: they quote benchmark questions), so that
+            # a surprising score can be read sample by sample afterwards
+            with (run_directory / f"samples_{prompt_style}_{task_name}.jsonl").open("w") as samples_file:
+                for item, completions, correct_count in zip(items, completions_per_item, correct_counts):
+                    samples_file.write(json.dumps({"item_id": item["item_id"], "correct_count": correct_count,
+                                                   "completions": completions}, ensure_ascii=False) + "\n")
+            task_result = {f"pass@{k}": pass_at_k_with_interval(correct_counts, sample_count, k)
+                           for k in configuration["pass_at_k"] if k <= sample_count}
+            task_result["sample_count"] = sample_count
             task_result["item_ids"] = [item["item_id"] for item in items]
             task_result["correct_counts"] = correct_counts
             task_result["mean_completion_characters"] = round(float(np.mean([len(c) for cs in completions_per_item for c in cs])))
             task_result["minutes"] = round(sampling_minutes + 0.0, 1)
             results["tasks"][task_name] = task_result
             shown = "  ".join(f"pass@{k} {task_result[f'pass@{k}']['value']:.1f}" for k in configuration["pass_at_k"]
-                              if k in (1, 8, 16, 64))
+                              if k in (1, 8, 16, 64) and k <= sample_count)
             print(f"{run_name} [{prompt_style}] {task_name}: {shown}  ({sampling_minutes:.1f} min sampling)", flush=True)
     finally:
         stop_inference_server(server_process)
