@@ -1,0 +1,10 @@
+# Curation comparison (README §8, prediction P6): the same crawl after the FineWeb-Edu quality classifier (score >= 3), the usual filter.
+# The three arms differ only in which web documents fill the 85% web share; wiki_zh stays as in every replay recipe.
+token_budget: 40009728            # 1,221 steps of 32,768 tokens, as in the screening design
+context_length: 4096
+components:
+  replay_web_edu: 0.85
+  wiki_zh: 0.15
+subsets: {}
+schedule: uniform
+seed: 1

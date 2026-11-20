@@ -1,0 +1,10 @@
+# Curation comparison (README §8, prediction P6): the 200,000 web documents of the comparison as they are (after filter and dedup, which removed 79); also the 0.8B replay-only control.
+# The three arms differ only in which web documents fill the 85% web share; wiki_zh stays as in every replay recipe.
+token_budget: 40009728            # 1,221 steps of 32,768 tokens, as in the screening design
+context_length: 4096
+components:
+  replay_web: 0.85
+  wiki_zh: 0.15
+subsets: {replay_web: candidates_200k}
+schedule: uniform
+seed: 1
