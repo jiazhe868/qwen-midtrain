@@ -1,0 +1,12 @@
+# Pilot: half replay, half real long-form text (encyclopedia, textbooks, papers, question threads).
+token_budget: 20004864
+context_length: 4096
+components:
+  replay_web: 0.425
+  wiki_zh: 0.075
+  wiki_en: 0.15
+  textbooks: 0.15
+  papers: 0.10
+  forum_qa: 0.10
+schedule: uniform
+seed: 1

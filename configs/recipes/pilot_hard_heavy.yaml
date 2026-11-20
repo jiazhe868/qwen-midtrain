@@ -1,0 +1,11 @@
+# Pilot: half replay, half math and code. An extreme mix on purpose: if this does not move the probe's math and
+# code scores beyond their noise at 20M tokens, no subtler mix will, and the budget or learning rate must grow.
+token_budget: 20004864
+context_length: 4096
+components:
+  replay_web: 0.425
+  wiki_zh: 0.075
+  math_web: 0.30
+  code: 0.20
+schedule: uniform
+seed: 1

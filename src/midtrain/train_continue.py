@@ -303,11 +303,36 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
 
 
 def save_checkpoint(model, base_model_path: str, checkpoint_directory: Path) -> None:
-    """The BF16 weights in the hub layout, with the base model's tokenizer files, so that any server can load it."""
+    """Write the trained weights in the base checkpoint's own layout, so that any server can load the result.
+
+    The base checkpoint is a vision-language model: its file also holds the vision tower and the multi-token
+    prediction head, and its config describes all three. We train the language model only. A folder with just the
+    language model and a text-only config loads in transformers, but the inference server refuses it ("Invalid type
+    of HuggingFace config", 11-20). So the trained language-model weights go out under their original names, the
+    other weights are copied from the base unchanged, and the base's config and tokenizer files come along.
+    """
+    from safetensors import safe_open
+    from safetensors.torch import save_file
+
     checkpoint_directory.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(checkpoint_directory, safe_serialization=True)
-    for file_name in ("tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt",
-                      "preprocessor_config.json", "video_preprocessor_config.json", "chat_template.jinja"):
+    # In memory the language model's weights are named `model.<rest>`; in the base file they are
+    # `model.language_model.<rest>`. The output layer is tied to the embedding and has no entry in the file.
+    tensors = {"model.language_model." + name[len("model."):]: tensor.detach().to("cpu")
+               for name, tensor in model.state_dict().items() if name != "lm_head.weight"}
+    trained_names = set(tensors)
+    base_names = set()
+    for base_weight_file in sorted(Path(base_model_path).glob("*.safetensors")):
+        with safe_open(base_weight_file, "pt") as base_weights:
+            for name in base_weights.keys():
+                base_names.add(name)
+                if name not in trained_names:
+                    tensors[name] = base_weights.get_tensor(name)
+    assert trained_names <= base_names, (
+        f"{len(trained_names - base_names)} trained weights have no counterpart in the base checkpoint, e.g. "
+        f"{sorted(trained_names - base_names)[:2]}: the saved file would not load")
+    save_file(tensors, str(checkpoint_directory / "model.safetensors"), metadata={"format": "pt"})
+    for file_name in ("config.json", "generation_config.json", "tokenizer.json", "tokenizer_config.json", "vocab.json",
+                      "merges.txt", "preprocessor_config.json", "video_preprocessor_config.json", "chat_template.jinja"):
         source_file = Path(base_model_path) / file_name
         if source_file.exists():
             shutil.copy(source_file, checkpoint_directory / file_name)

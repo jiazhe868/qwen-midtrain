@@ -1,0 +1,9 @@
+# Pilot control: nothing but replay (web pages and Chinese Wikipedia). What this run changes is the cost of
+# continuing to train at all, at a given learning rate; every other pilot run is read against it.
+token_budget: 20004864           # 610 steps of 32,768 tokens
+context_length: 4096
+components:
+  replay_web: 0.85
+  wiki_zh: 0.15
+schedule: uniform
+seed: 1
