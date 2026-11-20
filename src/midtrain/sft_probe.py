@@ -301,29 +301,41 @@ def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward
 # serve and sample
 # ---------------------------------------------------------------------------------------------------------------
 def start_inference_server(checkpoint_path: str, port: int, log_path: Path, maximum_context_tokens: int = 4096):
-    """Start the server in its own session (so that stopping it takes its workers too) and wait until it answers."""
-    # The server may use this share of the GPU's memory. On a GPU that another job also uses, set it lower; the
-    # number of answers generated at once then shrinks with it, because each needs one state-cache block (at a
-    # share of 0.25 the server refused 1,024 sequences: only 709 blocks fit, 11-20).
+    """Start the server in its own session (so that stopping it takes its workers too) and wait until it answers.
+
+    Every answer being generated needs one block of the state cache of the linear-attention layers, and how many
+    blocks fit depends on the model and on the memory share. When the requested number of answers at once is too
+    large the server names the number of blocks and exits ("max_num_seqs (1024) exceeds available Mamba cache blocks
+    (709)", the 0.8B model at a 25% share, 11-20); it is then started again with that number."""
+    # The server may use this share of the GPU's memory; on a GPU that another job also uses, set it lower.
     memory_share = float(os.environ.get("MIDTRAIN_SERVER_MEMORY_SHARE", "0.80"))
-    sequences_at_once = max(64, int(1024 * min(1.0, memory_share / 0.80)))
-    command = [sys.executable, "-m", "vllm.entrypoints.cli.main", "serve", str(checkpoint_path),
-               "--served-model-name", "candidate", "--port", str(port), "--max-model-len", str(maximum_context_tokens),
-               "--gpu-memory-utilization", str(memory_share), "--max-num-seqs", str(sequences_at_once),
-               "--mamba-ssm-cache-dtype", "float32", "--gdn-prefill-backend", "triton",
-               "--language-model-only", "--seed", "0"]
-    server_process = subprocess.Popen(command, stdout=log_path.open("w"), stderr=subprocess.STDOUT, start_new_session=True)
-    deadline = time.time() + 900          # loading takes 1-2 minutes for the 0.8B model and about 6 for the 9B
-    while time.time() < deadline:
-        if server_process.poll() is not None:
+    sequences_at_once = 1024
+    for attempt in range(3):
+        command = [sys.executable, "-m", "vllm.entrypoints.cli.main", "serve", str(checkpoint_path),
+                   "--served-model-name", "candidate", "--port", str(port), "--max-model-len", str(maximum_context_tokens),
+                   "--gpu-memory-utilization", str(memory_share), "--max-num-seqs", str(sequences_at_once),
+                   "--mamba-ssm-cache-dtype", "float32", "--gdn-prefill-backend", "triton",
+                   "--language-model-only", "--seed", "0"]
+        server_process = subprocess.Popen(command, stdout=log_path.open("w"), stderr=subprocess.STDOUT, start_new_session=True)
+        deadline = time.time() + 900          # loading takes 1-2 minutes for the 0.8B model and about 6 for the 9B
+        while time.time() < deadline:
+            if server_process.poll() is not None:
+                break
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=3)
+                return server_process
+            except OSError:
+                time.sleep(5)
+        else:
+            stop_inference_server(server_process)
+            raise RuntimeError(f"the inference server did not answer within 15 minutes; see {log_path}")
+        block_limit = re.search(r"exceeds available Mamba cache blocks \((\d+)\)", log_path.read_text(errors="replace"))
+        if block_limit is None:
             raise RuntimeError(f"the inference server exited with code {server_process.returncode}; see {log_path}")
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=3)
-            return server_process
-        except OSError:
-            time.sleep(5)
-    stop_inference_server(server_process)
-    raise RuntimeError(f"the inference server did not answer within 15 minutes; see {log_path}")
+        sequences_at_once = int(block_limit.group(1)) // 8 * 8
+        print(f"the server holds state for {block_limit.group(1)} answers at once; starting it again with {sequences_at_once}",
+              flush=True)
+    raise RuntimeError(f"the inference server did not start after three attempts; see {log_path}")
 
 
 def stop_inference_server(server_process) -> None:
