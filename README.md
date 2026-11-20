@@ -77,6 +77,9 @@ the reason for prediction P1 in §13.
 15. [References](#15-references)
 16. [Data and licensing](#16-data-and-licensing)
 
+[PITFALLS.md](PITFALLS.md) collects the failure modes met while building this pipeline and the checks that
+now catch them.
+
 ---
 
 ## 1. Where the project stands
