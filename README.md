@@ -103,19 +103,28 @@ held-out documents of each source, in percent of the starting value. A negative 
 |---|---|---|---|---|---|---|---|---|---|---|
 | web 85%, wiki zh 15% (replay only) | 1e-5 | -0.70 | -0.11 | -0.66 | +0.71 | +1.24 | +2.30 | +1.80 | +1.87 | +2.59 |
 | replay 50%, math 30%, code 20% | 1e-5 | -0.38 | -0.10 | -0.41 | +0.78 | +0.46 | +0.90 | +0.86 | **-2.77** | **-1.33** |
+| replay 50%, curated 50% (wiki en, textbooks, papers, forum) | 1e-5 | -0.33 | +0.00 | -0.44 | +0.38 | **-2.30** | -0.42 | **-1.22** | +1.01 | +1.37 |
 | web 85%, wiki zh 15% (replay only) | 3e-5 | +0.43 | +1.87 | +1.46 | +3.20 | +4.54 | **+11.21** | +4.09 | +7.00 | +8.29 |
 
-Three things can be read from it.
+<p align="center"><img src="assets/pilot_loss_change_en.png" width="80%"></p>
 
-- **3e-5 is too high.** Every source gets worse, even the web text the run trained on. The base model sits in a
-  sharp minimum that a learning rate of that size leaves. The later designs use 3e-6 and 1e-5.
+Each marker is one run; left of the vertical line the run improved the loss on that source.
+
+Four things can be read from it.
+
+- **3e-5 is too high.** Every source gets worse, even the web text the run trained on: a step of that size moves
+  the weights further than 20M tokens of new text can pay back. The later designs use 3e-6 and 1e-5.
 - **Replay on web text alone costs the other domains about 2%.** The base model was pretrained on something much
   broader than a web crawl. Training it on a web crawl moves it toward the web and away from code, papers and math.
 - **The hard mixture halves that cost and gains on its own domains.** With 30% math and 20% code the loss on math
   falls by 2.8% and on code by 1.3%, and the loss on papers and textbooks rises less than under replay alone.
+- **Curated text does the same for its own domains.** With 50% curated text the loss on textbooks falls by 2.3% and
+  on forum answers by 1.2%, and math and code pay about 1%. Each component lowers the loss where it comes from and
+  raises it a little elsewhere: the interference matrix of §6.3 in miniature.
 
-Caveats, plainly: one seed per run; loss only, and §3 explains why loss is not the yardstick here; the 3e-6 runs,
-the third recipe and every probe result are still running.
+Caveats, plainly: one seed per run; 24,576 validation tokens per source, so differences below about 0.5% are noise
+(English Wikipedia at +0.4% after a run that was 15% Wikipedia is one of them; the design runs use 131,072 tokens);
+loss only, and §3 explains why loss is not the yardstick here; the 3e-6 run and every probe result are still running.
 
 **Probe and regression suite.** Pending. The probe ran end to end in a short test (20 fine-tuning steps, 12 items
 per task, 8 samples); those numbers only show that every stage works and are not reported.
