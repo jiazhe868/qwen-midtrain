@@ -284,7 +284,7 @@ and seed read the same tokens in the same order.
 token_budget: 20004864          # 610 steps of 32,768 tokens
 context_length: 4096
 components: {replay_web: 0.425, wiki_zh: 0.075, math_web: 0.30, code: 0.20}
-schedule: uniform               # or late / early: when the non-replay share is spent (§6.1)
+schedule: uniform               # or late / early: when the non-replay share is spent (§6.2)
 seed: 1
 ```
 
