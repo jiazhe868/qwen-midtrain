@@ -378,8 +378,12 @@ def grade_samples_of_items(items: list[dict], completions_per_item: list[list[st
     pair_items = [items[item_index] for item_index, _ in distinct_pairs]
     pair_texts = [completion for _, completion in distinct_pairs]
     if items[0]["kind"] == "code":
-        verdicts = [verdict["passed"] for verdict in
-                    eval_tasks.grade_code_completions_in_parallel(pair_items, pair_texts, prompt_style)]
+        sandbox_verdicts = eval_tasks.grade_code_completions_in_parallel(pair_items, pair_texts, prompt_style)
+        # without a sandbox every program counts as failed; a code score of zero would then look like a model
+        # that cannot program, so the run stops here instead
+        assert not any(verdict["reason"] == "no_sandbox" for verdict in sandbox_verdicts), (
+            "no working sandbox on this machine (bubblewrap, or apptainer with MIDTRAIN_SANDBOX_IMAGE): code cannot be graded")
+        verdicts = [verdict["passed"] for verdict in sandbox_verdicts]
     else:
         verdicts = [eval_tasks.grade_completion(item, text, prompt_style) for item, text in zip(pair_items, pair_texts)]
     return [sum(bool(verdicts[distinct_pairs[(item_index, completion)]]) for completion in completions)

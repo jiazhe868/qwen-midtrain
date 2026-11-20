@@ -44,7 +44,9 @@ from midtrain.mixture import iterate_training_steps, iterate_validation_sequence
 
 loss_chunk_token_count = 1024           # 1,024 tokens of logits over 248,320 words are 1 GB in FP32
 validation_sequence_length = 4096
-validation_sequences_per_source = 6     # 24,576 held-out tokens per source: the loss moves by ~0.01 between draws
+# 32 sequences = 131,072 held-out tokens per source, the same ones for every run. The pilot runs used 6 (24,576
+# tokens): enough to see a 2% shift, too few to trust a 0.3% one, and the design's effects are of that size.
+validation_sequences_per_source = 32
 
 
 # ---------------------------------------------------------------------------------------------------------------
