@@ -214,7 +214,7 @@ def ask_teacher(endpoint: str, passage_text: str, style_name: str, temperature: 
 
 
 def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int, stop_after_hours: float,
-                      temperature: float) -> None:
+                      temperature: float, maximum_rewrites: int | None) -> None:
     passages = [json.loads(line) for line in (synthetic_directory() / "passages.jsonl").read_text().splitlines() if line]
     results_path = synthetic_directory() / "rewrites.jsonl"
     finished_keys = set()
@@ -222,6 +222,9 @@ def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int
         finished_keys = {json.loads(line)["key"] for line in results_path.read_text().splitlines() if line}
     todo = [(passage, style_name) for passage in passages for style_name in passage["styles"]
             if rewrite_key(passage["parent_doc_id"], style_name) not in finished_keys]
+    if maximum_rewrites is not None:
+        # the passages are in a seeded random order, so the first ones are a fair sample of all of them
+        todo = todo[:max(0, maximum_rewrites - len(finished_keys))]
     print(f"{len(finished_keys)} rewrites already done, {len(todo)} to do on {len(endpoints)} teacher(s)", flush=True)
 
     write_lock = threading.Lock()
@@ -313,6 +316,9 @@ def main() -> None:
     generate.add_argument("--endpoint", action="append", required=True)
     generate.add_argument("--requests-in-flight-per-endpoint", type=int, default=128)
     generate.add_argument("--stop-after-hours", type=float, default=24.0)
+    generate.add_argument("--maximum-rewrites", type=int, default=None,
+                          help="stop when this many rewrites exist; the screening design needs about 11,000 "
+                               "(its largest synthetic share is 9M of 40M tokens, at about 800 tokens per rewrite)")
     generate.add_argument("--temperature", type=float, default=0.8,
                           help="0.8: below it the six styles converge on the same phrasing; above it facts start to drift")
     commands.add_parser("publish")
@@ -323,7 +329,7 @@ def main() -> None:
         serve_teacher(arguments.gpu, arguments.port)
     elif arguments.command == "generate":
         generate_rewrites(arguments.endpoint, arguments.requests_in_flight_per_endpoint, arguments.stop_after_hours,
-                          arguments.temperature)
+                          arguments.temperature, arguments.maximum_rewrites)
     else:
         publish_rewrites_to_pool()
 

@@ -566,6 +566,12 @@ default_nearest_neighbour_sample_document_count = 5_000
 # 20,000 vectors is where brute-force HDBSCAN takes 8 s and 6.7 GB (its distance matrix grows with the square)
 default_cluster_sample_document_count = 20_000
 hdbscan_min_cluster_size = 20
+hdbscan_min_samples = 10
+# HDBSCAN runs on the first 16 principal directions of the sample. In all 384 dimensions every point is about as far
+# from every other (the curse of dimensionality), and the first measurement of English Wikipedia found 2 clusters
+# with 91% of the documents labelled noise (11-20): a count that says nothing. Topic-clustering pipelines reduce to
+# 5-20 dimensions before density clustering for the same reason.
+hdbscan_principal_direction_count = 16
 # seed 0 for the random choice of the sampled documents; the same seed and pool give the same sample
 default_diversity_seed = 0
 # A sentence skeleton counts as a repeated template when it occurs more than 5 times in the sample...
@@ -654,13 +660,26 @@ def measure_template_repetition(texts: list[str], tokenize_texts) -> dict:
     }
 
 
-def measure_embedding_statistics(embeddings: np.ndarray, nearest_neighbour_sample_document_count: int) -> dict:
-    """Return the mean nearest-neighbour cosine similarity and the HDBSCAN clusters of unit vectors.
+def vendi_score_of_unit_vectors(embeddings: np.ndarray) -> float:
+    """The Vendi score with the cosine kernel: the exponential of the entropy of the eigenvalues of K / n, where K
+    is the matrix of cosine similarities (Friedman and Dieng, 2023). It reads as an effective number of distinct
+    documents: n copies of one document score 1, n orthogonal documents score n. For unit vectors X (n x d) the
+    non-zero eigenvalues of X X^T / n equal those of X^T X / n, so a d x d matrix is enough. It needs no
+    threshold and no clustering setting, which makes it the most dependable of the embedding checks."""
+    unit_vectors = embeddings.astype(np.float64)
+    unit_vectors /= np.linalg.norm(unit_vectors, axis=1, keepdims=True)
+    eigenvalues = np.clip(np.linalg.eigvalsh(unit_vectors.T @ unit_vectors / len(unit_vectors)), 0.0, None)
+    eigenvalues = eigenvalues[eigenvalues > 1e-12] / eigenvalues.sum()
+    return float(np.exp(-(eigenvalues * np.log(eigenvalues)).sum()))
 
-    The nearest-neighbour number uses the first `nearest_neighbour_sample_document_count` vectors, HDBSCAN
-    all of them. HDBSCAN works on Euclidean distance, which for unit vectors is a monotone function of the
-    cosine similarity. `algorithm="brute"` because the tree algorithms that scikit-learn picks by default
-    gain nothing in 384 dimensions (20 s against 0.6 s for 5,000 vectors).
+
+def measure_embedding_statistics(embeddings: np.ndarray, nearest_neighbour_sample_document_count: int) -> dict:
+    """Return the mean nearest-neighbour cosine similarity, the Vendi score and the HDBSCAN clusters of unit vectors.
+
+    The nearest-neighbour number uses the first `nearest_neighbour_sample_document_count` vectors, the Vendi score
+    and HDBSCAN all of them. HDBSCAN runs on the first `hdbscan_principal_direction_count` principal directions of
+    the sample (see the comment on that value) with Euclidean distance. `algorithm="brute"` because the tree
+    algorithms that scikit-learn picks by default were slower here (20 s against 0.6 s for 5,000 vectors).
     """
     from sklearn.cluster import HDBSCAN
     nearest_neighbour_sample = embeddings[:nearest_neighbour_sample_document_count].astype(np.float32)
@@ -670,11 +689,16 @@ def measure_embedding_statistics(embeddings: np.ndarray, nearest_neighbour_sampl
         "nearest_neighbour_sample_document_count": int(len(nearest_neighbour_sample)),
         "mean_nearest_neighbour_cosine_similarity": float(similarities.max(axis=1).mean()) if len(nearest_neighbour_sample) > 1 else None,
         "cluster_sample_document_count": int(len(embeddings)),
+        "embedding_vendi_score": vendi_score_of_unit_vectors(embeddings) if len(embeddings) > 1 else None,
+        "hdbscan_principal_direction_count": hdbscan_principal_direction_count,
         "hdbscan_cluster_count": 0, "hdbscan_noise_share": 1.0, "hdbscan_clusters_per_10k_documents": 0.0,
     }
     if len(embeddings) >= 2 * hdbscan_min_cluster_size:
-        cluster_labels = HDBSCAN(min_cluster_size=hdbscan_min_cluster_size, algorithm="brute", copy=True).fit(
-            embeddings.astype(np.float64)).labels_
+        from sklearn.decomposition import PCA
+        direction_count = min(hdbscan_principal_direction_count, embeddings.shape[1], len(embeddings) - 1)
+        reduced = PCA(n_components=direction_count, random_state=0).fit_transform(embeddings.astype(np.float64))
+        cluster_labels = HDBSCAN(min_cluster_size=hdbscan_min_cluster_size, min_samples=hdbscan_min_samples,
+                                 algorithm="brute", copy=True).fit(reduced).labels_
         statistics["hdbscan_cluster_count"] = int(cluster_labels.max() + 1)
         statistics["hdbscan_noise_share"] = float((cluster_labels == -1).mean())
         statistics["hdbscan_clusters_per_10k_documents"] = float(statistics["hdbscan_cluster_count"] / len(embeddings) * 10_000)
@@ -782,6 +806,8 @@ default_gate_thresholds = {
     "max_template_repetition_ratio": 3.0,
     # ...when it has fewer than this share of the baseline's clusters per 10,000 documents
     "min_cluster_count_ratio": 0.5,
+    # ...when its Vendi score (the effective number of distinct documents) is below this share of the baseline's
+    "min_vendi_score_ratio": 0.8,
     # ...when its compression ratio is more than this many times the baseline's
     "max_compression_ratio_ratio": 1.3,
     # A baseline with almost no repeated template would turn any repetition into "3 times higher"; the
@@ -813,6 +839,7 @@ def check_diversity_against_baseline(batch_diversity: dict, baseline_diversity: 
     template_rate_limit = thresholds["max_template_repetition_ratio"] * max(
         baseline_diversity["template_repetition_rate"], thresholds["template_repetition_rate_floor"])
     cluster_limit = thresholds["min_cluster_count_ratio"] * baseline_diversity["hdbscan_clusters_per_10k_documents"]
+    vendi_limit = thresholds["min_vendi_score_ratio"] * (baseline_diversity.get("embedding_vendi_score") or 0.0)
     compression_limit = thresholds["max_compression_ratio_ratio"] * baseline_diversity["zstd_compression_ratio"]
     checks = [
         ("bigram_entropy_bits", "at least", bigram_entropy_limit),
@@ -820,6 +847,8 @@ def check_diversity_against_baseline(batch_diversity: dict, baseline_diversity: 
         ("hdbscan_clusters_per_10k_documents", "at least", cluster_limit),
         ("zstd_compression_ratio", "at most", compression_limit),
     ]
+    if baseline_diversity.get("embedding_vendi_score") is not None and batch_diversity.get("embedding_vendi_score") is not None:
+        checks.append(("embedding_vendi_score", "at least", vendi_limit))
     check_results = []
     for measurement_name, direction, limit in checks:
         batch_value, baseline_value = batch_diversity[measurement_name], baseline_diversity[measurement_name]
