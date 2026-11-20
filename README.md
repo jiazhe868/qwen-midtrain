@@ -527,7 +527,8 @@ contamination. Reading the matched 13-grams showed four kinds:
 | words | 1,450 (24%) | where real leaks are: 714 match CMMLU in Chinese Wikipedia (many are famous classical quotes that a question cites), 265 MATH-500, 163 MMLU-Pro, 141 TriviaQA |
 
 The gate stays strict and drops all 6,030: it costs 0.2% of the pool, and a real leak would cost the evaluation.
-The price is uneven, though: math pages lose 3.5% of their tokens and papers 2.7%, almost all to runs of numbers.
+The price is uneven, though: math pages lose 3.5% of their tokens and papers 2.7%, mostly to runs of numbers
+(79% of the flagged math tokens and 94% of the flagged paper tokens).
 
 **Does it catch a leak?** One question of each of the ten sets was planted inside an unrelated document. Every
 planted question was flagged. When only the last two thirds of a question were planted, 3 of 10 were missed: the
