@@ -886,6 +886,56 @@ def run_diversity_gate(batch_name: str, baseline_name: str, thresholds: dict = N
 
 
 # ---------------------------------------------------------------------------
+# what the flagged matches consist of
+# ---------------------------------------------------------------------------
+# The first run on the whole pool (11-20) flagged 6,030 documents, and reading the matched 13-grams showed that most
+# of them are not benchmark text: HumanEval and MBPP test cases hold long lists of numbers, and any table of numbers
+# in a paper or a math page contains the same run. A count of flagged documents therefore overstates contamination.
+# This breakdown makes the overstatement visible; the gate itself stays strict, because dropping every flagged
+# document costs 0.2% of the pool and a real leak would cost the evaluation.
+number_or_symbol_word_pattern = re.compile(r"[\d.,/+\-*=()]+")
+alphabet_run_pattern = re.compile(r"^(?:[a-z] ){6,}[a-z]$")
+
+
+def kind_of_matched_ngram(matched_text: str) -> str:
+    """Sort one matched 13-gram (normalised words, space separated) into one of four kinds:
+    numbers (every word is a number or symbol), mostly_numbers (half or more), alphabet (a run of single letters,
+    as in "a b c d e f g"), words (the rest, where real leaks are found)."""
+    words = matched_text.split()
+    number_word_count = sum(bool(number_or_symbol_word_pattern.fullmatch(word)) for word in words)
+    if number_word_count == len(words):
+        return "numbers"
+    if number_word_count >= len(words) / 2:
+        return "mostly_numbers"
+    if alphabet_run_pattern.match(matched_text):
+        return "alphabet"
+    return "words"
+
+
+def explain_flagged_matches(flagged_path: Path, report_path: Path) -> dict:
+    """Count the flagged documents by kind of match, per task; write the counts (no text) into the report file."""
+    flagged = pq.read_table(flagged_path, columns=["ngram_matched_text", "matched_tasks", "flagged_by_ngram"]).to_pydict()
+    by_kind: dict[str, int] = {}
+    by_task_and_kind: dict[str, dict[str, int]] = {}
+    for matched_text, matched_tasks, is_ngram_flag in zip(flagged["ngram_matched_text"], flagged["matched_tasks"],
+                                                          flagged["flagged_by_ngram"]):
+        if not is_ngram_flag:
+            continue
+        kind = kind_of_matched_ngram(matched_text)
+        by_kind[kind] = by_kind.get(kind, 0) + 1
+        for task_name in matched_tasks.split(","):
+            task_counts = by_task_and_kind.setdefault(task_name.strip(), {})
+            task_counts[kind] = task_counts.get(kind, 0) + 1
+    report = json.loads(report_path.read_text())
+    report["ngram_flags_by_kind_of_match"] = {"all_tasks": by_kind, "by_task": by_task_and_kind}
+    report_path.write_text(json.dumps(report, indent=1) + "\n")
+    total = sum(by_kind.values())
+    for kind, count in sorted(by_kind.items(), key=lambda item: -item[1]):
+        print(f"  {kind:16s} {count:6,d} documents ({100 * count / max(1, total):.1f}%)")
+    return by_kind
+
+
+# ---------------------------------------------------------------------------
 # command line
 # ---------------------------------------------------------------------------
 
@@ -908,6 +958,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
     decontaminate_parser.add_argument("--embedding-model", default=default_embedding_model)
     decontaminate_parser.add_argument("--device", default=None, help="cuda, cuda:1 or cpu; required for the embedding method")
     decontaminate_parser.add_argument("--worker-count", type=int, default=get_usable_cpu_count())
+
+    explain_parser = subparsers.add_parser("explain-flags", help="count the flagged documents by kind of match")
+    explain_parser.add_argument("--flagged-path", type=Path, default=None,
+                                help="default: $MIDTRAIN_DATA/hygiene/decontamination_flagged.parquet")
+    explain_parser.add_argument("--report-path", type=Path, default=default_decontamination_report_path)
 
     diversity_parser = subparsers.add_parser("diversity", help="measure the diversity of one source or batch")
     diversity_parser.add_argument("--source", required=True, help="pool source to measure, or the name of the batch given by --pool")
@@ -941,6 +996,12 @@ def main(argument_list=None) -> int:
             output_directory / "decontamination_flagged.parquet", output_directory / "decontamination_top_matches.jsonl",
             arguments.report_path, tuple(arguments.methods), arguments.embedding_model, arguments.device,
             arguments.similarity_threshold, arguments.window_token_count, arguments.ngram_word_count, arguments.worker_count)
+        if "ngram" in arguments.methods:
+            explain_flagged_matches(output_directory / "decontamination_flagged.parquet", arguments.report_path)
+        return 0
+    if arguments.command == "explain-flags":
+        explain_flagged_matches(arguments.flagged_path or get_midtrain_data_directory() / "hygiene" / "decontamination_flagged.parquet",
+                                arguments.report_path)
         return 0
     if arguments.command == "diversity":
         pool_paths = arguments.pool or [get_midtrain_data_directory() / "pool" / arguments.source]

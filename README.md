@@ -515,8 +515,24 @@ batch (token entropies, distinct n-grams, compression ratio, repeated templates,
 number of embedding clusters) and compares it with a baseline measured on real text at the same sample size. A
 batch that is clearly less diverse than real text is rejected before it reaches a recipe.
 
-Status: the code exists; the first 13-gram pass over the whole pool is running. Its counts will be in
-`results/hygiene_decontamination.json`.
+**What the 13-gram layer found.** It scanned 2,686,237 documents against 8,886 evaluation items in 2 minutes and
+flagged 6,030 documents, 0.22% of the pool (`results/hygiene_decontamination.json`). That count overstates the
+contamination. Reading the matched 13-grams showed four kinds:
+
+| kind of match | documents | what it is |
+|---|---|---|
+| only numbers and symbols | 3,257 (54%) | the test cases of HumanEval and MBPP hold long lists of numbers, and so does any table in a paper or a math page |
+| mostly numbers | 731 (12%) | the same, with a word or two in between |
+| a run of single letters | 592 (10%) | "a b c d e f g h i j k l m" |
+| words | 1,450 (24%) | where real leaks are: 714 match CMMLU in Chinese Wikipedia (many are famous classical quotes that a question cites), 265 MATH-500, 163 MMLU-Pro, 141 TriviaQA |
+
+The gate stays strict and drops all 6,030: it costs 0.2% of the pool, and a real leak would cost the evaluation.
+The price is uneven, though: math pages lose 3.5% of their tokens and papers 2.7%, almost all to runs of numbers.
+
+**Does it catch a leak?** One question of each of the ten sets was planted inside an unrelated document. Every
+planted question was flagged. When only the last two thirds of a question were planted, 3 of 10 were missed: the
+part left was shorter than 13 words. A short question rewritten in other words passes this layer by design; the
+embedding layer is for that case and has not run on the whole pool yet.
 
 ---
 
