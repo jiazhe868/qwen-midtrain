@@ -47,24 +47,37 @@ run_claimed_task() {   # run_claimed_task <path in running/> <CUDA_VISIBLE_DEVIC
 
 pending_task_count() { ls "${queue_directory}/pending" 2>/dev/null | grep -c -E '^(node|gpu)__.*\.sh$'; }
 
+node_task_is_pending() { ls "${queue_directory}/pending" 2>/dev/null | grep -q '^node__.*\.sh$'; }
+
 work_on_this_node() {
-  local all_gpus task_path gpu_index idle_seconds_left
+  local all_gpus task_path gpu_index idle_seconds
   all_gpus="${MIDTRAIN_WORKER_GPUS:-$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | paste -sd, -)}"
   [[ -n "${all_gpus}" ]] || { echo "$(hostname -s): no GPU visible"; return 1; }
-  idle_seconds_left=$(( ${MIDTRAIN_WORKER_IDLE_MINUTES:-0} * 60 ))
+  idle_seconds=$(( ${MIDTRAIN_WORKER_IDLE_MINUTES:-0} * 60 ))
   while true; do
     while task_path="$(claim_next_task node)"; do
       run_claimed_task "${task_path}" "${all_gpus}"
     done
+    # One loop per GPU. Each loop waits for new one-GPU tasks by itself (in 30-second looks, up to the idle
+    # allowance): in the first version a GPU whose loop found the queue empty stayed idle until the longest task
+    # on the other GPUs had ended, even when new tasks arrived in between. A loop also stops taking tasks when a
+    # whole-node task arrives, so that the GPUs drain and the node task can start.
     for gpu_index in ${all_gpus//,/ }; do
-      ( while task_path="$(claim_next_task gpu)"; do run_claimed_task "${task_path}" "${gpu_index}"; done ) &
+      ( idle_seconds_left=${idle_seconds}
+        while true; do
+          if node_task_is_pending; then break; fi
+          if task_path="$(claim_next_task gpu)"; then
+            run_claimed_task "${task_path}" "${gpu_index}"
+            idle_seconds_left=${idle_seconds}
+          elif [[ ${idle_seconds_left} -gt 0 ]]; then
+            sleep 30
+            idle_seconds_left=$(( idle_seconds_left - 30 ))
+          else
+            break
+          fi
+        done ) &
     done
     wait
-    # nothing left: wait for new tasks in 30-second looks, up to the idle allowance, then stop
-    while [[ "$(pending_task_count)" -eq 0 && ${idle_seconds_left} -gt 0 ]]; do
-      sleep 30
-      idle_seconds_left=$(( idle_seconds_left - 30 ))
-    done
     [[ "$(pending_task_count)" -gt 0 ]] || break
   done
 }

@@ -13,6 +13,8 @@ What the file does, in the order the stages run:
     analyze   level means per factor; a regression on the absolute token shares (the mixing law); the same law for
               every measurement side by side (the interference matrix); the best mixture inside the tested ranges
               under the constraint that the regression suite does not fall; rank agreement between two model sizes
+    compare   two runs question by question: both answered the same questions with the same sampling, so their
+              difference is known far better than either score alone
 
 The factors are ratios (replay share of all tokens, rewritten share of the non-replay text, ...) because the
 questions are about ratios. The law is fitted on absolute shares, with replay as what remains, so a coefficient
@@ -24,6 +26,7 @@ Commands (after `source scripts/env.sh`):
         --queue $MIDTRAIN_DATA/queue_local
     $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B
     $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B --compare-with 2B
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law compare pilot_hard_heavy_0.8B_lr1e-5 pilot_replay_only_0.8B_lr1e-5
 """
 from __future__ import annotations
 
@@ -394,6 +397,79 @@ def analyze_design(design: dict, model_size: str, target_name: str, guard_name: 
     return analysis
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# compare: two runs, question by question
+# ---------------------------------------------------------------------------------------------------------------
+def paired_difference_with_interval(first_values: np.ndarray, second_values: np.ndarray, resample_count: int = 2000) -> dict:
+    """Mean of (first - second) over the questions, in points, with a 95% interval from resampling the questions.
+    The interval excludes 0 when the two runs differ by more than the choice of questions explains."""
+    differences = 100.0 * (np.asarray(first_values, dtype=float) - np.asarray(second_values, dtype=float))
+    random_generator = np.random.default_rng(0)
+    resampled_means = differences[random_generator.integers(0, len(differences), size=(resample_count, len(differences)))].mean(axis=1)
+    low, high = np.percentile(resampled_means, [2.5, 97.5])
+    return {"difference": round(float(differences.mean()), 2), "low": round(float(low), 2), "high": round(float(high), 2),
+            "questions": len(differences)}
+
+
+def compare_two_runs(first_run_name: str, second_run_name: str) -> dict:
+    """First minus second on everything both runs measured per question: pass@1, pass@16 and pass@64 after the
+    probe (per task and pooled over the tasks), and the multiple-choice sets of the regression suite."""
+    from midtrain.eval_tasks import estimate_pass_at_k
+
+    comparison: dict = {"first": first_run_name, "second": second_run_name, "probe": {}, "regression": {}}
+    first_probe = read_json_if_present(repository_root / "results" / "probe" / f"{first_run_name}.json")
+    second_probe = read_json_if_present(repository_root / "results" / "probe" / f"{second_run_name}.json")
+    if first_probe and second_probe:
+        pooled: dict[int, tuple[list, list]] = {}
+        for task_name in sorted(set(first_probe["tasks"]) & set(second_probe["tasks"])):
+            first_task, second_task = first_probe["tasks"][task_name], second_probe["tasks"][task_name]
+            assert first_task["item_ids"] == second_task["item_ids"], f"{task_name}: the two runs answered different questions"
+            sample_count = first_task.get("sample_count", first_probe.get("sample_count"))
+            assert sample_count == second_task.get("sample_count", second_probe.get("sample_count")), f"{task_name}: different sample counts"
+            comparison["probe"][task_name] = {}
+            for k in (1, 16, 64):
+                if k > sample_count:
+                    continue
+                first_values = [estimate_pass_at_k(correct, sample_count, k) for correct in first_task["correct_counts"]]
+                second_values = [estimate_pass_at_k(correct, sample_count, k) for correct in second_task["correct_counts"]]
+                comparison["probe"][task_name][f"pass@{k}"] = paired_difference_with_interval(first_values, second_values)
+                pooled.setdefault(k, ([], []))
+                pooled[k][0].extend(first_values)
+                pooled[k][1].extend(second_values)
+        comparison["probe"]["all_tasks"] = {f"pass@{k}": paired_difference_with_interval(first_values, second_values)
+                                            for k, (first_values, second_values) in pooled.items()}
+    first_regression = read_json_if_present(repository_root / "results" / "regression" / f"{first_run_name}.json")
+    second_regression = read_json_if_present(repository_root / "results" / "regression" / f"{second_run_name}.json")
+    if first_regression and second_regression:
+        pooled_first, pooled_second = [], []
+        for set_name in sorted(set(first_regression["item_correct"]) & set(second_regression["item_correct"])):
+            first_values, second_values = first_regression["item_correct"][set_name], second_regression["item_correct"][set_name]
+            comparison["regression"][set_name] = paired_difference_with_interval(first_values, second_values)
+            if set_name.startswith("multiple_choice/"):
+                pooled_first.extend(first_values)
+                pooled_second.extend(second_values)
+        comparison["regression"]["multiple_choice/all_sets"] = paired_difference_with_interval(pooled_first, pooled_second)
+        comparison["regression"]["scores"] = {name: round(first_regression["scores"][name] - second_regression["scores"][name], 4)
+                                              for name in sorted(set(first_regression["scores"]) & set(second_regression["scores"]))}
+    output_directory = repository_root / "results" / "comparisons"
+    output_directory.mkdir(parents=True, exist_ok=True)
+    (output_directory / f"{first_run_name}__minus__{second_run_name}.json").write_text(json.dumps(comparison, indent=1) + "\n")
+    return comparison
+
+
+def print_comparison(comparison: dict) -> None:
+    print(f"{comparison['first']}  minus  {comparison['second']}  (points, 95% interval over the questions)")
+    for task_name, entries in comparison["probe"].items():
+        print(f"  probe {task_name:12s} " + "   ".join(
+            f"{name} {entry['difference']:+6.2f} [{entry['low']:+.2f}, {entry['high']:+.2f}]" for name, entry in entries.items()))
+    for set_name, entry in comparison["regression"].items():
+        if set_name != "scores":
+            print(f"  {set_name:44s} {entry['difference']:+6.2f} [{entry['low']:+.2f}, {entry['high']:+.2f}]  ({entry['questions']} questions)")
+    for name, difference in comparison["regression"].get("scores", {}).items():
+        if name.startswith(("few_shot", "context", "trivia", "shot_gain_mean", "knowledge")):
+            print(f"  {name:44s} {difference:+.3f}")
+
+
 def print_analysis(analysis: dict, shown_measurements: list[str]) -> None:
     for name in shown_measurements:
         if name not in analysis["laws"]:
@@ -438,7 +514,13 @@ def main() -> None:
     analyze_parser.add_argument("--compare-with", default=None, help="a second model size, for rank agreement")
     analyze_parser.add_argument("--show", nargs="+", default=["probe/mean/pass@1", "probe/mean/pass@16", "probe/mean/pass@64",
                                                              "regression/knowledge_mean", "loss/math_web", "loss/code", "loss/replay_web"])
+    compare_parser = commands.add_parser("compare")
+    compare_parser.add_argument("first_run")
+    compare_parser.add_argument("second_run")
     arguments = parser.parse_args()
+    if arguments.command == "compare":
+        print_comparison(compare_two_runs(arguments.first_run, arguments.second_run))
+        return
     design = load_design(arguments.design)
     if arguments.command == "design":
         write_design_files(design)
