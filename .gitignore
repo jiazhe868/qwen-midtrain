@@ -1,0 +1,13 @@
+# machine-specific settings and anything large or private never enter the repository
+site.env
+midtrain_data/
+runs/
+*.safetensors
+*.parquet
+*.npy
+*.log
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
+.idea/
