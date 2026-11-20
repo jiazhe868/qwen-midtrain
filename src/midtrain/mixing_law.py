@@ -231,8 +231,17 @@ def measurements_of_run(run_name: str) -> dict[str, float]:
                 measurements[f"probe/mean/pass@{k}"] = float(np.mean(values))
     regression = read_json_if_present(repository_root / "results" / "regression" / f"{run_name}.json")
     if regression:
-        for score_name, value in regression["scores"].items():
+        scores = regression["scores"]
+        for score_name, value in scores.items():
             measurements[f"regression/{score_name}"] = value
+        # The guard of the mixture search: every multiple-choice set asked with and without examples, plus trivia.
+        # The 0.8B base model picks the letter "B" more often when it has seen five examples (33 of 80 ARC picks
+        # against 27 without; accuracy 63.8% against 67.5%; 11-20), so neither format alone is a clean measure of
+        # what the model knows; the mean of both uses twice the questions. Chosen before any design run had a result.
+        set_names = [name.split("/", 1)[1] for name in scores if name.startswith("multiple_choice/")]
+        if set_names and all(f"multiple_choice_zero_shot/{name}" in scores for name in set_names) and "trivia_exact_match" in scores:
+            per_set = [(scores[f"multiple_choice/{name}"] + scores[f"multiple_choice_zero_shot/{name}"]) / 2 for name in set_names]
+            measurements["regression/knowledge_mean_both_formats"] = float(np.mean(per_set + [scores["trivia_exact_match"]]))
     return measurements
 
 
@@ -508,12 +517,13 @@ def main() -> None:
     analyze_parser.add_argument("design")
     analyze_parser.add_argument("--model-size", required=True)
     analyze_parser.add_argument("--target", default="probe/mean/pass@16")
-    analyze_parser.add_argument("--guard", default="regression/knowledge_mean")
+    analyze_parser.add_argument("--guard", default="regression/knowledge_mean_both_formats")
     analyze_parser.add_argument("--guard-tolerance", type=float, default=0.5,
                                 help="how far below the replay-only prediction the guard may fall, in its own unit")
     analyze_parser.add_argument("--compare-with", default=None, help="a second model size, for rank agreement")
     analyze_parser.add_argument("--show", nargs="+", default=["probe/mean/pass@1", "probe/mean/pass@16", "probe/mean/pass@64",
-                                                             "regression/knowledge_mean", "loss/math_web", "loss/code", "loss/replay_web"])
+                                                             "regression/knowledge_mean_both_formats", "loss/math_web", "loss/code",
+                                                             "loss/replay_web"])
     compare_parser = commands.add_parser("compare")
     compare_parser.add_argument("first_run")
     compare_parser.add_argument("second_run")
