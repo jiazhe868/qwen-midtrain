@@ -7,7 +7,7 @@ How this pipeline silently fails, how each failure was detected, and what now pr
 Every entry is a mistake actually made here while building the continued-pretraining study, caught by measurement,
 corrected, and where possible given a permanent regression test. Nothing below is a generic best-practice list.
 
-**The organising observation: six of the seven incidents produced something plausible that pointed the wrong way (a
+**The organising observation: seven of the eight incidents produced something plausible that pointed the wrong way (a
 pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, a sentence
 about where data came from), and none of them stopped the pipeline.** The one incident that stopped it (C1) was the cheapest to fix.
 
@@ -26,6 +26,7 @@ Companion document: [README.md](README.md) explains how the pipeline works and w
 | B3 | Validation too small for the effects it was meant to show | metric validity | noise of ±0.4% read as an effect of the mixture |
 | C1 | The serving engine refused the trained checkpoint | systems | every probe would have stopped; no wrong number |
 | D1 | Data provenance written from memory | selection & reporting | a wrong statement about who wrote the probe's training data |
+| E1 | The stop marker was invisible to the server | eval protocol | every probe score graded on answers from turns the model invented |
 
 Each incident uses the same template: **Symptom → The false story → Root cause → Fix → Permanent regression test →
 Invalidated artifacts → Generalisable lesson.**
@@ -202,3 +203,34 @@ committed.
 **Invalidated artifacts.** None.
 
 **Generalisable lesson.** Write provenance with the dataset card open.
+
+---
+
+# E · Eval protocol
+
+## E1 — The stop marker was invisible to the server
+
+**Symptom.** After the fixed fine-tune, the base 0.8B model solved 11.0% of GSM8K questions per sample. The same
+model without any fine-tune, asked with few-shot examples, solved 18.1%. Its probe answers were also 7 times longer
+than its few-shot answers (about 1,540 characters against a median of 222).
+
+**The false story.** "The fine-tune hurts single-sample accuracy and widens the spread of answers; pass@1 is low
+and pass@64 is high, so the model has a lot of room for RL." The published table showed exactly that shape.
+
+**Root cause.** The fine-tune teaches the model to end its turn with the special token `<|im_end|>`, and the probe
+asked the server to stop at the text `<|im_end|>`. The server matches stop strings against the decoded text, and the
+decoded text leaves special tokens out, so the stop never fired. The model's end-of-sequence token is
+`<|endoftext|>`, which it rarely writes after a chat turn, so generation ran on into turns the model invented until
+the 512-token limit, and the grader read the last `\boxed{}` it found there.
+
+**Fix.** Generations stop at the token ids of `<|im_end|>` and `<|endoftext|>` (`sft_probe.end_token_ids`), and every
+task records the share of answers cut at the token limit. The first base probe was withdrawn and rerun.
+
+**Permanent regression test.** `tests/test_sft_probe.py::test_sampling_stops_at_the_end_tokens_by_id`,
+`::test_the_fine_tune_teaches_the_end_of_turn_as_one_special_token_with_loss`.
+
+**Invalidated artifacts.** The first probe of the base checkpoint (`results/probe/base_0.8B.json` of 11-20 17:21,
+withdrawn from the README the same evening). No other probe had run.
+
+**Generalisable lesson.** When a fine-tune makes a model worse at the thing it was fine-tuned on, suspect the
+harness before the model: read the raw answers and their lengths.
