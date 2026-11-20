@@ -387,7 +387,7 @@ def sample_completions(port: int, prompt_text: str, sample_count: int, maximum_n
 
 def load_evaluation_items(task_name: str, item_count: int, item_seed: int) -> list[dict]:
     """The first `item_count` items of a task after a seeded shuffle: the same items for every checkpoint."""
-    items = [json.loads(line) for line in (data_root() / "eval" / f"{task_name}.jsonl").read_text().splitlines() if line]
+    items = eval_tasks.read_json_lines(data_root() / "eval" / f"{task_name}.jsonl")
     order = np.random.default_rng([item_seed, len(items)]).permutation(len(items))
     return [items[position] for position in order[:item_count]]
 

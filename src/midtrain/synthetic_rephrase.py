@@ -12,7 +12,7 @@ that in six forms, so that the same content is seen from several sides:
     worked_problem                  exercises made from the content, solved step by step
     socratic_dialogue               a teacher and a student reach the conclusions, with one wrong turn corrected
     what_if_analysis                variations of the situation, reasoned through
-The first two go to the pool source `synthetic_rephrase`, the other four to `synthetic_qa`. Outputs are plain
+The first two and the dialogue go to the pool source `synthetic_rephrase`, the other three to `synthetic_qa`. Outputs are plain
 text: no chat tokens, no "here is the rewritten text" (chat special tokens in mid-training data took one published
 model's GSM8K score from 49 to 0, arXiv 2512.13961).
 
@@ -50,9 +50,12 @@ from midtrain.data_sources import data_root, document_id_for_text, repository_ro
 # share of the passages taken from each real source: encyclopedic and textbook content first, as the project asks
 passage_share_by_source = {"wiki_en": 0.30, "textbooks": 0.25, "papers": 0.15, "math_web": 0.15, "forum_qa": 0.15}
 passage_token_range = (350, 1200)        # long enough to hold an argument, short enough for a 700-token rewrite
+# Three styles restate the content (rephrase), three turn it into questions with worked answers (qa). An even split
+# matters for cost: the screening design draws equal tokens from the two sources (up to 4.5M each in its run with the
+# most rewritten text), and two teachers on shared GPUs write about 3,000 rewrites an hour (11-20).
 pool_source_of_style = {"explain_from_first_principles": "synthetic_rephrase", "structured_notes": "synthetic_rephrase",
-                        "question_answer_derivation": "synthetic_qa", "worked_problem": "synthetic_qa",
-                        "socratic_dialogue": "synthetic_qa", "what_if_analysis": "synthetic_qa"}
+                        "socratic_dialogue": "synthetic_rephrase", "question_answer_derivation": "synthetic_qa",
+                        "worked_problem": "synthetic_qa", "what_if_analysis": "synthetic_qa"}
 shared_instruction = (
     "Write in plain text. Do not mention that you were given a passage, and do not address the reader about the task. "
     "Start directly with the content. Keep every fact consistent with the passage and add no facts of your own beyond "
@@ -89,6 +92,14 @@ maximum_copied_eight_gram_share = 0.5
 
 def synthetic_directory() -> Path:
     return data_root() / "synthetic"
+
+
+def read_json_lines(file_path: Path) -> list[dict]:
+    """One record per line, splitting at newlines only. str.splitlines() also splits at U+2028, U+2029 and U+0085,
+    which web text contains and json.dumps(ensure_ascii=False) leaves unescaped: the passages file of 60,000 lines
+    came apart into 60,073 pieces and the first generation stopped on a broken record (11-20)."""
+    with open(file_path, encoding="utf-8") as json_lines_file:
+        return [json.loads(line) for line in json_lines_file if line.strip()]
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -203,7 +214,7 @@ def ask_teacher(endpoint: str, passage_text: str, style_name: str, temperature: 
     request_body = {
         "model": "teacher",
         "messages": [{"role": "user", "content": f"{style_instructions[style_name]} {shared_instruction}\n\nPassage:\n{passage_text}"}],
-        "max_tokens": 1500, "temperature": temperature, "top_p": 0.95,
+        "max_tokens": 1800, "temperature": temperature, "top_p": 0.95,   # 1,500 cut 9% of a 600-rewrite sample, mostly dialogues
         "chat_template_kwargs": {"enable_thinking": False},      # the rewrite needs no hidden reasoning; 3x faster
     }
     request = urllib.request.Request(f"{endpoint}/v1/chat/completions", json.dumps(request_body).encode("utf-8"),
@@ -215,11 +226,11 @@ def ask_teacher(endpoint: str, passage_text: str, style_name: str, temperature: 
 
 def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int, stop_after_hours: float,
                       temperature: float, maximum_rewrites: int | None) -> None:
-    passages = [json.loads(line) for line in (synthetic_directory() / "passages.jsonl").read_text().splitlines() if line]
+    passages = read_json_lines(synthetic_directory() / "passages.jsonl")
     results_path = synthetic_directory() / "rewrites.jsonl"
     finished_keys = set()
     if results_path.exists():
-        finished_keys = {json.loads(line)["key"] for line in results_path.read_text().splitlines() if line}
+        finished_keys = {record["key"] for record in read_json_lines(results_path)}
     todo = [(passage, style_name) for passage in passages for style_name in passage["styles"]
             if rewrite_key(passage["parent_doc_id"], style_name) not in finished_keys]
     if maximum_rewrites is not None:
@@ -272,7 +283,7 @@ def publish_rewrites_to_pool() -> None:
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
-    records = [json.loads(line) for line in (synthetic_directory() / "rewrites.jsonl").read_text().splitlines() if line]
+    records = read_json_lines(synthetic_directory() / "rewrites.jsonl")
     drop_counts: dict[str, int] = {}
     rows_by_source: dict[str, list] = {"synthetic_rephrase": [], "synthetic_qa": []}
     seen_text_hashes = set()
@@ -317,7 +328,7 @@ def main() -> None:
     generate.add_argument("--requests-in-flight-per-endpoint", type=int, default=128)
     generate.add_argument("--stop-after-hours", type=float, default=24.0)
     generate.add_argument("--maximum-rewrites", type=int, default=None,
-                          help="stop when this many rewrites exist; the screening design needs about 11,000 "
+                          help="stop when this many rewrites exist; the screening design needs about 12,000 "
                                "(its largest synthetic share is 9M of 40M tokens, at about 800 tokens per rewrite)")
     generate.add_argument("--temperature", type=float, default=0.8,
                           help="0.8: below it the six styles converge on the same phrasing; above it facts start to drift")
