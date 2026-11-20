@@ -46,8 +46,8 @@ def test_sampling_stops_at_the_end_tokens_by_id(monkeypatch, tokenizer):
     stop_token_ids = sft_probe.end_token_ids()
     texts, finish_reasons = sft_probe.sample_completions(8100, "prompt", 1, 16, 1.0, 1.0, ["<|im_end|>"], stop_token_ids)
     assert texts == ["x"] and finish_reasons == ["stop"]
-    assert set(sent_bodies[0]["stop_token_ids"]) == {tokenizer.convert_tokens_to_ids("<|im_end|>"),
-                                                     tokenizer.convert_tokens_to_ids("<|endoftext|>")}
+    assert set(sent_bodies[0]["stop_token_ids"]) == {tokenizer.convert_tokens_to_ids(token)
+                                                     for token in ("<|im_end|>", "<|endoftext|>", "<|im_start|>")}
 
 
 def test_pass_at_k_interval_contains_the_value_and_is_zero_width_for_identical_items():

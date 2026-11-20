@@ -351,7 +351,8 @@ def stop_inference_server(server_process) -> None:
 
 
 def end_token_ids() -> list[int]:
-    """The ids of `<|im_end|>` and `<|endoftext|>`.
+    """The ids of `<|im_end|>`, `<|endoftext|>` and `<|im_start|>` (a model that skips the end of its turn and opens
+    the next one has finished its answer too).
 
     A generation must stop at these tokens by id. The server matches stop strings against the decoded text, and the
     decoded text leaves special tokens out, so a stop string "<|im_end|>" never matches: the first probe's answers
@@ -361,7 +362,7 @@ def end_token_ids() -> list[int]:
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
-    token_ids = [tokenizer.convert_tokens_to_ids(token) for token in (turn_end, "<|endoftext|>")]
+    token_ids = [tokenizer.convert_tokens_to_ids(token) for token in (turn_end, "<|endoftext|>", turn_start)]
     assert all(isinstance(token_id, int) and token_id >= 0 for token_id in token_ids), f"missing end tokens: {token_ids}"
     return token_ids
 
