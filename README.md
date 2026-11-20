@@ -453,9 +453,35 @@ sequence therefore holds many documents. When they are concatenated at random, n
 helps to predict the last 4K, and the model learns that distant context can be ignored.
 
 Therefore, long sequences are filled with related documents: an article, a textbook section and a forum question
-on one topic (`document_packing.py`, *in progress*). The control arm holds exactly the same documents grouped at
-random, so a difference between the arms comes from the grouping alone. A third arm uses documents that are long
-by themselves, mostly papers.
+on one topic (`document_packing.py`). The control arm holds exactly the same documents grouped at random, so a
+difference between the arms comes from the grouping alone. A third arm uses documents that are long by themselves,
+mostly papers.
+
+How related documents are found. Each candidate document (64 to 8,192 tokens, from Wikipedia, textbooks, forum
+answers, math pages and code) becomes a TF-IDF vector reduced to 128 dimensions. A pack starts from a random
+document and grows by the unused document closest to the mean of the pack so far, until it holds 16,384 tokens.
+The build takes about two minutes on the CPU for 125,000 documents.
+
+| pack set | packs | documents | sources per pack | similarity of neighbours | repeated 8-word sequences |
+|---|---|---|---|---|---|
+| semantic | 6,782 | 108,246 | 1.89 | **0.811** | 0.27% |
+| random (same documents) | 6,827 | 108,246 | 4.65 | 0.152 | 0.003% |
+| natural (one long document each) | 7,324 | 7,324 | 1 | | |
+
+Similarity is the cosine between consecutive documents of a pack in the 128-dimensional space; the last column is
+the share of a pack's 8-word sequences that already occurred earlier in the same pack (`results/pack_summary.json`).
+
+Two hazards showed up in the first build, and both would have made the comparison unfair:
+
+| hazard | why it breaks the comparison | resolution |
+|---|---|---|
+| The same textbook section exists in several editions, and similarity packing put the editions side by side: 9% of semantic packs held a document more than half repeated from earlier in the pack | the model can lower its loss by copying from context, which is a different skill from using related text, and the random arm has almost none of it | a document is skipped for a pack when more than 10% of its 8-word sequences already occur in it; repeated text fell from 2.07% to 0.27%, and what remains are stock phrases |
+| The packs built last are leftovers: the mean similarity fell from 0.87 in the first tenth of packs to 0.65 in the last | the semantic arm would contain a tail of unrelated packs that look like the random arm | 10% more documents are sampled, and packs below 0.5 similarity plus the last ones built are dropped from both arms |
+
+A third choice keeps packs from collapsing onto one source: two unrelated documents of one source score 0.25,
+against 0.12 across sources, so without a correction 61% of packs held a single source. A candidate now loses 0.1
+times the share of the pack that comes from its own source, which brings single-source packs to 37% at a cost of
+0.01 in similarity.
 
 The effect is looked for where it should appear. The regression suite measures how much few-shot examples help
 (accuracy with shots minus accuracy without), and how much the loss on the last 2K tokens of a long document falls
