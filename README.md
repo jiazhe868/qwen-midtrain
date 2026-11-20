@@ -129,6 +129,31 @@ Caveats, plainly: one seed per run; 24,576 validation tokens per source, so diff
 (English Wikipedia at +0.4% after a run that was 15% Wikipedia is one of them; the design runs use 131,072 tokens);
 loss only, and §3 explains why loss is not the yardstick here; the 3e-6 run and every probe result are still running.
 
+**The regression suite on the base model.** It takes 12 minutes on one A100 for the 0.8B checkpoint
+(`results/regression/base_0.8B.json`):
+
+| measurement | with 5 examples | without examples |
+|---|---|---|
+| MMLU-Pro (1,200 questions, 10 options) | 18.1 | 25.0 |
+| ARC-Challenge (1,172) | 68.2 | 71.7 |
+| HellaSwag (1,000) | 46.6 | 50.2 |
+| CommonsenseQA (1,221) | 52.3 | 56.9 |
+| CMMLU (1,000, Chinese) | 53.1 | 51.8 |
+
+| measurement | value |
+|---|---|
+| TriviaQA exact match (1,000, greedy) | 21.0 |
+| few-shot pass@1 / pass@16, 16 samples at temperature 1: GSM8K, MATH-500, HumanEval, MBPP | 18.1 / 62.5, 8.7 / 47.6, 8.1 / 30.5, 13.4 / 49.5 |
+| loss on the last 2K tokens of long papers: 2K of context, 14K of context | 1.885, 1.682 bits per token |
+
+Two readings matter for the design. **Examples lower the multiple-choice accuracy of this model** on four of five
+sets. Counting the letters it picks explained it: with five examples the model picks "B" more often (33 of 80 ARC
+questions against 27 without), and on MMLU-Pro it picks "A" or "B" for 72 of 80 questions. The examples' own answers
+are balanced, so this is a preference for early letters that examples strengthen, a known weakness of small models
+with lettered options. The guard of the mixture search therefore averages each set with and without examples (§6.4),
+a choice made before any design run had a result. **Distant context is worth 0.20 bits per token** to the base
+model, a clear signal against which the long-context arms of the design can be compared.
+
 **The probe on the base model.** The first probe of the base checkpoint is withdrawn: the server did not stop at
 the end of the assistant's turn, the answers ran on into turns the model made up, and the grader read the last
 answer it found there (PITFALLS E1). The answers were 7 times longer than the base model's own few-shot answers,
@@ -421,7 +446,22 @@ score from 49 to 0. Every output is checked for length, refusals and meta-commen
 that shares more than half of its 8-word sequences with its source is dropped, because a copy is a real passage
 at a higher price. The batch then has to pass the diversity gate of §11 before a recipe may use it.
 
-Status: 60,000 passages are selected (90,087 rewrites planned). Generation has not started.
+**A first sample.** 600 rewrites from two teacher servers (`synthetic/rewrites.jsonl` under the data folder; the
+counts below are in `results/synthetic_summary.json` once the batch is published):
+
+| style | kept | median words | copied 8-word sequences (median) |
+|---|---|---|---|
+| explanation | 89 of 92 | 780 | 0.6% |
+| structured notes | 90 of 98 | 795 | 0.7% |
+| dialogue | 80 of 99 | 821 | 3.6% |
+| questions with worked answers | 108 of 116 | 751 | 1.3% |
+| worked problems | 86 of 103 | 842 | 2.0% |
+| what-if analysis | 92 of 92 | 725 | 0.8% |
+
+Every dropped rewrite had hit the 1,500-token limit, mostly dialogues; the limit is now 1,800. Reading samples of
+each style: they stay on the passage's content, and the forms differ the way the instructions ask. Generation runs
+at about 3,400 rewrites an hour on two shared GPUs, so the batch is 12,000 rewrites (about 11M tokens), enough for
+the screening design: its run with the most rewritten text draws 4.5M tokens from each of the two sources.
 
 ---
 
