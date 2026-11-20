@@ -124,10 +124,20 @@ def collect_probe_conversations(configuration: dict) -> list[dict]:
     take(math_rows, "math_train", lambda row: question_then_answer(
         {"task": "math500", "kind": "numeric", "question": row["problem"]}, row["solution"]) if "\\boxed" in row["solution"] else None)
 
+    # MBPP task ids: 11-510 are the test split, 511-600 validation, 601-974 train. The probe trains on the last two,
+    # so none of the tested tasks is seen; the assert keeps that true if the hub files ever change.
     mbpp_rows = (load_dataset("google-research-datasets/mbpp", "full", split="train").to_list()
                  + load_dataset("google-research-datasets/mbpp", "full", split="validation").to_list())
-    take(mbpp_rows, "mbpp_train", lambda row: question_then_answer(
-        eval_tasks.normalize_mbpp_row(row), f"```python\n{row['code'].strip()}\n```"))
+    assert all(row["task_id"] > 510 for row in mbpp_rows), "an MBPP training row has a task id of the test split"
+
+    def mbpp_question_then_answer(row: dict) -> list[dict]:
+        # the fields render_chat_messages reads for a task-description code item, from the unsanitized rows
+        setup_lines = [row["test_setup_code"]] if row["test_setup_code"].strip() else []
+        item = {"task": "mbpp", "kind": "code", "question": row["text"].strip(),
+                "meta": {"question_form": "task_description", "test_imports": setup_lines, "test_list": list(row["test_list"])}}
+        return question_then_answer(item, f"```python\n{row['code'].strip()}\n```")
+
+    take(mbpp_rows, "mbpp_train", mbpp_question_then_answer)
 
     smoltalk_subsets = {"code_instructions": "self-oss-instruct", "instruction_following": "smol-constraints",
                         "summarization": "smol-summarize", "rewriting": "smol-rewrite",
@@ -214,7 +224,8 @@ def plan_probe_batches(token_id_rows: list[np.ndarray], tokens_per_forward: int,
     return batches_of_all_epochs
 
 
-def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward: int, master_weights_on: str) -> dict:
+def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward: int, master_weights_on: str,
+                step_count_limit: int | None = None) -> dict:
     import torch
 
     from midtrain.mixture import end_of_text_token_id
@@ -236,7 +247,7 @@ def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward
         if padded_tokens_in_step >= configuration["tokens_per_step"]:
             steps.append([])
             padded_tokens_in_step = 0
-    steps = [step for step in steps if step]
+    steps = [step for step in steps if step][:step_count_limit]
     step_count = len(steps)
 
     device_names = [f"cuda:{index}" for index in range(torch.cuda.device_count())]
@@ -288,10 +299,15 @@ def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward
 # ---------------------------------------------------------------------------------------------------------------
 def start_inference_server(checkpoint_path: str, port: int, log_path: Path, maximum_context_tokens: int = 4096):
     """Start the server in its own session (so that stopping it takes its workers too) and wait until it answers."""
+    # The server may use this share of the GPU's memory. On a GPU that another job also uses, set it lower; the
+    # number of answers generated at once then shrinks with it, because each needs one state-cache block (at a
+    # share of 0.25 the server refused 1,024 sequences: only 709 blocks fit, 11-20).
+    memory_share = float(os.environ.get("MIDTRAIN_SERVER_MEMORY_SHARE", "0.80"))
+    sequences_at_once = max(64, int(1024 * min(1.0, memory_share / 0.80)))
     command = [sys.executable, "-m", "vllm.entrypoints.cli.main", "serve", str(checkpoint_path),
                "--served-model-name", "candidate", "--port", str(port), "--max-model-len", str(maximum_context_tokens),
-               "--gpu-memory-utilization", os.environ.get("MIDTRAIN_SERVER_MEMORY_SHARE", "0.80"),
-               "--max-num-seqs", "1024", "--mamba-ssm-cache-dtype", "float32", "--gdn-prefill-backend", "triton",
+               "--gpu-memory-utilization", str(memory_share), "--max-num-seqs", str(sequences_at_once),
+               "--mamba-ssm-cache-dtype", "float32", "--gdn-prefill-backend", "triton",
                "--language-model-only", "--seed", "0"]
     server_process = subprocess.Popen(command, stdout=log_path.open("w"), stderr=subprocess.STDOUT, start_new_session=True)
     deadline = time.time() + 900          # loading takes 1-2 minutes for the 0.8B model and about 6 for the 9B
@@ -352,24 +368,45 @@ def pass_at_k_with_interval(correct_counts: list[int], sample_count: int, k: int
     return {"value": round(100 * float(per_item.mean()), 2), "low": round(100 * float(low), 2), "high": round(100 * float(high), 2)}
 
 
-def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_style: str = "chat") -> dict:
+def grade_samples_of_items(items: list[dict], completions_per_item: list[list[str]], prompt_style: str) -> list[int]:
+    """How many of each item's samples are correct. Identical samples of one item are graded once: at temperature 1
+    a small model repeats itself often on easy items, and every code sample costs a sandbox start."""
+    distinct_pairs: dict[tuple[int, str], int] = {}
+    for item_index, completions in enumerate(completions_per_item):
+        for completion in completions:
+            distinct_pairs.setdefault((item_index, completion), len(distinct_pairs))
+    pair_items = [items[item_index] for item_index, _ in distinct_pairs]
+    pair_texts = [completion for _, completion in distinct_pairs]
+    if items[0]["kind"] == "code":
+        verdicts = [verdict["passed"] for verdict in
+                    eval_tasks.grade_code_completions_in_parallel(pair_items, pair_texts, prompt_style)]
+    else:
+        verdicts = [eval_tasks.grade_completion(item, text, prompt_style) for item, text in zip(pair_items, pair_texts)]
+    return [sum(bool(verdicts[distinct_pairs[(item_index, completion)]]) for completion in completions)
+            for item_index, completions in enumerate(completions_per_item)]
+
+
+def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_style: str = "chat",
+                       item_count_limit: int | None = None) -> dict:
     """Serve the checkpoint, sample every test item `sample_count` times, grade, and return pass@k per task."""
     configuration = load_probe_configuration()["evaluation"]
+    if item_count_limit:        # the quick end-to-end test: few items, 8 samples each
+        configuration["sample_count"] = 8
+        configuration["pass_at_k"] = [k for k in configuration["pass_at_k"] if k <= 8]
     run_directory = data_root() / "runs" / run_name
     run_directory.mkdir(parents=True, exist_ok=True)
     server_process = start_inference_server(checkpoint_path, port, run_directory / f"server_{prompt_style}.log")
     results: dict = {"run_name": run_name, "prompt_style": prompt_style, "sample_count": configuration["sample_count"], "tasks": {}}
     try:
         for task_name, task_settings in configuration["tasks"].items():
-            items = load_evaluation_items(task_name, task_settings["item_count"], configuration["item_seed"])
+            items = load_evaluation_items(task_name, item_count_limit or task_settings["item_count"], configuration["item_seed"])
             if prompt_style == "chat":
                 prompts = [render_chatml_prompt(eval_tasks.render_chat_messages(item)) for item in items]
                 stop_sequences = [turn_end]
             else:
-                few_shot_items = [json.loads(line) for line in
-                                  (data_root() / "eval" / f"{task_name}_fewshot.jsonl").read_text().splitlines() if line]
+                few_shot_items = eval_tasks.load_few_shot_items(task_name)
                 prompts = [eval_tasks.render_base_prompt(item, few_shot_items) for item in items]
-                stop_sequences = ["\nQuestion:", "\n\n\n", "<|endoftext|>"]
+                stop_sequences = eval_tasks.base_completion_stop_sequences(items[0])[:4]      # the server takes 4 at most
             started = time.time()
             with concurrent.futures.ThreadPoolExecutor(16) as request_pool:
                 completions_per_item = list(request_pool.map(
@@ -377,12 +414,7 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
                                                       task_settings["maximum_new_tokens"], configuration["temperature"],
                                                       configuration["top_p"], stop_sequences), prompts))
             sampling_minutes = (time.time() - started) / 60
-            gradings = [(item, completion) for item, completions in zip(items, completions_per_item) for completion in completions]
-            # code is graded by running it in the sandbox, one process per program: threads only wait on them
-            with concurrent.futures.ThreadPoolExecutor(min(48, os.cpu_count() or 8)) as grading_pool:
-                verdicts = list(grading_pool.map(lambda pair: bool(eval_tasks.grade_completion(pair[0], pair[1], prompt_style)), gradings))
-            correct_counts = [int(sum(verdicts[index * configuration["sample_count"]:(index + 1) * configuration["sample_count"]]))
-                              for index in range(len(items))]
+            correct_counts = grade_samples_of_items(items, completions_per_item, prompt_style)
             task_result = {f"pass@{k}": pass_at_k_with_interval(correct_counts, configuration["sample_count"], k)
                            for k in configuration["pass_at_k"]}
             task_result["item_ids"] = [item["item_id"] for item in items]
@@ -390,9 +422,9 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
             task_result["mean_completion_characters"] = round(float(np.mean([len(c) for cs in completions_per_item for c in cs])))
             task_result["minutes"] = round(sampling_minutes + 0.0, 1)
             results["tasks"][task_name] = task_result
-            print(f"{run_name} [{prompt_style}] {task_name}: pass@1 {task_result['pass@1']['value']:.1f}  "
-                  f"pass@16 {task_result['pass@16']['value']:.1f}  pass@64 {task_result['pass@64']['value']:.1f}  "
-                  f"({sampling_minutes:.0f} min sampling)", flush=True)
+            shown = "  ".join(f"pass@{k} {task_result[f'pass@{k}']['value']:.1f}" for k in configuration["pass_at_k"]
+                              if k in (1, 8, 16, 64))
+            print(f"{run_name} [{prompt_style}] {task_name}: {shown}  ({sampling_minutes:.1f} min sampling)", flush=True)
     finally:
         stop_inference_server(server_process)
     return results
@@ -423,23 +455,26 @@ def main() -> None:
     parser.add_argument("--master-weights-on", choices=["gpu", "cpu"], default="gpu")
     parser.add_argument("--keep-probe-checkpoint", action="store_true",
                         help="by default the fine-tuned weights are deleted once graded: 1.5 GB to 19 GB per candidate")
+    parser.add_argument("--quick-test", action="store_true",
+                        help="20 fine-tuning steps, 12 items per task, 8 samples: checks that every stage runs, in minutes")
     arguments = parser.parse_args()
+    step_count_limit, item_count_limit = (20, 12) if arguments.quick_test else (None, None)
     if arguments.command == "build-data":
         build_probe_data()
         return
     assert arguments.checkpoint and arguments.run_name, "give --checkpoint and --run-name"
     port = port_for_this_process()
     if arguments.command == "evaluate":
-        results = evaluate_pass_at_k(arguments.checkpoint, arguments.run_name, port)
+        results = evaluate_pass_at_k(arguments.checkpoint, arguments.run_name, port, item_count_limit=item_count_limit)
         write_probe_results(arguments.run_name, results)
         return
     import shutil
 
     probe_checkpoint = data_root() / "runs" / arguments.run_name / "probe_checkpoint"
     training_summary = train_probe(arguments.checkpoint, probe_checkpoint, arguments.tokens_per_forward,
-                                   arguments.master_weights_on)
+                                   arguments.master_weights_on, step_count_limit)
     print(f"{arguments.run_name}: probe fine-tune {json.dumps(training_summary)}", flush=True)
-    results = evaluate_pass_at_k(str(probe_checkpoint), arguments.run_name, port)
+    results = evaluate_pass_at_k(str(probe_checkpoint), arguments.run_name, port, item_count_limit=item_count_limit)
     results["probe_training"] = training_summary
     write_probe_results(arguments.run_name, results)
     if not arguments.keep_probe_checkpoint:

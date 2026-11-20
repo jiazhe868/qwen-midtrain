@@ -1,0 +1,16 @@
+{
+ "conversations": 22161,
+ "dropped_as_too_long": 99,
+ "tokens": 6181744,
+ "tokens_with_loss": 3488080,
+ "conversations_by_source": {
+  "gsm8k_train": 7400,
+  "math_train": 7459,
+  "rewriting": 800,
+  "code_instructions": 2999,
+  "summarization": 743,
+  "instruction_following": 1500,
+  "mbpp_train": 460,
+  "everyday_conversation": 800
+ }
+}

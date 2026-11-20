@@ -1,0 +1,128 @@
+{
+ "code": {
+  "train": {
+   "documents": 318020,
+   "tokens": 297462664,
+   "median_document_tokens": 488,
+   "documents_of_at_least_4096_tokens": 8798
+  },
+  "validation": {
+   "documents": 1576,
+   "tokens": 1404536,
+   "median_document_tokens": 509,
+   "documents_of_at_least_4096_tokens": 35
+  }
+ },
+ "forum_qa": {
+  "train": {
+   "documents": 363606,
+   "tokens": 257563958,
+   "median_document_tokens": 469,
+   "documents_of_at_least_4096_tokens": 3608
+  },
+  "validation": {
+   "documents": 1775,
+   "tokens": 1283086,
+   "median_document_tokens": 469,
+   "documents_of_at_least_4096_tokens": 22
+  }
+ },
+ "math_web": {
+  "train": {
+   "documents": 306605,
+   "tokens": 477560567,
+   "median_document_tokens": 888,
+   "documents_of_at_least_4096_tokens": 18518
+  },
+  "validation": {
+   "documents": 1576,
+   "tokens": 2650713,
+   "median_document_tokens": 902,
+   "documents_of_at_least_4096_tokens": 127
+  }
+ },
+ "papers": {
+  "train": {
+   "documents": 59525,
+   "tokens": 974058680,
+   "median_document_tokens": 11448,
+   "documents_of_at_least_4096_tokens": 53628
+  },
+  "validation": {
+   "documents": 270,
+   "tokens": 4744581,
+   "median_document_tokens": 12023,
+   "documents_of_at_least_4096_tokens": 246
+  }
+ },
+ "replay_web": {
+  "train": {
+   "documents": 662491,
+   "tokens": 476989327,
+   "median_document_tokens": 428,
+   "documents_of_at_least_4096_tokens": 9448
+  },
+  "validation": {
+   "documents": 3322,
+   "tokens": 2291358,
+   "median_document_tokens": 446,
+   "documents_of_at_least_4096_tokens": 31
+  }
+ },
+ "replay_web_edu": {
+  "train": {
+   "documents": 493081,
+   "tokens": 516742111,
+   "median_document_tokens": 629,
+   "documents_of_at_least_4096_tokens": 15098
+  },
+  "validation": {
+   "documents": 2458,
+   "tokens": 2575763,
+   "median_document_tokens": 638,
+   "documents_of_at_least_4096_tokens": 74
+  }
+ },
+ "textbooks": {
+  "train": {
+   "documents": 93611,
+   "tokens": 225817646,
+   "median_document_tokens": 1251,
+   "documents_of_at_least_4096_tokens": 14540
+  },
+  "validation": {
+   "documents": 485,
+   "tokens": 1137745,
+   "median_document_tokens": 1377,
+   "documents_of_at_least_4096_tokens": 69
+  }
+ },
+ "wiki_en": {
+  "train": {
+   "documents": 220833,
+   "tokens": 252325672,
+   "median_document_tokens": 651,
+   "documents_of_at_least_4096_tokens": 8377
+  },
+  "validation": {
+   "documents": 1126,
+   "tokens": 1356302,
+   "median_document_tokens": 644,
+   "documents_of_at_least_4096_tokens": 51
+  }
+ },
+ "wiki_zh": {
+  "train": {
+   "documents": 155091,
+   "tokens": 227496218,
+   "median_document_tokens": 728,
+   "documents_of_at_least_4096_tokens": 11220
+  },
+  "validation": {
+   "documents": 786,
+   "tokens": 1251578,
+   "median_document_tokens": 778,
+   "documents_of_at_least_4096_tokens": 62
+  }
+ }
+}

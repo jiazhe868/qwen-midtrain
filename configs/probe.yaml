@@ -35,5 +35,4 @@ evaluation:
     math500: {item_count: 250, maximum_new_tokens: 512}
     humaneval: {item_count: 164, maximum_new_tokens: 512}
     mbpp: {item_count: 200, maximum_new_tokens: 512}
-    long_chain: {item_count: 200, maximum_new_tokens: 384}
   pass_at_k: [1, 2, 4, 8, 16, 32, 64]
