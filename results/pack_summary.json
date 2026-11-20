@@ -1,0 +1,214 @@
+{
+ "semantic_16k": {
+  "pack_name": "semantic_16k",
+  "mode": "semantic",
+  "seed": 1,
+  "settings": {
+   "pack_token_length": 16384,
+   "token_budget": 120000000,
+   "oversampling_share": 0.1,
+   "source_token_shares": {
+    "wiki_en": 0.3,
+    "textbooks": 0.25,
+    "forum_qa": 0.15,
+    "math_web": 0.15,
+    "code": 0.15
+   },
+   "minimum_document_tokens": 64,
+   "maximum_document_tokens": 8192,
+   "maximum_characters_per_text": 20000,
+   "hashed_word_column_count": 262144,
+   "topic_dimension_count": 128,
+   "shortlist_document_count": 2048,
+   "source_repeat_penalty": 0.1,
+   "shingle_word_count": 8,
+   "near_copy_shingle_share": 0.1,
+   "minimum_pack_similarity": 0.5
+  },
+  "statistics": {
+   "packs": 6782,
+   "documents": 108246,
+   "documents_per_pack_mean": 15.96,
+   "documents_per_pack_median": 13.0,
+   "distinct_sources_per_pack_mean": 1.89,
+   "share_of_packs_from_one_source": 0.3664,
+   "document_tokens": 120012620,
+   "tokens_the_reader_takes": 111116288,
+   "share_of_pack_tokens_beyond_the_pack_length": 0.075,
+   "documents_by_source": {
+    "wiki_en": 34020,
+    "textbooks": 15072,
+    "forum_qa": 26838,
+    "math_web": 12084,
+    "code": 20232
+   },
+   "token_share_by_source": {
+    "wiki_en": 0.2989,
+    "textbooks": 0.2529,
+    "forum_qa": 0.1601,
+    "math_web": 0.1359,
+    "code": 0.1521
+   },
+   "similarity_of_consecutive_documents_mean": 0.8108,
+   "similarity_to_first_document_mean": 0.7215,
+   "similarity_of_consecutive_documents_percentiles": {
+    "1": 0.5772,
+    "5": 0.656,
+    "50": 0.8214,
+    "95": 0.9315
+   },
+   "share_of_packs_below_minimum_pack_similarity": 0.0,
+   "similarity_of_consecutive_documents_by_tenth_of_build_order": [
+    0.8633,
+    0.8535,
+    0.8439,
+    0.8318,
+    0.8193,
+    0.8169,
+    0.802,
+    0.7876,
+    0.7609,
+    0.7293
+   ],
+   "share_of_shingles_seen_earlier_in_pack": 0.00273,
+   "documents_past_the_near_copy_share": 0,
+   "share_of_packs_with_a_document_past_the_near_copy_share": 0.0,
+   "sampled_documents": 125267,
+   "sampled_document_tokens": 132003799,
+   "near_copy_skips": 104078,
+   "packs_given_up_for_near_copies": 210,
+   "leftover_documents_dropped": 821,
+   "leftover_tokens_dropped": 606735,
+   "packs_built": 7444,
+   "packs_dropped_below_minimum_pack_similarity": 111,
+   "packs_dropped_from_the_end_of_the_build": 551,
+   "documents_in_dropped_packs": 16200,
+   "documents_without_a_countable_word": 0,
+   "flagged_candidates_removed_by_source": {
+    "wiki_en": 55,
+    "textbooks": 196,
+    "forum_qa": 205,
+    "math_web": 2696,
+    "code": 274
+   }
+  },
+  "seconds": {
+   "sample": 0.6,
+   "read_texts_count_words_hash_shingles": 40.3,
+   "compute_topic_vectors": 41.7,
+   "pack": 31.1,
+   "check_and_measure": 5.9,
+   "total": 119.6
+  }
+ },
+ "random_16k": {
+  "pack_name": "random_16k",
+  "mode": "random",
+  "seed": 1,
+  "settings": {
+   "pack_token_length": 16384,
+   "same_documents_as": "semantic_16k",
+   "shingle_word_count": 8,
+   "near_copy_shingle_share": 0.1,
+   "minimum_pack_similarity": 0.5
+  },
+  "statistics": {
+   "packs": 6827,
+   "documents": 108246,
+   "documents_per_pack_mean": 15.86,
+   "documents_per_pack_median": 16.0,
+   "distinct_sources_per_pack_mean": 4.65,
+   "share_of_packs_from_one_source": 0.0,
+   "document_tokens": 120012620,
+   "tokens_the_reader_takes": 111853568,
+   "share_of_pack_tokens_beyond_the_pack_length": 0.0688,
+   "documents_by_source": {
+    "wiki_en": 34020,
+    "textbooks": 15072,
+    "forum_qa": 26838,
+    "math_web": 12084,
+    "code": 20232
+   },
+   "token_share_by_source": {
+    "wiki_en": 0.2989,
+    "textbooks": 0.2529,
+    "forum_qa": 0.1601,
+    "math_web": 0.1359,
+    "code": 0.1521
+   },
+   "similarity_of_consecutive_documents_mean": 0.1516,
+   "similarity_to_first_document_mean": 0.1498,
+   "similarity_of_consecutive_documents_percentiles": {
+    "1": 0.0761,
+    "5": 0.0951,
+    "50": 0.1472,
+    "95": 0.2241
+   },
+   "share_of_packs_below_minimum_pack_similarity": 1.0,
+   "similarity_of_consecutive_documents_by_tenth_of_build_order": [
+    0.1499,
+    0.1527,
+    0.151,
+    0.1486,
+    0.1499,
+    0.1541,
+    0.1543,
+    0.1527,
+    0.152,
+    0.1508
+   ],
+   "share_of_shingles_seen_earlier_in_pack": 3e-05,
+   "documents_past_the_near_copy_share": 6,
+   "share_of_packs_with_a_document_past_the_near_copy_share": 0.0009,
+   "documents_after_the_last_full_pack": 6
+  },
+  "seconds": {
+   "total": 35.5
+  }
+ },
+ "natural_16k": {
+  "pack_name": "natural_16k",
+  "mode": "natural",
+  "seed": 1,
+  "settings": {
+   "pack_token_length": 16384,
+   "token_budget": 120000000,
+   "natural_source_names": [
+    "papers",
+    "textbooks"
+   ]
+  },
+  "statistics": {
+   "packs": 7324,
+   "documents": 7324,
+   "documents_per_pack_mean": 1.0,
+   "documents_per_pack_median": 1.0,
+   "distinct_sources_per_pack_mean": 1.0,
+   "share_of_packs_from_one_source": 1.0,
+   "document_tokens": 233531518,
+   "tokens_the_reader_takes": 119996416,
+   "share_of_pack_tokens_beyond_the_pack_length": 0.4862,
+   "documents_by_source": {
+    "papers": 7007,
+    "textbooks": 317
+   },
+   "token_share_by_source": {
+    "papers": 0.9549,
+    "textbooks": 0.0451
+   },
+   "candidate_documents_by_source": {
+    "papers": 19517,
+    "textbooks": 864
+   },
+   "candidate_documents_left_out": 13057,
+   "flagged_candidates_removed_by_source": {
+    "papers": 551,
+    "textbooks": 17
+   },
+   "document_tokens_median": 25610.0
+  },
+  "seconds": {
+   "total": 0.1
+  }
+ }
+}
