@@ -185,7 +185,7 @@ diagnostic and as the fastest warning that a run went wrong.
 
 | judge | what it does | what it answers |
 |---|---|---|
-| regression suite (*planned*: `base_regression.py`) | the checkpoint as a base model: multiple choice by the log-likelihood of the answer letter, few-shot generation for math, code and trivia, bits per byte on every source, and the gain from few-shot examples | did the run forget anything, and can the model use context |
+| regression suite (`base_regression.py`) | the checkpoint as a base model: multiple choice by the log-likelihood of the answer letter, few-shot generation for math, code and trivia, bits per byte on every source, and the gain from few-shot examples | did the run forget anything, and can the model use context |
 | fixed fine-tuning probe (`sft_probe.py`) | the same small fine-tune for every checkpoint, then 64 samples per question at temperature 1, graded | how well does the checkpoint fine-tune, and how many questions can it solve at all |
 
 The regression suite has ten public sets. Their sizes are in `$MIDTRAIN_DATA/eval/manifest.json` after the build:
@@ -380,8 +380,10 @@ on the sign of the effects it relies on. The 4B then runs the proposed mixture, 
 neighbours as a third point. Known hazard: proxies trained at a high learning rate misrank recipes (arXiv
 2512.24503), which is one reason the learning rates here are low.
 
-*Planned code:* `mixing_law.py` (design to recipes and queue tasks; effects, interference matrix, optimum, rank
-agreement).
+Code: `mixing_law.py` turns the design file (`configs/designs/screen18.yaml`) into 18 recipes and queue tasks, and
+the finished runs into level means, the law, the interference matrix, the constrained optimum and the rank
+agreement between two sizes. `mixing_law.py compare` sets two runs side by side question by question. A test plants
+a known law in the 18 designed mixtures and recovers it exactly (`tests/test_mixture_and_design.py`).
 
 ---
 
@@ -443,9 +445,12 @@ survived the cheap ones.
 A stage never rewrites text. It writes one small file per stage keyed by document id with `keep`, `drop_reason` and
 the numbers it measured, so a threshold can be changed without recomputing anything.
 
-Status: the code and its tests exist. No stage has run on the real pool, so no share of removed tokens is
-reported yet. The comparison planned for §13 P6 is none against classifier (FineWeb-Edu) against learnability at
-the same token budget.
+**The comparison for P6.** Three versions of one web crawl fill the 85% web share of a replay recipe, at the same
+token budget: the crawl as it is (200,000 FineWeb documents), the crawl after the FineWeb-Edu quality classifier, and
+the same 200,000 documents kept by learnability (the largest gap between the loss of the 0.8B student and the 4B
+reference on their first 512 tokens, 50M tokens kept). The first two funnel stages removed 79 of the 200,000
+documents: FineWeb is filtered and deduplicated upstream, so in this comparison the selection rule does all the
+work. The scoring stage is queued behind the screening design (`configs/recipes/curation/`).
 
 ---
 
@@ -614,9 +619,14 @@ src/midtrain/
   synthetic_rephrase.py   teacher rewriting of real passages, checks on every output
   curation_funnel.py      filter, dedup, semantic dedup, loss scoring, learnability selection
   data_hygiene.py         decontamination against the evaluation sets; diversity gate
-  document_packing.py     related documents into long sequences (in progress)
+  document_packing.py     related documents into long sequences; the random and natural control arms
+  base_regression.py      the regression suite: the checkpoint as a base model
+  mixing_law.py           the orthogonal design, the mixing law, the interference matrix, paired comparisons
+  figures.py              every figure of this README, drawn from results/
 tests/                    one file per module
 results/                  small result files; every number in this README comes from one of them
+assets/                   the figures, PNG for the README and PDF, in English and Chinese
+PITFALLS.md               the failure atlas: incidents met while building the pipeline
 ```
 
 ---
