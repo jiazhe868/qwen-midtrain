@@ -1,0 +1,120 @@
+# The public text sources of the pool: where each comes from, how to read it, and how much of it to take.
+#
+# Every source is a small first slice of a much larger public dataset: the experiments train on 20M-200M tokens per
+# run, so a pool of about 2.5B tokens leaves every run far from repeating a document. The roles are the mixture
+# components of the study (README §3): replay stands in for the pretraining distribution, curated is real long-form
+# text of high value, hard is math and code. Synthetic rephrasings and procedural reasoning traces are built by
+# synthetic_rephrase.py and reasoning_primitives.py and join the pool as their own sources.
+#
+# `files` are paths inside the hub dataset. `max_documents` caps what is read. `minimum_token_count` drops stubs.
+
+validation_one_in: 200          # a document is held out when its id hash is divisible by this: 0.5% of each source
+
+sources:
+  replay_web:
+    role: replay
+    description: general web pages, the FineWeb sample (no quality classifier applied)
+    hub_dataset: HuggingFaceFW/fineweb
+    files: [sample/10BT/000_00000.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, language_score]
+    license: ODC-By 1.0
+    max_documents: 700000
+    minimum_token_count: 100
+
+  replay_web_edu:
+    role: replay
+    description: the same crawl after the FineWeb-Edu classifier (score >= 3), the classifier-filtered baseline
+    hub_dataset: HuggingFaceFW/fineweb-edu
+    files: [sample/10BT/000_00000.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, score]
+    license: ODC-By 1.0
+    max_documents: 500000
+    minimum_token_count: 100
+
+  wiki_en:
+    role: curated
+    description: English Wikipedia articles (2023-11 dump)
+    hub_dataset: wikimedia/wikipedia
+    files: [20231101.en/train-00000-of-00041.parquet, 20231101.en/train-00020-of-00041.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, title]
+    license: CC BY-SA 3.0 and GFDL
+    max_documents: 400000
+    minimum_token_count: 200
+
+  wiki_zh:
+    role: replay
+    description: Chinese Wikipedia articles, so that replay also covers the base model's second main language
+    hub_dataset: wikimedia/wikipedia
+    files: [20231101.zh/train-00000-of-00006.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, title]
+    license: CC BY-SA 3.0 and GFDL
+    max_documents: 250000
+    minimum_token_count: 200
+
+  papers:
+    role: curated
+    description: full research papers, openly licensed (arXiv and S2ORC through the Common Pile)
+    hub_dataset: [common-pile/arxiv_papers_filtered, common-pile/peS2o_filtered]
+    files: [arxiv-papers-0000.json.gz, peS2o-0000.json.gz]
+    reader: dolma_json_gz
+    text_field: text
+    meta_fields: [url, license, oa_license, s2fieldsofstudy]
+    license: per document (CC BY, CC BY-SA, CC0, public domain)
+    max_documents: 60000
+    minimum_token_count: 1000
+
+  textbooks:
+    role: curated
+    description: open textbooks and course material (LibreTexts, Pressbooks, OER Commons through the Common Pile)
+    hub_dataset: [common-pile/libretexts_filtered, common-pile/pressbooks_filtered, common-pile/oercommons_filtered]
+    files: [libretexts-0000.json.gz, pressbooks-0000.json.gz, oercommons-0000.json.gz]
+    reader: dolma_json_gz
+    text_field: text
+    meta_fields: [url, title, license, subject]
+    license: per document (CC BY, CC BY-SA, public domain)
+    max_documents: 400000
+    minimum_token_count: 200
+
+  forum_qa:
+    role: curated
+    description: StackExchange question threads with their answers
+    hub_dataset: common-pile/stackexchange_filtered
+    files: [stackexchange-dolma-0000.json.gz]
+    reader: dolma_json_gz
+    text_field: text
+    meta_fields: [url, site, license]
+    license: CC BY-SA (per document)
+    max_documents: 400000
+    minimum_token_count: 150
+
+  math_web:
+    role: hard
+    description: web pages with step-by-step mathematics (FineMath, classifier score >= 4)
+    hub_dataset: HuggingFaceTB/finemath
+    files: [finemath-4plus/train-00000-of-00064.parquet, finemath-4plus/train-00001-of-00064.parquet, finemath-4plus/train-00002-of-00064.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, score]
+    license: ODC-By 1.0
+    max_documents: 320000
+    minimum_token_count: 150
+
+  code:
+    role: hard
+    description: permissively licensed educational code (Stack-Edu) and Python enhancement proposals
+    hub_dataset: [common-pile/stackv2_edu_filtered, common-pile/python_enhancement_proposals_filtered]
+    files: [stack-edu-0000.json.gz, peps-dolma-0000.json.gz]
+    reader: dolma_json_gz
+    text_field: text
+    meta_fields: [url, extension, detected_licenses, score]
+    license: per file (permissive) and public domain
+    max_documents: 400000
+    minimum_token_count: 100

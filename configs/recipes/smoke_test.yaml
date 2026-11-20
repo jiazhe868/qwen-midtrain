@@ -1,0 +1,7 @@
+# A two-minute end-to-end check of the trainer on one source; not an experiment.
+token_budget: 1310720          # 40 steps of 32,768 tokens
+context_length: 4096
+components:
+  textbooks: 1.0
+schedule: uniform
+seed: 1
