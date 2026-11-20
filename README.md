@@ -129,21 +129,13 @@ Caveats, plainly: one seed per run; 24,576 validation tokens per source, so diff
 (English Wikipedia at +0.4% after a run that was 15% Wikipedia is one of them; the design runs use 131,072 tokens);
 loss only, and §3 explains why loss is not the yardstick here; the 3e-6 run and every probe result are still running.
 
-**The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
-temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
-
-| task | questions | pass@1 | pass@16 | pass@64 |
-|---|---|---|---|---|
-| GSM8K | 200 | 11.0 [9.8, 12.2] | 70.4 | **91.0** |
-| MATH-500 | 250 | 9.1 [7.6, 10.8] | 48.9 | 68.0 |
-| HumanEval | 164 | 9.8 [7.2, 12.7] | 37.7 | 53.7 |
-| MBPP | 200 | 22.5 [18.9, 26.3] | 62.7 | 76.5 |
-
-One sampled answer is right about one time in ten, yet 64 samples solve 91% of the GSM8K questions at least once.
-The gap between pass@1 and pass@64 is the room a later RL stage has, and it is large on all four tasks. One probe
-takes 74 minutes on one A100: 32 to fine-tune, 42 to sample and grade. The probes of the pilot checkpoints, two
-repeats of the base probe with other fine-tuning seeds (the noise floor of §3.4) and the regression suite are
-running.
+**The probe on the base model.** The first probe of the base checkpoint is withdrawn: the server did not stop at
+the end of the assistant's turn, the answers ran on into turns the model made up, and the grader read the last
+answer it found there (PITFALLS E1). The answers were 7 times longer than the base model's own few-shot answers,
+and pass@1 after the fine-tune came out below the base model's few-shot pass@1, which is how the bug showed. The
+probe now stops at the end tokens by id and records the share of answers cut at the token limit; the base probe,
+two repeats with other fine-tuning seeds (the noise floor of §3.4), the probes of the pilot checkpoints and the
+regression suite are running.
 
 ---
 

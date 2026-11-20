@@ -350,16 +350,33 @@ def stop_inference_server(server_process) -> None:
             pass
 
 
+def end_token_ids() -> list[int]:
+    """The ids of `<|im_end|>` and `<|endoftext|>`.
+
+    A generation must stop at these tokens by id. The server matches stop strings against the decoded text, and the
+    decoded text leaves special tokens out, so a stop string "<|im_end|>" never matches: the first probe's answers
+    ran past the end of the assistant's turn into turns the model made up, and the grader read the last \\boxed{}
+    of those (median answer 7 times longer than the base model's, pass@1 below the base model's few-shot pass@1;
+    11-20, PITFALLS E1)."""
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
+    token_ids = [tokenizer.convert_tokens_to_ids(token) for token in (turn_end, "<|endoftext|>")]
+    assert all(isinstance(token_id, int) and token_id >= 0 for token_id in token_ids), f"missing end tokens: {token_ids}"
+    return token_ids
+
+
 def sample_completions(port: int, prompt_text: str, sample_count: int, maximum_new_tokens: int, temperature: float,
-                       top_p: float, stop_sequences: list[str]) -> list[str]:
+                       top_p: float, stop_sequences: list[str], stop_token_ids: list[int]) -> list[str]:
     request_body = {"model": "candidate", "prompt": prompt_text, "n": sample_count, "max_tokens": maximum_new_tokens,
-                    "temperature": temperature, "top_p": top_p, "stop": stop_sequences}
+                    "temperature": temperature, "top_p": top_p, "stop": stop_sequences, "stop_token_ids": stop_token_ids}
     for attempt in range(4):
         try:
             request = urllib.request.Request(f"http://127.0.0.1:{port}/v1/completions",
                                              json.dumps(request_body).encode("utf-8"), {"Content-Type": "application/json"})
             response = json.load(urllib.request.urlopen(request, timeout=3600))
-            return [choice["text"] for choice in sorted(response["choices"], key=lambda choice: choice["index"])]
+            choices = sorted(response["choices"], key=lambda choice: choice["index"])
+            return [choice["text"] for choice in choices], [choice.get("finish_reason") or "" for choice in choices]
         except OSError:
             if attempt == 3:
                 raise
@@ -423,6 +440,7 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
     run_directory.mkdir(parents=True, exist_ok=True)
     server_process = start_inference_server(checkpoint_path, port, run_directory / f"server_{prompt_style}.log")
     results: dict = {"run_name": run_name, "prompt_style": prompt_style, "sample_count": configuration["sample_count"], "tasks": {}}
+    stop_token_ids = end_token_ids()
     try:
         for task_name, task_settings in configuration["tasks"].items():
             items = load_evaluation_items(task_name, item_count_limit or task_settings["item_count"], configuration["item_seed"])
@@ -438,9 +456,12 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
             temperature = task_settings.get("temperature", configuration["temperature"])
             # as many requests in flight as fill the server's 1,024 sequence slots
             with concurrent.futures.ThreadPoolExecutor(max(16, 1024 // sample_count)) as request_pool:
-                completions_per_item = list(request_pool.map(
+                answers_per_item = list(request_pool.map(
                     lambda prompt: sample_completions(port, prompt, sample_count, task_settings["maximum_new_tokens"],
-                                                      temperature, configuration["top_p"], stop_sequences), prompts))
+                                                      temperature, configuration["top_p"], stop_sequences, stop_token_ids),
+                    prompts))
+            completions_per_item = [completions for completions, _ in answers_per_item]
+            finish_reasons = [reason for _, reasons in answers_per_item for reason in reasons]
             sampling_minutes = (time.time() - started) / 60
             correct_counts = grade_samples_of_items(items, completions_per_item, prompt_style)
             # the raw samples stay next to the run (never under results/: they quote benchmark questions), so that
@@ -455,11 +476,14 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
             task_result["item_ids"] = [item["item_id"] for item in items]
             task_result["correct_counts"] = correct_counts
             task_result["mean_completion_characters"] = round(float(np.mean([len(c) for cs in completions_per_item for c in cs])))
+            # answers cut at the token limit count as wrong; their share says whether the limit is too tight
+            task_result["share_cut_at_token_limit"] = round(sum(reason == "length" for reason in finish_reasons) / len(finish_reasons), 4)
             task_result["minutes"] = round(sampling_minutes + 0.0, 1)
             results["tasks"][task_name] = task_result
             shown = "  ".join(f"pass@{k} {task_result[f'pass@{k}']['value']:.1f}" for k in configuration["pass_at_k"]
                               if k in (1, 8, 16, 64) and k <= sample_count)
-            print(f"{run_name} [{prompt_style}] {task_name}: {shown}  ({sampling_minutes:.1f} min sampling)", flush=True)
+            print(f"{run_name} [{prompt_style}] {task_name}: {shown}  ({100 * task_result['share_cut_at_token_limit']:.1f}% cut at "
+                  f"the token limit; {sampling_minutes:.1f} min sampling)", flush=True)
     finally:
         stop_inference_server(server_process)
     return results
