@@ -20,11 +20,23 @@ Checks on every output, with the reason counted when one is dropped: length, a r
 share of its 8-word sequences copied from the source (a copy is not a rephrasing; a real passage would be cheaper).
 The whole batch then has to pass the diversity gate of data_hygiene.py before it may enter a mixture.
 
-Commands (after `source scripts/env.sh`; the teacher is served by any OpenAI-compatible server):
-    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase select --passage-count 50000
+History. The first batch (v1, 11-20: 12,000 rewrites at temperature 0.8, one or two styles per passage, every request
+worded the same way) failed the diversity gate on two measures. The Vendi score of its embeddings (the effective
+number of distinct documents) fell to 22.1 (rephrase) and 18.6 (qa) against 31.4 for the real passages, below the
+limit of 25.1; its bigram entropy fell to 15.97 and 15.64 bits against 16.54, below the limit of 16.04. One rewrite
+per parent still gave 22.2 and 18.7, so the narrowing comes from the rewriting itself: one teacher writes every
+passage for the same reader in the same voice. The second batch (v2) changes the request: temperature 1.0, a reader
+and a writer's voice drawn at random for each request (12 of each), and one style per passage, so that every rewrite
+has a parent of its own. A 600-rewrite sample has to pass the gate against its own parents (`check-sample`) before
+the full batch is written. Each batch lives in its own folder, synthetic/<batch>.
+
+Commands (after `source scripts/env.sh`; the teacher is served by any OpenAI-compatible server; --batch defaults to
+the current batch, v2):
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase select --passage-count 14000
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase serve --gpu 1 --port 8201 &         # one teacher per GPU
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase generate --endpoint http://127.0.0.1:8201 [--endpoint ...] \
-        --stop-after-hours 6
+        --maximum-rewrites 600
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase check-sample --documents-per-source 300 --device cpu
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish            # outputs → pool rows of the two sources
 """
 from __future__ import annotations
@@ -35,7 +47,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 import threading
 import time
@@ -43,9 +54,11 @@ import urllib.request
 from pathlib import Path
 
 import numpy as np
+import pyarrow as pa
 import pyarrow.parquet as pq
 
-from midtrain.data_sources import data_root, document_id_for_text, repository_root, tokenizer_path, write_pool_rows
+from midtrain.data_sources import (data_root, document_id_for_text, pool_schema, repository_root, tokenizer_path,
+                                   write_pool_rows)
 
 # share of the passages taken from each real source: encyclopedic and textbook content first, as the project asks
 passage_share_by_source = {"wiki_en": 0.30, "textbooks": 0.25, "papers": 0.15, "math_web": 0.15, "forum_qa": 0.15}
@@ -84,14 +97,31 @@ style_instructions = {
         "extreme case) and reason through what would follow in each, step by step, consistent with the passage.",
 }
 style_names = list(style_instructions)
+# One reader and one writer's voice are drawn for every request (v2). The first batch wrote every rewrite for the same
+# reader in the same voice and failed the diversity gate (see the history above). Both lists keep to readers and
+# voices for which an explanation stays faithful to the passage.
+reader_descriptions = [
+    "a curious high-school student", "a first-year university student", "a graduate student from a neighbouring field",
+    "a working engineer who wants the practical point", "a teacher preparing a lesson",
+    "a reader of a popular-science magazine", "a student revising for an exam",
+    "a programmer who likes precise definitions", "a retired professional with time and curiosity",
+    "an olympiad competitor who wants rigour", "a journalist checking the facts",
+    "a researcher who needs a quick refresher"]
+writer_voices = [
+    "a patient tutor", "a textbook author", "a laboratory scientist", "a historian of ideas", "a practical engineer",
+    "a puzzle setter", "a careful reviewer who checks every step", "a popular-science columnist",
+    "a mathematician who values rigour", "a technical writer", "a coach who explains with everyday examples",
+    "a lecturer giving an evening class"]
+current_batch_name = "v2"
 refusal_or_meta_patterns = re.compile(
     r"^(here is|here's|sure[,!]|certainly|i cannot|i can't|i'm sorry|as an ai|below is|the passage|this passage|"
     r"rewritten|okay[,.]|of course)", re.IGNORECASE)
 maximum_copied_eight_gram_share = 0.5
 
 
-def synthetic_directory() -> Path:
-    return data_root() / "synthetic"
+def synthetic_directory(batch_name: str) -> Path:
+    """synthetic/<batch>: the passages, the rewrites and the logs of one batch."""
+    return data_root() / "synthetic" / batch_name
 
 
 def read_json_lines(file_path: Path) -> list[dict]:
@@ -126,13 +156,25 @@ def cut_passage_at_paragraphs(text: str, token_count: int) -> str | None:
     return window if len(window) >= low_characters else None
 
 
-def select_passages(passage_count: int, seed: int) -> None:
-    """Pick the passages and assign each one or two styles; writes synthetic/passages.jsonl."""
+def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
+    """Pick the passages and give each one style, one reader and one writer's voice; writes
+    synthetic/<batch>/passages.jsonl.
+
+    The styles are dealt in turn over the shuffled passages, so each of the six gets a sixth of them and the two pool
+    sources get equal numbers of rewrites. (The first batch gave half of the passages two styles; with one style per
+    passage every rewrite has a parent of its own, which matters for diversity, see the history above.)
+    """
+    from midtrain.mixture import load_decontamination_gate
+
     random_generator = np.random.default_rng(seed)
-    synthetic_directory().mkdir(parents=True, exist_ok=True)
+    synthetic_directory(batch_name).mkdir(parents=True, exist_ok=True)
+    # A rewrite of a passage that the decontamination gate flagged would carry the evaluation item along in other
+    # words, where no n-gram check finds it again. (The first batch chose its passages before this check existed.)
+    flagged_document_ids = load_decontamination_gate()["flagged_document_ids"]
     passages = []
     for source_name, share in passage_share_by_source.items():
         wanted = int(round(share * passage_count))
+        flagged_in_source = flagged_document_ids.get(source_name, set())
         pool_files = sorted((data_root() / "pool" / source_name).glob("part-*.parquet"))
         rows = []
         for pool_file in pool_files:
@@ -145,20 +187,22 @@ def select_passages(passage_count: int, seed: int) -> None:
         kept = 0
         for position in order:
             document_id, text, token_count = rows[position]
+            if document_id in flagged_in_source:
+                continue
             passage_text = cut_passage_at_paragraphs(text, token_count)
             if passage_text is None:
                 continue
-            # two different styles for half of the passages: the same content from two sides
-            style_count = 2 if random_generator.random() < 0.5 else 1
-            styles = [style_names[index] for index in random_generator.choice(len(style_names), style_count, replace=False)]
-            passages.append({"parent_doc_id": document_id, "parent_source": source_name, "passage": passage_text,
-                             "styles": styles})
+            passages.append({"parent_doc_id": document_id, "parent_source": source_name, "passage": passage_text})
             kept += 1
             if kept >= wanted:
                 break
         print(f"{source_name}: {kept} passages", flush=True)
     random_generator.shuffle(passages)
-    with (synthetic_directory() / "passages.jsonl").open("w") as passage_file:
+    for passage_index, passage in enumerate(passages):
+        passage["styles"] = [style_names[passage_index % len(style_names)]]
+        passage["reader"] = reader_descriptions[int(random_generator.integers(len(reader_descriptions)))]
+        passage["writer_voice"] = writer_voices[int(random_generator.integers(len(writer_voices)))]
+    with (synthetic_directory(batch_name) / "passages.jsonl").open("w") as passage_file:
         for passage in passages:
             passage_file.write(json.dumps(passage, ensure_ascii=False) + "\n")
     print(f"{len(passages)} passages, {sum(len(passage['styles']) for passage in passages)} rewrites planned")
@@ -210,10 +254,18 @@ def reason_to_drop(output_text: str, source_text: str, finish_reason: str) -> st
     return None
 
 
-def ask_teacher(endpoint: str, passage_text: str, style_name: str, temperature: float) -> tuple[str, str]:
+def build_request_text(passage: dict, style_name: str) -> str:
+    """The user message of one rewrite: the reader and the voice (from v2 on), the style, the shared rules, the passage."""
+    reader_and_voice = ""
+    if passage.get("reader"):
+        reader_and_voice = f"Write for {passage['reader']}, in the voice of {passage['writer_voice']}. "
+    return f"{reader_and_voice}{style_instructions[style_name]} {shared_instruction}\n\nPassage:\n{passage['passage']}"
+
+
+def ask_teacher(endpoint: str, passage: dict, style_name: str, temperature: float) -> tuple[str, str]:
     request_body = {
         "model": "teacher",
-        "messages": [{"role": "user", "content": f"{style_instructions[style_name]} {shared_instruction}\n\nPassage:\n{passage_text}"}],
+        "messages": [{"role": "user", "content": build_request_text(passage, style_name)}],
         "max_tokens": 1800, "temperature": temperature, "top_p": 0.95,   # 1,500 cut 9% of a 600-rewrite sample, mostly dialogues
         "chat_template_kwargs": {"enable_thinking": False},      # the rewrite needs no hidden reasoning; 3x faster
     }
@@ -224,10 +276,10 @@ def ask_teacher(endpoint: str, passage_text: str, style_name: str, temperature: 
     return (choice["message"].get("content") or "").strip(), choice.get("finish_reason") or ""
 
 
-def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int, stop_after_hours: float,
-                      temperature: float, maximum_rewrites: int | None) -> None:
-    passages = read_json_lines(synthetic_directory() / "passages.jsonl")
-    results_path = synthetic_directory() / "rewrites.jsonl"
+def generate_rewrites(batch_name: str, endpoints: list[str], requests_in_flight_per_endpoint: int,
+                      stop_after_hours: float, temperature: float, maximum_rewrites: int | None) -> None:
+    passages = read_json_lines(synthetic_directory(batch_name) / "passages.jsonl")
+    results_path = synthetic_directory(batch_name) / "rewrites.jsonl"
     finished_keys = set()
     if results_path.exists():
         finished_keys = {record["key"] for record in read_json_lines(results_path)}
@@ -249,14 +301,15 @@ def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int
         passage, style_name = todo[job_index]
         endpoint = endpoints[job_index % len(endpoints)]
         try:
-            output_text, finish_reason = ask_teacher(endpoint, passage["passage"], style_name, temperature)
+            output_text, finish_reason = ask_teacher(endpoint, passage, style_name, temperature)
         except OSError:
             with write_lock:
                 counts["failed"] += 1
             return
         drop_reason = reason_to_drop(output_text, passage["passage"], finish_reason)
         record = {"key": rewrite_key(passage["parent_doc_id"], style_name), "parent_doc_id": passage["parent_doc_id"],
-                  "parent_source": passage["parent_source"], "style": style_name, "drop_reason": drop_reason,
+                  "parent_source": passage["parent_source"], "style": style_name, "reader": passage.get("reader"),
+                  "writer_voice": passage.get("writer_voice"), "temperature": temperature, "drop_reason": drop_reason,
                   "copied_eight_gram_share": round(copied_eight_gram_share(output_text, passage["passage"]), 3),
                   "text": output_text}
         with write_lock:
@@ -268,7 +321,7 @@ def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int
             if done % 500 == 0:
                 minutes = (time.time() - started) / 60
                 print(f"{done} rewrites in {minutes:.0f} min ({counts['kept']} kept, {counts['dropped']} dropped, "
-                      f"{counts['failed']} failed requests, {counts['output_words'] / max(1e-9, minutes) :.0f} words/min)",
+                      f"{counts['failed']} failed requests, {counts['output_words'] / max(1e-9, minutes):.0f} words/min)",
                       flush=True)
 
     with concurrent.futures.ThreadPoolExecutor(requests_in_flight_per_endpoint * len(endpoints)) as request_pool:
@@ -279,11 +332,12 @@ def generate_rewrites(endpoints: list[str], requests_in_flight_per_endpoint: int
 # ---------------------------------------------------------------------------------------------------------------
 # publish: kept rewrites become pool rows of the two synthetic sources
 # ---------------------------------------------------------------------------------------------------------------
-def publish_rewrites_to_pool() -> None:
+def publish_rewrites_to_pool(batch_name: str) -> None:
+    """Write the kept rewrites of one batch as the pool rows of the two sources, replacing whatever batch was there."""
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
-    records = read_json_lines(synthetic_directory() / "rewrites.jsonl")
+    records = read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
     drop_counts: dict[str, int] = {}
     rows_by_source: dict[str, list] = {"synthetic_rephrase": [], "synthetic_qa": []}
     seen_text_hashes = set()
@@ -297,29 +351,100 @@ def publish_rewrites_to_pool() -> None:
             continue
         seen_text_hashes.add(text_hash)
         rows_by_source[pool_source_of_style[record["style"]]].append(record)
-    summary = {"rewrites": len(records), "dropped_by_reason": drop_counts, "sources": {}}
+    summary = {"batch": batch_name, "rewrites": len(records), "dropped_by_reason": drop_counts, "sources": {}}
     for source_name, source_records in rows_by_source.items():
         texts = [record["text"] for record in source_records]
         token_counts = [len(token_ids) for token_ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
         metas = [{"style": record["style"], "parent_doc_id": record["parent_doc_id"], "parent_source": record["parent_source"],
-                  "copied_eight_gram_share": record["copied_eight_gram_share"],
+                  "copied_eight_gram_share": record["copied_eight_gram_share"], "batch": batch_name,
+                  "reader": record.get("reader"), "writer_voice": record.get("writer_voice"),
                   "generator": Path(os.environ.get("MIDTRAIN_TEACHER", "teacher")).name} for record in source_records]
         write_pool_rows(source_name, [document_id_for_text(source_name, text) for text in texts], texts, token_counts, metas)
         by_style: dict[str, int] = {}
         for record in source_records:
             by_style[record["style"]] = by_style.get(record["style"], 0) + 1
         summary["sources"][source_name] = {"documents": len(texts), "tokens": int(sum(token_counts)), "by_style": by_style}
-    (repository_root / "results" / "synthetic_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+    (repository_root / "results" / f"synthetic_summary_{batch_name}.json").write_text(json.dumps(summary, indent=1) + "\n")
     print(json.dumps(summary, indent=1))
     print("next: `python -m midtrain.data_sources tokenize --source synthetic_rephrase synthetic_qa`, then the hygiene gate")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# check-sample: the diversity gate on a batch's rewrites against the passages they were written from
+# ---------------------------------------------------------------------------------------------------------------
+def check_sample_against_parents(batch_name: str, documents_per_source: int, device: str, seed: int) -> int:
+    """Run gate 2 of data_hygiene.py on the kept rewrites of a batch against their own parent passages; return the
+    number of pool sources that failed.
+
+    One rewrite per parent, at most `documents_per_source` per pool source, drawn in a seeded random order. Both sides
+    are measured on the same documents count and the same number of tokens (95% of the smaller side's tokens, at most
+    the gate's usual 1M), because every diversity number grows with the sample. The parents are the fair baseline: same
+    topics, same count, written by people. Writes results/synthetic_sample_check_<batch>_<documents_per_source>.json.
+    """
+    from midtrain import data_hygiene
+
+    passages_by_parent = {passage["parent_doc_id"]: passage
+                          for passage in read_json_lines(synthetic_directory(batch_name) / "passages.jsonl")}
+    records = read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
+    random_generator = np.random.default_rng(seed)
+    records_by_source: dict[str, list] = {"synthetic_rephrase": [], "synthetic_qa": []}
+    parents_taken = set()
+    for record_index in random_generator.permutation(len(records)):
+        record = records[record_index]
+        if record["drop_reason"] or record["parent_doc_id"] in parents_taken:
+            continue
+        source_records = records_by_source[pool_source_of_style[record["style"]]]
+        if len(source_records) < documents_per_source:
+            source_records.append(record)
+            parents_taken.add(record["parent_doc_id"])
+    tokenize_texts = data_hygiene.load_qwen_tokenize_function()
+    output_root = data_root() / "hygiene" / f"sample_check_{batch_name}"
+    report = {"batch": batch_name, "documents_per_source": documents_per_source, "seed": seed,
+              "kept_rewrites": sum(1 for record in records if not record["drop_reason"]), "rewrites": len(records),
+              "sources": {}}
+    failed_source_count = 0
+    for source_name, source_records in records_by_source.items():
+        texts_by_side = {"rewrites": [record["text"] for record in source_records],
+                         "parents": [passages_by_parent[record["parent_doc_id"]]["passage"] for record in source_records]}
+        parquet_path_by_side, token_total_by_side = {}, {}
+        for side_name, texts in texts_by_side.items():
+            token_counts = [len(token_ids) for token_ids in tokenize_texts(texts)]
+            token_total_by_side[side_name] = int(sum(token_counts))
+            side_directory = output_root / f"{source_name}_{side_name}"
+            side_directory.mkdir(parents=True, exist_ok=True)
+            parquet_path_by_side[side_name] = side_directory / "part-00000.parquet"
+            pq.write_table(pa.table({"doc_id": [document_id_for_text(side_name, text) for text in texts],
+                                     "source": [side_name] * len(texts), "text": texts, "token_count": token_counts,
+                                     "meta_json": ["{}"] * len(texts)}, schema=pool_schema), parquet_path_by_side[side_name])
+        token_sample_size = min(1_000_000, int(0.95 * min(token_total_by_side.values())))
+        diversity_by_side = {side_name: data_hygiene.measure_diversity(
+            [parquet_path_by_side[side_name]], tokenize_texts, data_hygiene.default_embedding_model, device,
+            token_sample_size=token_sample_size, nearest_neighbour_sample_document_count=len(source_records),
+            cluster_sample_document_count=len(source_records), seed=seed) for side_name in texts_by_side}
+        checks = data_hygiene.check_diversity_against_baseline(diversity_by_side["rewrites"], diversity_by_side["parents"])
+        has_passed = all(check["passed"] for check in checks)
+        failed_source_count += 0 if has_passed else 1
+        report["sources"][source_name] = {"documents": len(source_records), "token_sample_size": token_sample_size,
+                                          "tokens": token_total_by_side, "passed": has_passed, "checks": checks,
+                                          "diversity": diversity_by_side}
+        print(f"\n{source_name}: {len(source_records)} rewrites against their parents, {token_sample_size:,} tokens a side: "
+              f"{'PASSED' if has_passed else 'FAILED'}")
+        for check in checks:
+            print(f"  {check['measurement']:36s} rewrites {check['batch']:9.4g}  parents {check['baseline']:9.4g}  "
+                  f"needs {check['requirement']:16s} {'ok' if check['passed'] else 'FAIL'}")
+    output_path = repository_root / "results" / f"synthetic_sample_check_{batch_name}_{documents_per_source}.json"
+    output_path.write_text(json.dumps(report, indent=1) + "\n")
+    print(f"\nwrote {output_path}")
+    return failed_source_count
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     select = commands.add_parser("select")
-    select.add_argument("--passage-count", type=int, default=50000)
-    select.add_argument("--seed", type=int, default=20261120)
+    select.add_argument("--passage-count", type=int, default=14000,
+                        help="one rewrite per passage; the screening design needs about 12,000 kept rewrites")
+    select.add_argument("--seed", type=int, default=20261121)
     serve = commands.add_parser("serve")
     serve.add_argument("--gpu", type=int, required=True)
     serve.add_argument("--port", type=int, required=True)
@@ -330,19 +455,28 @@ def main() -> None:
     generate.add_argument("--maximum-rewrites", type=int, default=None,
                           help="stop when this many rewrites exist; the screening design needs about 12,000 "
                                "(its largest synthetic share is 9M of 40M tokens, at about 800 tokens per rewrite)")
-    generate.add_argument("--temperature", type=float, default=0.8,
-                          help="0.8: below it the six styles converge on the same phrasing; above it facts start to drift")
+    generate.add_argument("--temperature", type=float, default=1.0,
+                          help="1.0 from v2 on: the v1 batch at 0.8 failed the diversity gate")
+    check_sample = commands.add_parser("check-sample")
+    check_sample.add_argument("--documents-per-source", type=int, default=300)
+    check_sample.add_argument("--device", default="cpu", help="for the embedding model: cpu, cuda or cuda:1")
+    check_sample.add_argument("--seed", type=int, default=0)
     commands.add_parser("publish")
+    for command_parser in (select, generate, check_sample, commands.choices["publish"]):
+        command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
     arguments = parser.parse_args()
     if arguments.command == "select":
-        select_passages(arguments.passage_count, arguments.seed)
+        select_passages(arguments.batch, arguments.passage_count, arguments.seed)
     elif arguments.command == "serve":
         serve_teacher(arguments.gpu, arguments.port)
     elif arguments.command == "generate":
-        generate_rewrites(arguments.endpoint, arguments.requests_in_flight_per_endpoint, arguments.stop_after_hours,
-                          arguments.temperature, arguments.maximum_rewrites)
+        generate_rewrites(arguments.batch, arguments.endpoint, arguments.requests_in_flight_per_endpoint,
+                          arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites)
+    elif arguments.command == "check-sample":
+        sys.exit(1 if check_sample_against_parents(arguments.batch, arguments.documents_per_source, arguments.device,
+                                                   arguments.seed) else 0)
     else:
-        publish_rewrites_to_pool()
+        publish_rewrites_to_pool(arguments.batch)
 
 
 if __name__ == "__main__":

@@ -235,9 +235,15 @@ def learning_rate_at_step(step_index: int, step_count: int, peak_learning_rate: 
 # validation: held-out loss per source, before, halfway and after
 # ---------------------------------------------------------------------------------------------------------------
 def available_validation_sources() -> list[str]:
+    """Every tokenized source with enough held-out tokens, except the teacher-written ones.
+
+    The rewritten sources are left out: their loss measures how well a run fits the teacher's text, which no
+    analysis uses, and the rewrites were made again after the first batch failed the diversity gate (11-20), so a
+    run that read their files at its halfway point could have read them while they were being replaced."""
     token_root = data_root() / "tokens"
     return sorted(directory.name for directory in token_root.iterdir()
-                  if (directory / "validation.document_offsets.npy").exists()
+                  if not directory.name.startswith("synthetic_")
+                  and (directory / "validation.document_offsets.npy").exists()
                   and np.load(directory / "validation.document_offsets.npy")[-1] >= validation_sequence_length)
 
 

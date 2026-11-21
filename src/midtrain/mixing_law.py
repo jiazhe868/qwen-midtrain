@@ -219,7 +219,9 @@ def measurements_of_run(run_name: str) -> dict[str, float]:
     training = read_json_if_present(repository_root / "results" / "training" / f"{run_name}.json")
     if training:
         for source_name, entry in training["validation_after"].items():
-            measurements[f"loss/{source_name}"] = entry["bits_per_byte"]
+            # runs started before 11-20 22:10 also measured the first, discarded batch of rewritten text; later runs do not
+            if not source_name.startswith("synthetic_"):
+                measurements[f"loss/{source_name}"] = entry["bits_per_byte"]
     probe = read_json_if_present(repository_root / "results" / "probe" / f"{run_name}.json")
     if probe:
         for k in (1, 16, 64):
