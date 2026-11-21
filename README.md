@@ -154,13 +154,29 @@ with lettered options. The guard of the mixture search therefore averages each s
 a choice made before any design run had a result. **Distant context is worth 0.20 bits per token** to the base
 model, a clear signal against which the long-context arms of the design can be compared.
 
-**The probe on the base model.** The first probe of the base checkpoint is withdrawn: the server did not stop at
-the end of the assistant's turn, the answers ran on into turns the model made up, and the grader read the last
-answer it found there (PITFALLS E1). The answers were 7 times longer than the base model's own few-shot answers,
-and pass@1 after the fine-tune came out below the base model's few-shot pass@1, which is how the bug showed. The
-probe now stops at the end tokens by id and records the share of answers cut at the token limit; the base probe,
-two repeats with other fine-tuning seeds (the noise floor of §3.4), the probes of the pilot checkpoints and the
-regression suite are running.
+**The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
+temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
+
+| task | questions | pass@1 | pass@16 | pass@64 | answers cut at the token limit |
+|---|---|---|---|---|---|
+| GSM8K | 200 | 37.2 [33.1, 41.2] | 85.8 | **95.5** | 0.2% |
+| MATH-500 | 250 | 13.6 [11.1, 16.2] | 52.4 | 71.2 | 5.0% |
+| HumanEval | 164 | 9.6 [7.0, 12.3] | 37.2 | 57.3 | 0.6% |
+| MBPP | 200 | 22.8 [19.2, 26.6] | 65.0 | 78.5 | 0.2% |
+
+After the fine-tune, one sampled GSM8K answer is right 37% of the time, twice the base model's own few-shot rate
+(18.1%), and 64 samples solve 95.5% of the questions at least once. The gap between pass@1 and pass@64 is the room a
+later RL stage has, and it is large on all four tasks. One probe takes about 45 minutes on one A100: 29 to fine-tune,
+15 to sample and grade.
+
+Two corrections came before these numbers. The first probe was withdrawn: the server did not stop at the end of the
+assistant's turn, the answers ran on into turns the model made up, and the grader read the last answer it found there
+(PITFALLS E1). The answers were 7 times longer than the base model's few-shot answers, and pass@1 after the fine-tune
+came out below the base model's few-shot pass@1, which is how the bug showed. Then MATH-500 got 1,024 new tokens
+instead of 512, which had cut 17.4% of its answers (now 5.0%). The fine-tune is deterministic: rerun, it gave the same
+loss curve to four decimals. Sampling the same fine-tuned checkpoint twice gave pass@1 within 0.2 points and pass@64
+within 2.5 points on the three tasks whose settings did not change, so differences of pass@64 smaller than that are
+sampling noise.
 
 ---
 
