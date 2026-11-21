@@ -58,6 +58,19 @@ the model about 2% worse on code, papers and math and 0.7% better on web text. *
 anchor for this model: it pulls the model toward the web.** That changes what "replay" should mean here, and it is
 the reason for prediction P1 in §13.
 
+Rewritten text failed the diversity gate twice before it passed. The obvious explanation, too little variety, was
+wrong: the topics survived the rewriting, and what the rewrites shared was the teacher's habit of pointing at its
+source ("the passage", "the text"), in 58% of them. Asking the teacher to write as the author, and dropping the
+rewrites that still point at a hidden source, brought both rewritten sources over the gate's limits (§7.3).
+
+The 18 runs of the 0.8B design answer the main question in an unexpected way (§1.2). The mixture explains 92 to 98%
+of the spread of the held-out losses and of the few-shot scores measured before any fine-tune: math text lowers the
+math loss, rewritten text raises few-shot reasoning, and the lower learning rate (3e-6) is better on every loss and
+on few-shot pass@1. After the probe's short fine-tune, none of it is left: the mixture explains less of the probe's
+spread than a law of the same size explains of pure noise, and the order of the runs before and after the fine-tune
+is unrelated. **At 0.8B and 40M tokens, a short fine-tune undoes what continued pretraining changed.** The 2B design,
+running now, tests whether that holds at the next size.
+
 ## Contents
 
 1. [Where the project stands](#1-where-the-project-stands)
@@ -187,6 +200,56 @@ learning rate 3e-6, 40M tokens) against the base model, paired question by quest
 At 3e-6 a broad mixture moves every source a little in the right direction, where web-heavy replay at 1e-5 cost
 papers, math and code about 2%. The probe did not move. What the run settles is the resolution of the design: a
 paired difference of pooled pass@1 is known to ±0.4 points, so effects of half a point are visible.
+
+**The 0.8B screening design, all 18 runs.** The question of the project is which mixture of continued-pretraining
+text helps most. The design answers it with one law fitted to all 18 runs (§6.3): each measurement is a linear
+function of the token shares, the schedule and the learning rate. The fit says how much of the spread over the runs
+the mixture explains, and how large the noise of one run is (`results/designs/screen18_0.8B_analysis.json`,
+`mixing_law.py analyze`):
+
+| measurement | share of the spread explained | spread over the runs (sd) | noise of one run |
+|---|---|---|---|
+| math loss / code loss (bits per byte) | 0.98 / 0.94 | 0.0063 / 0.0031 | 0.0013 / 0.0011 |
+| few-shot pass@1, four tasks, before any fine-tune | 0.92 | 0.58 | 0.24 |
+| few-shot GSM8K pass@16 | 0.96 | 2.11 | 0.65 |
+| knowledge guard (cloze) | 0.63 | 0.14 | 0.13 |
+| probe pass@1, four tasks, after the fine-tune | 0.12 | 0.20 | 0.28 |
+| probe pass@16 / pass@64 | 0.31 / 0.29 | 0.52 / 0.61 | 0.63 / 0.75 |
+
+A law with nine terms explains about 0.53 of the spread of pure noise over 18 runs (9 of 17), on average. So
+the losses and the few-shot scores are almost entirely explained by the mixture, and the knowledge guard and the
+probe are not explained at all.
+
+<p align="center"><img src="assets/design_main_effects_en.png" width="92%"></p>
+
+Each point is the mean over the runs at one level of a factor (six runs; nine for the learning rate), minus the
+mean of all runs. The grey band is the range of the empty column, the size of an effect of nothing.
+
+What moved, per +10% of all tokens taken from replay, with t-statistics on 8 degrees of freedom:
+
+- **Losses follow their own domain.** Math text lowers the math loss by 0.011 bits per byte (t = 13), code
+  text the code loss by 0.010 (t = 7), and curated text the losses on forum answers, papers, textbooks and
+  English Wikipedia. Each source that gives up tokens gets slightly worse.
+- **Rewritten text raises few-shot reasoning.** GSM8K pass@16 rises by 1.7 points (t ≥ 3), MATH-500 pass@1 by
+  0.4 and pass@16 by 1.6, and the four-task pass@1 by 0.25 (t ≥ 2). All four point the same way.
+- **The lower learning rate wins.** Against 3e-6, a peak of 1e-5 makes every held-out loss worse and costs
+  0.9 points of few-shot pass@1 (t ≥ 3).
+- **After the fine-tune none of this is left.** No term of the probe's pooled pass@1, pass@16 or pass@64 reaches 1.5
+  standard errors. The spread of few-shot pass@1 over the runs is 2.9 times its spread after the probe, and the
+  two orders of the runs are unrelated (Spearman 0.00).
+
+The probe was chosen because loss does not show what post-training can reach (§3.1). At this size and budget it sees
+nothing: two epochs over 6.2M tokens of conversations make 18 models that differ by 40M tokens of mid-training nearly
+alike. The few-shot scores do see the mixture, but they are measured before any post-training. **At 0.8B and 40M
+tokens, a short fine-tune undoes what continued pretraining changed.** The 2B design tests whether that holds one
+size up, and it is the replication for every effect above.
+
+Caveats, plainly:
+- About 400 tests (45 measurements, 9 terms each). At |t| ≥ 3 with 8 degrees of freedom about 7 would pass by
+  chance, so only patterns that agree across measurements are reported as effects.
+- The constrained optimum that `analyze` prints for probe pass@16 is fitted to noise (60.6 predicted against a
+  mean of 60.0, within one run's noise); it is not a proposal.
+- One seed per run, 40M tokens per run, one model size so far.
 
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
@@ -847,6 +910,32 @@ decay to zero.
 | P10 | **The 9B gains less than the proxies.** Proposed mixture against replay-only control at the same budget: +1 to +3 points of probe pass@16 on math, regression suite within ±0.5 points, effects smaller than on the 0.8B. GSM8K pass@64 is near its ceiling for the 9B, so MATH-500 and MBPP carry the result. | the proposed mixture loses to the control, or the regression suite falls by more than 1 point |
 | P11 | **The fine-tune hides part of the difference.** The spread of few-shot pass@1 of the base checkpoints over the 18 runs is at least 1.5 times the spread of pass@1 after the probe, because 6M tokens of fine-tuning on math and code partly overwrite 40M tokens of mid-training. | the spread after the probe is as large as before it |
 | P12 | **3e-6 keeps everything and gains less; 1e-5 gains more and costs up to 1 point of knowledge.** | 1e-5 costs nothing, or 3e-6 gains as much |
+
+**Outcomes on the 0.8B design (11-21).** The table above stays as written; the 2B design and the 9B runs will add to
+this list.
+
+- **P1: not supported.** The probe does not move with the replay share (its level means differ by less than the
+  empty column's), and the knowledge guard is flat.
+- **P2: consistent on the probe, wrong in kind.** Rewritten text changes no probe score, but it raises the few-shot
+  scores almost in proportion to its share (GSM8K pass@16 +1.7 per 10% of tokens), which the prediction did not expect.
+- **P3: half right.** The loss slopes are steeper than predicted: -1.7% math loss per 10 points of math share
+  (predicted -0.9%) and -1.3% code loss per 10 points of code (predicted -0.65%). The probe does not move, which the
+  prediction named as proof that it is wrong.
+- **P4: untested** (§10).
+- **P5: wrong.** Neither kind of pack changes the gain from distant context, and semantic packs lower few-shot GSM8K
+  pass@16 (-0.85 per 10% of tokens, t ≥ 3).
+- **P6: pending**; the curation arms are queued.
+- **P7: not supported.** The schedule moves the math and code losses by less than the empty column. On few-shot GSM8K
+  pass@16 the late schedule is best (+2.8 points, t ≥ 3), the opposite of the prediction; on few-shot MBPP
+  pass@1 the uniform one is.
+- **P8: half right.** Web loss does not rank the runs as the probe does (Spearman -0.04), but neither does matched
+  loss: math loss against the math probe -0.02 and -0.10, code loss against the code probe +0.24 and +0.15.
+- **P9, P10: pending** (the 2B design runs now; the 9B runs wait for the cluster).
+- **P11: confirmed, more strongly than predicted.** The spread of few-shot pass@1 over the 18 runs is 2.9 times its
+  spread after the probe (1.9 for GSM8K, 1.7 for MATH-500), and the order of the runs before and after the fine-tune is
+  unrelated.
+- **P12: wrong.** 3e-6 is better on every loss and on few-shot pass@1 (by 0.9 points); 1e-5 costs no knowledge on the cloze
+  guard and gains only on lettered multiple choice (+1.1) and on CommonsenseQA cloze (+1.7).
 
 ---
 
