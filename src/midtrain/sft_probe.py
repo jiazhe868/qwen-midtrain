@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import gc
 import json
 import math
 import os
@@ -292,7 +293,11 @@ def train_probe(checkpoint_path: str, output_directory: Path, tokens_per_forward
     summary = {"steps": step_count, "seed": configuration["seed"], "minutes": round((time.time() - started) / 60, 1),
                "loss_first_20_steps": round(float(np.mean(loss_history[:20])), 4),
                "loss_last_20_steps": round(float(np.mean(loss_history[-20:])), 4)}
-    del model, optimizer
+    # Drop every reference to the model before the server starts. The server checks at start-up that its share of
+    # the GPU is free, and on 11-20 the 2B probe still held about 5 GiB here (the output layer, the last batch and the
+    # allocator's cache) next to another user's 3 GiB, so the server refused to start.
+    del model, optimizer, output_layer, hidden_states, token_ids_on_device
+    gc.collect()
     torch.cuda.empty_cache()
     return summary
 
@@ -306,11 +311,15 @@ def start_inference_server(checkpoint_path: str, port: int, log_path: Path, maxi
     Every answer being generated needs one block of the state cache of the linear-attention layers, and how many
     blocks fit depends on the model and on the memory share. When the requested number of answers at once is too
     large the server names the number of blocks and exits ("max_num_seqs (1024) exceeds available Mamba cache blocks
-    (709)", the 0.8B model at a 25% share, 11-20); it is then started again with that number."""
+    (709)", the 0.8B model at a 25% share, 11-20); it is then started again with that number.
+
+    The server also exits when less memory is free than its share asks for ("Free memory on device cuda:0
+    (30.86/39.49 GiB) on startup is less than desired GPU memory utilization (0.8, 31.59 GiB)", the 2B probe on a GPU
+    that another user's job also uses, 11-20). It is then started again with the share that is free, less 1 GiB."""
     # The server may use this share of the GPU's memory; on a GPU that another job also uses, set it lower.
     memory_share = float(os.environ.get("MIDTRAIN_SERVER_MEMORY_SHARE", "0.80"))
     sequences_at_once = 1024
-    for attempt in range(3):
+    for attempt in range(4):
         command = [sys.executable, "-m", "vllm.entrypoints.cli.main", "serve", str(checkpoint_path),
                    "--served-model-name", "candidate", "--port", str(port), "--max-model-len", str(maximum_context_tokens),
                    "--gpu-memory-utilization", str(memory_share), "--max-num-seqs", str(sequences_at_once),
@@ -329,13 +338,24 @@ def start_inference_server(checkpoint_path: str, port: int, log_path: Path, maxi
         else:
             stop_inference_server(server_process)
             raise RuntimeError(f"the inference server did not answer within 15 minutes; see {log_path}")
-        block_limit = re.search(r"exceeds available Mamba cache blocks \((\d+)\)", log_path.read_text(errors="replace"))
-        if block_limit is None:
+        server_log_text = log_path.read_text(errors="replace")
+        block_limit = re.search(r"exceeds available Mamba cache blocks \((\d+)\)", server_log_text)
+        free_memory = re.search(r"Free memory on device \S+ \(([\d.]+)/([\d.]+) GiB\) on startup is less than desired",
+                                server_log_text)
+        if block_limit is not None:
+            sequences_at_once = int(block_limit.group(1)) // 8 * 8
+            print(f"the server holds state for {block_limit.group(1)} answers at once; starting it again with "
+                  f"{sequences_at_once}", flush=True)
+        elif free_memory is not None:
+            free_gib, total_gib = float(free_memory.group(1)), float(free_memory.group(2))
+            memory_share = math.floor((free_gib - 1.0) / total_gib * 100) / 100
+            # a 2B model with a useful cache needs about 12 GiB of a 40 GiB A100
+            assert memory_share >= 0.3, f"only {free_gib:.1f} of {total_gib:.1f} GiB are free for the server; see {log_path}"
+            print(f"{free_gib:.1f} of {total_gib:.1f} GiB are free; starting the server again with a share of "
+                  f"{memory_share:.2f}", flush=True)
+        else:
             raise RuntimeError(f"the inference server exited with code {server_process.returncode}; see {log_path}")
-        sequences_at_once = int(block_limit.group(1)) // 8 * 8
-        print(f"the server holds state for {block_limit.group(1)} answers at once; starting it again with {sequences_at_once}",
-              flush=True)
-    raise RuntimeError(f"the inference server did not start after three attempts; see {log_path}")
+    raise RuntimeError(f"the inference server did not start after four attempts; see {log_path}")
 
 
 def stop_inference_server(server_process) -> None:

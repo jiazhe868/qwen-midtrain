@@ -55,3 +55,44 @@ def test_pass_at_k_interval_contains_the_value_and_is_zero_width_for_identical_i
     assert result["low"] == result["value"] == result["high"]
     mixed = sft_probe.pass_at_k_with_interval(list(np.arange(50) % 65), 64, 1)
     assert mixed["low"] <= mixed["value"] <= mixed["high"]
+
+
+def test_server_starts_again_with_the_free_share_and_then_with_the_block_limit(monkeypatch, tmp_path):
+    """The 2B probe's server exited when less memory was free than its 80% share (another user's job held 3 GiB of
+    the GPU, 11-20). It must start again with the free share less 1 GiB, and then with the state-cache block limit
+    when that is the next complaint."""
+    server_messages = [
+        "ValueError: Free memory on device cuda:0 (30.86/39.49 GiB) on startup is less than desired GPU memory "
+        "utilization (0.8, 31.59 GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.",
+        "ValueError: max_num_seqs (1024) exceeds available Mamba cache blocks (709)",
+        None,  # the third start answers
+    ]
+    commands = []
+
+    class FakeServerProcess:
+        def __init__(self, command, stdout, stderr, start_new_session):
+            commands.append(command)
+            message = server_messages[len(commands) - 1]
+            if message is not None:
+                stdout.write(message + "\n")
+            stdout.close()
+            self.returncode = None if message is None else 1
+            self.pid = 0
+
+        def poll(self):
+            return self.returncode
+
+    def fake_urlopen(url, timeout):
+        if server_messages[len(commands) - 1] is None:
+            return io.BytesIO(b"{}")
+        raise OSError("connection refused")
+
+    monkeypatch.delenv("MIDTRAIN_SERVER_MEMORY_SHARE", raising=False)
+    monkeypatch.setattr(sft_probe.subprocess, "Popen", FakeServerProcess)
+    monkeypatch.setattr(sft_probe.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(sft_probe.time, "sleep", lambda seconds: None)
+    sft_probe.start_inference_server("checkpoint", 8000, tmp_path / "server.log")
+    memory_shares = [command[command.index("--gpu-memory-utilization") + 1] for command in commands]
+    sequences_at_once = [command[command.index("--max-num-seqs") + 1] for command in commands]
+    assert memory_shares == ["0.8", "0.75", "0.75"]          # floor((30.86 - 1.0) / 39.49, 2 decimals)
+    assert sequences_at_once == ["1024", "1024", "704"]      # 709 rounded down to a multiple of 8
