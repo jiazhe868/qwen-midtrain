@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -286,7 +285,9 @@ def regressors_of_runs(runs: list[dict]) -> tuple[np.ndarray, list[str]]:
 
 def fit_mixing_law(runs: list[dict], values: np.ndarray) -> dict:
     """Least squares of one measurement on the regressors. Returns the coefficients with their standard errors, the
-    residual standard deviation (the noise of one run) and its degrees of freedom."""
+    residual standard deviation (the noise of one run) and its degrees of freedom, and the share of the spread over
+    the runs that the law explains. That share must be read against what a law of the same size explains of pure
+    noise, on average (regressors - 1) / (runs - 1): 9/17 = 0.53 for the screening design."""
     design_matrix, names = regressors_of_runs(runs)
     degrees_of_freedom = len(values) - design_matrix.shape[1]
     assert degrees_of_freedom > 0, f"{len(values)} runs cannot fit {design_matrix.shape[1]} coefficients"
@@ -298,7 +299,37 @@ def fit_mixing_law(runs: list[dict], values: np.ndarray) -> dict:
     return {"coefficients": {name: float(value) for name, value in zip(names, coefficients)},
             "standard_errors": {name: float(value) for name, value in zip(names, standard_errors)},
             "residual_standard_deviation": residual_variance ** 0.5, "degrees_of_freedom": degrees_of_freedom,
-            "condition_number": float(np.linalg.cond(design_matrix))}
+            "condition_number": float(np.linalg.cond(design_matrix)),
+            "spread_over_runs": float(np.std(values, ddof=1)),
+            "explained_share": 1.0 - float(residuals @ residuals) / float(((values - values.mean()) ** 2).sum()),
+            "explained_share_of_pure_noise": (design_matrix.shape[1] - 1) / (len(values) - 1)}
+
+
+# Pairs written down before the results (README §13): P8 asks whether a loss ranks the runs as the probe does, P11
+# whether the fine-tune of the probe shrinks the differences that few-shot generation shows before it.
+loss_and_probe_pairs = [("loss/replay_web", "probe/mean/pass@16"), ("loss/math_web", "probe/math500/pass@16"),
+                        ("loss/math_web", "probe/gsm8k/pass@16"), ("loss/code", "probe/mbpp/pass@16"),
+                        ("loss/code", "probe/humaneval/pass@16")]
+before_and_after_fine_tune_pairs = [("regression/few_shot_mean/pass@1", "probe/mean/pass@1"),
+                                    ("regression/few_shot/gsm8k/pass@1", "probe/gsm8k/pass@1"),
+                                    ("regression/few_shot/math500/pass@1", "probe/math500/pass@1")]
+
+
+def prediction_checks(measurements: dict[str, np.ndarray]) -> dict:
+    """The rank correlations of P8 and the spreads before and after the fine-tune of P11, over the runs of a design."""
+    checks: dict = {"loss_against_probe": {}, "before_and_after_fine_tune": {}}
+    for loss_name, probe_name in loss_and_probe_pairs:
+        if loss_name in measurements and probe_name in measurements:
+            checks["loss_against_probe"][f"{loss_name} vs {probe_name}"] = spearman_with_interval(
+                measurements[loss_name], measurements[probe_name])
+    for before_name, after_name in before_and_after_fine_tune_pairs:
+        if before_name in measurements and after_name in measurements:
+            before_spread = float(np.std(measurements[before_name], ddof=1))
+            after_spread = float(np.std(measurements[after_name], ddof=1))
+            checks["before_and_after_fine_tune"][f"{before_name} vs {after_name}"] = {
+                "spread_before": before_spread, "spread_after": after_spread, "ratio": before_spread / after_spread,
+                "rank_agreement": spearman_with_interval(measurements[before_name], measurements[after_name])}
+    return checks
 
 
 def interference_matrix(runs: list[dict], measurements: dict[str, np.ndarray], share_step: float = 0.10) -> dict:
@@ -383,7 +414,8 @@ def analyze_design(design: dict, model_size: str, target_name: str, guard_name: 
     analysis = {"design": design["name"], "model_size": model_size, "runs_with_results": len(runs),
                 "level_means": {name: level_means_of_factors(runs, values) for name, values in measurements.items()},
                 "laws": {name: fit_mixing_law(runs, values) for name, values in measurements.items()},
-                "interference_matrix": interference_matrix(runs, measurements)}
+                "interference_matrix": interference_matrix(runs, measurements),
+                "prediction_checks": prediction_checks(measurements)}
     if target_name in measurements:
         guard_law = analysis["laws"].get(guard_name)
         analysis["best_mixture"] = {"target": target_name, "guard": guard_name if guard_law else None, "guard_tolerance": guard_tolerance,
