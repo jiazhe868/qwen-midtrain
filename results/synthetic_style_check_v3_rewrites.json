@@ -3,18 +3,29 @@
  "results_name": "rewrites.jsonl",
  "token_sample_size": 100000,
  "styles": {
-  "explain_from_first_principles": {
-   "rewrites": 410,
-   "kept": 399,
+  "dialogue_with_named_roles": {
+   "rewrites": 76,
+   "kept": 63,
    "dropped_by_reason": {
-    "refers_to_hidden_source": 8,
-    "cut_off": 2,
-    "mostly_copied": 1
+    "refers_to_hidden_source": 12,
+    "cut_off": 1
+   },
+   "vendi_ratio": 0.6558220419992471,
+   "mean_vector_length": 0.7680093050003052,
+   "parent_mean_vector_length": 0.6978386044502258
+  },
+  "explain_from_first_principles": {
+   "rewrites": 2834,
+   "kept": 2754,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 52,
+    "cut_off": 17,
+    "mostly_copied": 11
    },
    "bigram_entropy_drop_bits": 0.09496108628191813,
-   "vendi_ratio": 0.8481346861120687,
-   "mean_vector_length": 0.7145395874977112,
-   "parent_mean_vector_length": 0.6951597929000854
+   "vendi_ratio": 0.829700426463305,
+   "mean_vector_length": 0.7177481055259705,
+   "parent_mean_vector_length": 0.6972386837005615
   },
   "question_answer_derivation": {
    "rewrites": 408,
@@ -25,9 +36,22 @@
     "mostly_copied": 3
    },
    "bigram_entropy_drop_bits": 0.6200148582637564,
-   "vendi_ratio": 0.8431550049531422,
-   "mean_vector_length": 0.7357285022735596,
-   "parent_mean_vector_length": 0.7148736119270325
+   "vendi_ratio": 0.8431550871969818,
+   "mean_vector_length": 0.7357286214828491,
+   "parent_mean_vector_length": 0.7148737907409668
+  },
+  "questions_answered_in_prose": {
+   "rewrites": 1976,
+   "kept": 1513,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 438,
+    "cut_off": 21,
+    "mostly_copied": 4
+   },
+   "bigram_entropy_drop_bits": 0.14333624970882397,
+   "vendi_ratio": 0.774215711900744,
+   "mean_vector_length": 0.7282302975654602,
+   "parent_mean_vector_length": 0.6986302137374878
   },
   "socratic_dialogue": {
    "rewrites": 409,
@@ -37,34 +61,34 @@
     "cut_off": 14
    },
    "bigram_entropy_drop_bits": 0.6146365457750349,
-   "vendi_ratio": 0.6946407278237317,
-   "mean_vector_length": 0.7453921437263489,
-   "parent_mean_vector_length": 0.6979220509529114
+   "vendi_ratio": 0.6946407092109157,
+   "mean_vector_length": 0.7453923225402832,
+   "parent_mean_vector_length": 0.6979222297668457
   },
   "structured_notes": {
-   "rewrites": 409,
-   "kept": 368,
+   "rewrites": 2834,
+   "kept": 2503,
    "dropped_by_reason": {
-    "refers_to_hidden_source": 37,
-    "cut_off": 4
+    "refers_to_hidden_source": 308,
+    "cut_off": 23
    },
    "bigram_entropy_drop_bits": 0.18837389109713065,
-   "vendi_ratio": 0.8297995450187065,
-   "mean_vector_length": 0.7277824282646179,
-   "parent_mean_vector_length": 0.7046958208084106
+   "vendi_ratio": 0.8221265396971295,
+   "mean_vector_length": 0.7241465449333191,
+   "parent_mean_vector_length": 0.7016372680664062
   },
   "what_if_analysis": {
-   "rewrites": 411,
-   "kept": 388,
+   "rewrites": 3166,
+   "kept": 2942,
    "dropped_by_reason": {
-    "refers_to_hidden_source": 21,
-    "cut_off": 1,
-    "mostly_copied": 1
+    "refers_to_hidden_source": 198,
+    "cut_off": 11,
+    "mostly_copied": 15
    },
    "bigram_entropy_drop_bits": 0.2592022894452892,
-   "vendi_ratio": 0.8424123421773906,
-   "mean_vector_length": 0.7165894508361816,
-   "parent_mean_vector_length": 0.6971995830535889
+   "vendi_ratio": 0.8359541639850794,
+   "mean_vector_length": 0.7154615521430969,
+   "parent_mean_vector_length": 0.6962281465530396
   },
   "worked_problem": {
    "rewrites": 409,
@@ -74,9 +98,22 @@
     "cut_off": 17
    },
    "bigram_entropy_drop_bits": 0.5737956714026282,
-   "vendi_ratio": 0.8752473493313855,
-   "mean_vector_length": 0.7283288836479187,
-   "parent_mean_vector_length": 0.7126849293708801
+   "vendi_ratio": 0.875247417471928,
+   "mean_vector_length": 0.728329062461853,
+   "parent_mean_vector_length": 0.7126849889755249
+  },
+  "worked_problems_in_prose": {
+   "rewrites": 876,
+   "kept": 696,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 153,
+    "cut_off": 22,
+    "mostly_copied": 5
+   },
+   "bigram_entropy_drop_bits": 0.31968621896794325,
+   "vendi_ratio": 0.858449548895297,
+   "mean_vector_length": 0.7152932286262512,
+   "parent_mean_vector_length": 0.6987861394882202
   }
  }
 }

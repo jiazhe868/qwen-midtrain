@@ -89,12 +89,12 @@
      "tokens": 873961
     },
     "synthetic_qa": {
-     "documents": 8,
-     "tokens": 10000
+     "documents": 1,
+     "tokens": 818
     },
     "synthetic_rephrase": {
-     "documents": 3,
-     "tokens": 4171
+     "documents": 2,
+     "tokens": 2475
     },
     "textbooks": {
      "documents": 248,
@@ -201,10 +201,6 @@
       "documents": 63,
       "tokens": 143490
      },
-     "synthetic_qa": {
-      "documents": 2,
-      "tokens": 2637
-     },
      "textbooks": {
       "documents": 96,
       "tokens": 555951
@@ -240,12 +236,12 @@
       "tokens": 2743
      },
      "synthetic_qa": {
-      "documents": 3,
-      "tokens": 4296
+      "documents": 1,
+      "tokens": 818
      },
      "synthetic_rephrase": {
       "documents": 2,
-      "tokens": 2715
+      "tokens": 2475
      },
      "textbooks": {
       "documents": 50,
@@ -276,14 +272,6 @@
      "replay_web_edu": {
       "documents": 198,
       "tokens": 640453
-     },
-     "synthetic_qa": {
-      "documents": 1,
-      "tokens": 1569
-     },
-     "synthetic_rephrase": {
-      "documents": 1,
-      "tokens": 1456
      },
      "textbooks": {
       "documents": 89,
@@ -318,10 +306,6 @@
      "replay_web_edu": {
       "documents": 18,
       "tokens": 34566
-     },
-     "synthetic_qa": {
-      "documents": 3,
-      "tokens": 3067
      },
      "textbooks": {
       "documents": 51,
@@ -399,12 +383,12 @@
      "tokens": 873961
     },
     "synthetic_qa": {
-     "documents": 8,
-     "tokens": 10000
+     "documents": 1,
+     "tokens": 818
     },
     "synthetic_rephrase": {
-     "documents": 3,
-     "tokens": 4171
+     "documents": 2,
+     "tokens": 2475
     },
     "textbooks": {
      "documents": 248,
@@ -447,12 +431,12 @@
    "tokens": 519317874
   },
   "synthetic_qa": {
-   "documents": 5869,
-   "tokens": 6002009
+   "documents": 5151,
+   "tokens": 5592090
   },
   "synthetic_rephrase": {
-   "documents": 5772,
-   "tokens": 6485248
+   "documents": 5257,
+   "tokens": 5544665
   },
   "textbooks": {
    "documents": 94096,
@@ -470,25 +454,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 3259,
-   "words": 1455,
-   "mostly_numbers": 734,
-   "alphabet": 593
+   "numbers": 3257,
+   "words": 1453,
+   "mostly_numbers": 731,
+   "alphabet": 592
   },
   "by_task": {
    "mbpp": {
-    "numbers": 2196,
-    "alphabet": 593,
+    "numbers": 2195,
+    "alphabet": 592,
     "mostly_numbers": 41,
     "words": 57
    },
    "math500": {
-    "words": 267,
+    "words": 268,
     "numbers": 37,
-    "mostly_numbers": 568
+    "mostly_numbers": 565
    },
    "humaneval": {
-    "numbers": 3048,
+    "numbers": 3046,
     "mostly_numbers": 187,
     "words": 68,
     "alphabet": 36
@@ -497,7 +481,7 @@
     "words": 714
    },
    "mmlu_pro": {
-    "words": 166
+    "words": 163
    },
    "triviaqa": {
     "words": 141

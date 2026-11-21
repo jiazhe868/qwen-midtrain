@@ -85,29 +85,29 @@
  },
  "synthetic_qa": {
   "train": {
-   "documents": 5831,
-   "tokens": 5964654,
-   "median_document_tokens": 985,
+   "documents": 5118,
+   "tokens": 5556153,
+   "median_document_tokens": 1062,
    "documents_of_at_least_4096_tokens": 0
   },
   "validation": {
-   "documents": 38,
-   "tokens": 37355,
-   "median_document_tokens": 922,
+   "documents": 33,
+   "tokens": 35937,
+   "median_document_tokens": 1049,
    "documents_of_at_least_4096_tokens": 0
   }
  },
  "synthetic_rephrase": {
   "train": {
-   "documents": 5743,
-   "tokens": 6454247,
-   "median_document_tokens": 1100,
+   "documents": 5231,
+   "tokens": 5518246,
+   "median_document_tokens": 1030,
    "documents_of_at_least_4096_tokens": 0
   },
   "validation": {
-   "documents": 29,
-   "tokens": 31001,
-   "median_document_tokens": 1057,
+   "documents": 26,
+   "tokens": 26419,
+   "median_document_tokens": 1001,
    "documents_of_at_least_4096_tokens": 0
   }
  },
