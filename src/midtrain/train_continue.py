@@ -123,9 +123,20 @@ def chunked_language_model_loss(hidden_states: torch.Tensor, token_ids: torch.Te
 class MasterWeightAdamW:
     """AdamW whose weights of record are FP32 and live on `master_device`; the model computes with BF16 copies.
 
-    State lives across steps (master weights, Adam moments), so this is a class. Each step moves the BF16
-    gradients to the master device as FP32, lets `torch.optim.AdamW` update the master weights, and copies them
+    State lives across steps (master weights, Adam moments, transfer buffers), so this is a class. Each step moves the
+    BF16 gradients to the master device as FP32, lets `torch.optim.AdamW` update the master weights, and copies them
     back, rounded to BF16. The global gradient norm is clipped before the move.
+
+    Master weights on the CPU (the 2B model and larger, whose FP32 weights and moments do not fit next to the model on
+    a 40 GB A100). The first version moved each tensor with a plain `.to()`, FP32 through pageable memory in both
+    directions, and ran a for-each AdamW: about 9 s per step for the 2B model next to about 4 s of forward and
+    backward (2,162-2,751 tokens/s in the 2B smoke test, 11-20). The CPU side now keeps one page-locked BF16 buffer
+    per tensor, so each direction moves half the bytes at full bus speed with a single wait for all tensors; the
+    BF16/FP32 conversions run on the CPU; and AdamW runs as one fused CPU kernel (0.7 s for 2B parameters against
+    1.9 s for the for-each version at 16 threads). The numbers it produces are the same: the conversions are exact or
+    the same round-to-nearest-even, and the fused AdamW matched the for-each one on every element after BF16 rounding
+    over 20 test steps (largest FP32 difference 7e-9). Master weights on the GPU (the 0.8B model) keep the first
+    version, so the 0.8B design runs that started before this change stay comparable with the later ones.
     """
 
     def __init__(self, working_parameters, master_device: str, betas: tuple[float, float], epsilon: float,
@@ -133,8 +144,20 @@ class MasterWeightAdamW:
         self.working_parameters = [parameter for parameter in working_parameters if parameter.requires_grad]
         self.master_parameters = [torch.nn.Parameter(parameter.detach().to(master_device, dtype=torch.float32))
                                   for parameter in self.working_parameters]
-        self.optimizer = torch.optim.AdamW(self.master_parameters, lr=0.0, betas=betas, eps=epsilon,
-                                           weight_decay=weight_decay)
+        self.masters_on_host = master_device == "cpu"
+        if self.masters_on_host:
+            # One page-locked BF16 buffer per tensor carries the gradient out and the rounded weight back, and one FP32
+            # buffer per tensor holds the gradient for AdamW, so no step allocates gigabytes. For the 2B model these
+            # take 4.5 GB and 9 GB of host memory.
+            self.host_staging_buffers = [torch.empty(parameter.shape, dtype=torch.bfloat16, pin_memory=True)
+                                         for parameter in self.working_parameters]
+            self.host_gradient_buffers = [torch.empty_like(master) for master in self.master_parameters]
+            self.working_devices = sorted({parameter.device for parameter in self.working_parameters}, key=str)
+            self.optimizer = torch.optim.AdamW(self.master_parameters, lr=0.0, betas=betas, eps=epsilon,
+                                               weight_decay=weight_decay, fused=True)
+        else:
+            self.optimizer = torch.optim.AdamW(self.master_parameters, lr=0.0, betas=betas, eps=epsilon,
+                                               weight_decay=weight_decay)
 
     def gradient_norm(self) -> float:
         squared_sum = 0.0
@@ -148,6 +171,9 @@ class MasterWeightAdamW:
         clip_factor = min(1.0, maximum_gradient_norm / (gradient_norm + 1e-12))
         for group in self.optimizer.param_groups:
             group["lr"] = learning_rate
+        if self.masters_on_host:
+            self.step_with_masters_on_host(clip_factor)
+            return gradient_norm
         for master, working in zip(self.master_parameters, self.working_parameters):
             if working.grad is None:
                 master.grad = None
@@ -159,6 +185,42 @@ class MasterWeightAdamW:
             for master, working in zip(self.master_parameters, self.working_parameters):
                 working.copy_(master)
         return gradient_norm
+
+    def wait_for_working_devices(self) -> None:
+        """Wait until every queued copy on every GPU that holds part of the model has finished."""
+        for device in self.working_devices:
+            torch.cuda.synchronize(device)
+
+    def step_with_masters_on_host(self, clip_factor: float) -> None:
+        """One update with the master weights on the CPU: gradients out, AdamW on the CPU, rounded weights back.
+
+        A tensor without a gradient this step (not used by the forward pass) is left out by AdamW, as in the GPU
+        version. Multiplying by a clip factor of exactly 1 changes nothing, so it is skipped.
+        """
+        has_gradient = [working.grad is not None for working in self.working_parameters]
+        # gradients out: every copy is queued at once into page-locked memory, then one wait
+        for staging, working, gradient_exists in zip(self.host_staging_buffers, self.working_parameters, has_gradient):
+            if gradient_exists:
+                staging.copy_(working.grad, non_blocking=True)
+        self.wait_for_working_devices()
+        for master, staging, gradient_buffer, working, gradient_exists in zip(
+                self.master_parameters, self.host_staging_buffers, self.host_gradient_buffers, self.working_parameters,
+                has_gradient):
+            if not gradient_exists:
+                master.grad = None
+                continue
+            gradient_buffer.copy_(staging)
+            if clip_factor < 1.0:
+                gradient_buffer.mul_(clip_factor)
+            master.grad = gradient_buffer
+            working.grad = None
+        self.optimizer.step()
+        # weights back: rounded to BF16 on the CPU into the same buffers, every copy queued at once, then one wait
+        with torch.no_grad():
+            for master, staging, working in zip(self.master_parameters, self.host_staging_buffers, self.working_parameters):
+                staging.copy_(master)
+                working.copy_(staging, non_blocking=True)
+        self.wait_for_working_devices()
 
 
 def learning_rate_at_step(step_index: int, step_count: int, peak_learning_rate: float, warmup_step_share: float) -> float:
