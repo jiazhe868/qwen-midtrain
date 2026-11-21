@@ -107,9 +107,12 @@ style_instructions = {
         "extreme case) and reason through what would follow in each, step by step, consistent with the passage.",
 }
 # Three styles reworded for v3 (11-21). At 600 rewrites per source the qa source missed the bigram-entropy limit by
-# 0.01 bits; per style against each style's own parents, the dialogue lost 0.63 bits, the questions 0.58 and the worked
-# problems 0.53, against 0.09 to 0.28 for the other three. Their fixed labels ("Teacher:", "Question", "Step 1",
-# "Solution", "Check") repeat in every rewrite. The reworded styles ask for the same reasoning without fixed labels.
+# 0.01 bits. Per style, against each style's own parents on 100,000 tokens, the dialogue lost 0.61 bits, the questions
+# 0.62 and the worked problems 0.57, against 0.09 to 0.26 for the other three (`check-styles`,
+# results/synthetic_style_check_v3_rewrites.json). Their fixed labels ("Teacher:", "Question", "Step 1", "Solution",
+# "Check") repeat in every rewrite. The reworded styles ask for the same reasoning without fixed labels. The questions
+# improved most (0.45 to 0.10 bits on 45,000 tokens); the named-role dialogue did not (Vendi ratio 0.66) and is left
+# out of v3 with the original dialogue.
 style_instructions.update({
     "dialogue_with_named_roles":
         "Write a dialogue in which a person who knows this material leads a learner to its conclusions by asking "
