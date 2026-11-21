@@ -154,6 +154,21 @@ with lettered options. The guard of the mixture search therefore averages each s
 a choice made before any design run had a result. **Distant context is worth 0.20 bits per token** to the base
 model, a clear signal against which the long-context arms of the design can be compared.
 
+**The first design run.** Run 1 of the screening design (55% replay, 34% curated text, 11% math and code, peak
+learning rate 3e-6, 40M tokens) against the base model, paired question by question (`results/training/`,
+`results/regression/` and `results/probe/screen18_r01_0.8B.json`; `mixing_law.py compare`):
+
+| measurement | run 1 − base [95%] |
+|---|---|
+| bits per byte, every source | −0.3% to −1.8% (better on all nine) |
+| cloze multiple choice, ARC / CommonsenseQA | +1.2 [+0.1, +2.4] / +2.9 [+1.3, +4.3]; the other three within noise |
+| probe pass@1, four tasks pooled | −0.06 [−0.48, +0.37] |
+| probe pass@16 / pass@64, pooled | −0.53 [−1.86, +0.73] / +0.12 [−2.46, +2.70] |
+
+At 3e-6 a broad mixture moves every source a little in the right direction, where web-heavy replay at 1e-5 cost
+papers, math and code about 2%. The probe did not move. What the run settles is the resolution of the design: a
+paired difference of pooled pass@1 is known to ±0.4 points, so effects of half a point are visible.
+
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
 
@@ -619,7 +634,7 @@ about an hour.
 |---|---|---|---|---|
 | pilot: learning rate, effect size, probe noise | 0.8B | 6 runs + 7 probes | 12 | workstation |
 | screening design (§6.2) | 0.8B | 18 | 48 | workstation |
-| screening design | 2B | 18 | 76 | workstation, cluster |
+| screening design | 2B | 18 | 72 | workstation |
 | steepest ascent and confirmation, two seeds | 0.8B, 2B | about 20 | 70 | workstation, cluster |
 | third scale | 4B | 6 | 42 | workstation, cluster |
 | ablations: curation, synthetic share to collapse, packing | 0.8B, 2B | about 20 | 80 | workstation |
@@ -627,6 +642,13 @@ about an hour.
 
 The estimates use the measured speeds of §1.1 and a probe of about one hour for the 0.8B. The 9B number is an
 estimate until its first run.
+
+**The cluster comes late.** The allocation's fairshare is near zero after an earlier project, so a new job's priority
+is its age: 1,151 on the first evening, against about 4,000 for the jobs that start, at about 500 a day. The 12 jobs
+submitted on day 1 should start around day 6. Backfill does not help: every job that started that evening, 20-minute
+ones included, had a priority above 3,800. So the 2B design runs on the workstation after the 0.8B design, and the
+cluster takes the 9B runs; its queues already hold work that needs no analysis (the 9B and 4B base evaluations and a
+9B replay-only control), because a job that starts and finds nothing to do gives up its place.
 
 **One queue for every machine.** A task is a shell script in a folder. A worker claims a task by renaming it,
 which is atomic on a shared file system, runs it and moves it to `done` or `failed` with its output
