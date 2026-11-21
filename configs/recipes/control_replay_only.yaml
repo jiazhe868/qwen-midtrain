@@ -1,0 +1,9 @@
+# The replay-only control at the budget of the screening design: web text and Chinese Wikipedia as in every replay
+# recipe, nothing else. The 9B run of the proposed mixture is compared with this run at the same budget (README §13 P10).
+token_budget: 40009728            # 1,221 steps of 32,768 tokens, as in the screening design
+context_length: 4096
+components:
+  replay_web: 0.85
+  wiki_zh: 0.15
+schedule: uniform
+seed: 1
