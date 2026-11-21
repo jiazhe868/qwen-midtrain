@@ -7,9 +7,9 @@ How this pipeline silently fails, how each failure was detected, and what now pr
 Every entry is a mistake actually made here while building the continued-pretraining study, caught by measurement,
 corrected, and where possible given a permanent regression test. Nothing below is a generic best-practice list.
 
-**The organising observation: eight of the ten incidents produced something plausible that pointed the wrong way (a
-pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, a sentence
-about where data came from), and none of them stopped the pipeline.** The two incidents that stopped it (C1, C2) were the cheapest to fix.
+**The organising observation: nine of the eleven incidents produced something plausible that pointed the wrong way (a
+pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, rewrites
+that read well, a sentence about where data came from), and none of them stopped the pipeline.** The two incidents that stopped it (C1, C2) were the cheapest to fix.
 
 Companion document: [README.md](README.md) explains how the pipeline works and what the experiments showed.
 
@@ -21,6 +21,7 @@ Companion document: [README.md](README.md) explains how the pipeline works and w
 |---|---|---|---|
 | A1 | Semantic packs put editions of one text side by side | data integrity | the long-context comparison would have measured copying, not the use of related text |
 | A2 | The last packs built were leftovers | data integrity | the semantic arm would have carried a tail of random packs |
+| A3 | Rewrites pointed at a passage their reader never sees | data integrity | 12,000 rewrites in a register no real text has, or a diversity gate loosened to let them in |
 | B1 | Density clustering found nothing in 384 dimensions | metric validity | the diversity gate's cluster check could not fail |
 | B2 | Two thirds of the contamination count were runs of numbers | metric validity | a contamination figure more than four times too high, attributed to the wrong benchmarks |
 | B3 | Validation too small for the effects it was meant to show | metric validity | noise of ±0.4% read as an effect of the mixture |
@@ -86,6 +87,34 @@ documents. No pack is below 0.5 now; the first percentile is 0.577.
 
 **Generalisable lesson.** A greedy procedure is good at its start and bad at its end; look at the quality of what it
 produced last before reporting the average.
+
+## A3 — Rewrites pointed at a passage their reader never sees
+
+**Symptom.** Two batches of teacher rewrites failed the diversity gate on the Vendi score of their embeddings: v1 at
+0.70 and 0.59 of the real passages' score at full size, v2 at 0.63 and 0.59 on a sample of 300 rewrites per source,
+against a limit of 0.80. Each rewrite read well on its own.
+
+**The false story.** "One teacher writing for one reader narrows the text; vary the reader, the voice, the format."
+v2 drew a reader and a writer's voice for every request, and it scored lower than v1.
+
+**Root cause.** The topics had survived: with each set's mean direction removed, the rewrites were 92% as spread as
+their parents. What they shared was one direction, the register of talking about a text, and its most frequent mark
+was a reference to the source itself: 83 of 144 rewrites of the plain request mention "the passage", "the text" or
+"the author" in their first 400 words. The request presented the source as "Passage:", and the teacher kept pointing
+at it. The instruction not to mention the passage was checked only against the first words of a rewrite.
+
+**Fix.** The v3 request asks the teacher to write as the author of the material, never referring to a source, and to
+keep the material's own names, places, dates and numbers. A rewrite that still points at a hidden source ("The text
+states that...") is dropped (`hidden_source_reference` in `synthetic_rephrase.py`). On the same 150 passages the
+Vendi ratio rose from 0.73 to 0.86, and the v3 sample passed the gate on both sources (README §7.3).
+
+**Permanent regression test.** `tests/test_synthetic_rephrase.py::test_rewrites_that_point_at_a_hidden_source_are_dropped`,
+`::test_ordinary_uses_of_text_passage_and_author_are_kept`.
+
+**Invalidated artifacts.** The v1 and v2 batches (12,000 and 600 rewrites); neither entered a training run.
+
+**Generalisable lesson.** When generated text fails a diversity check, find the direction the documents share before
+adding variety: one repeated phrase can outweigh every variation added on top of it.
 
 ---
 
