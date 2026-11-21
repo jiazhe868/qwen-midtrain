@@ -7,7 +7,7 @@ How this pipeline silently fails, how each failure was detected, and what now pr
 Every entry is a mistake actually made here while building the continued-pretraining study, caught by measurement,
 corrected, and where possible given a permanent regression test. Nothing below is a generic best-practice list.
 
-**The organising observation: seven of the eight incidents produced something plausible that pointed the wrong way (a
+**The organising observation: eight of the nine incidents produced something plausible that pointed the wrong way (a
 pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, a sentence
 about where data came from), and none of them stopped the pipeline.** The one incident that stopped it (C1) was the cheapest to fix.
 
@@ -24,6 +24,7 @@ Companion document: [README.md](README.md) explains how the pipeline works and w
 | B1 | Density clustering found nothing in 384 dimensions | metric validity | the diversity gate's cluster check could not fail |
 | B2 | Two thirds of the contamination count were runs of numbers | metric validity | a contamination figure more than four times too high, attributed to the wrong benchmarks |
 | B3 | Validation too small for the effects it was meant to show | metric validity | noise of ±0.4% read as an effect of the mixture |
+| B4 | A letter format reported a knowledge loss that was not there | metric validity | the mixture search would have avoided a mixture that cost nothing |
 | C1 | The serving engine refused the trained checkpoint | systems | every probe would have stopped; no wrong number |
 | D1 | Data provenance written from memory | selection & reporting | a wrong statement about who wrote the probe's training data |
 | E1 | The stop marker was invisible to the server | eval protocol | every probe score graded on answers from turns the model invented |
@@ -155,6 +156,30 @@ between such samples. The effects the design has to resolve are of the same size
 **Invalidated artifacts.** None withdrawn; the pilot table states that differences below 0.5% are noise.
 
 **Generalisable lesson.** Size the evaluation for the smallest effect you intend to report, before the first run.
+
+## B4 — A letter format reported a knowledge loss that was not there
+
+**Symptom.** After the first design run, zero-shot lettered HellaSwag fell 6.4 points [−9.3, −3.4] against the base
+model, all of it on the WikiHow-style items (49.7 → 40.2; the ActivityNet items stayed at 51.2).
+
+**The false story.** "This mixture costs commonsense knowledge; the replay share has to go up." The mixture search
+would have pushed away from the run.
+
+**Root cause.** Small models answer lettered questions partly by preferring some letters, and that preference moves
+when the model is trained on anything. The same questions asked with five examples moved by −0.5 points, and scored
+by cloze, the likelihood of each answer's own text with no letters, by +0.1: 38 of 1,000 choices changed, half each
+way. The 0.8B base already picked "B" for 33 of 80 ARC questions after five examples, against 27 without.
+
+**Fix.** The regression suite also scores every multiple-choice set by cloze (`base_regression.py`), and the guard of
+the mixture search is the cloze mean (`mixing_law.py`). Lettered scores are still reported.
+
+**Permanent regression test.** None automated; the README reports both formats next to each other.
+
+**Invalidated artifacts.** The guard definition chosen earlier the same day (the mean of both lettered formats); no
+analysis had used it.
+
+**Generalisable lesson.** For a small model, a multiple-choice score can move with the answer format alone: score
+the answer text, and treat a drop that appears in one format only as a format effect until shown otherwise.
 
 ---
 

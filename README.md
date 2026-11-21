@@ -410,9 +410,11 @@ curvature term in the total non-replay share is added when the three replay leve
 
 The best mixture is the one that maximises the target (mean pass@16 over the probe tasks, with pass@64 reported
 next to it) while the predicted regression-suite score stays within the noise of the replay-only control. That
-score is the mean of the five multiple-choice sets, each asked with and without examples, and TriviaQA: asking both
-ways uses twice the questions and dilutes the 0.8B model's preference for early answer letters (§1.2). The search
-stays inside the tested ranges: the law is not trusted outside them.
+score is the mean of the five multiple-choice sets scored by cloze (the likelihood of each answer's own text, with no
+answer letters) and TriviaQA. The first choice was the lettered format, asked with and without examples; after the
+first design run, zero-shot lettered HellaSwag fell 6.4 points while cloze and the five-example format did not move,
+which is the small model's letter preference shifting, not knowledge lost (§1.2, PITFALLS B4). The search stays
+inside the tested ranges: the law is not trusted outside them.
 
 A linear law puts the optimum on the edge of the tested region. That is an honest answer and it means the region
 was too small on that side. The next runs then follow the direction of steepest ascent beyond the edge until the
