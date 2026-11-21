@@ -531,8 +531,8 @@ pages and forum answers (`synthetic_rephrase.py`). Six forms show the same conte
 | dialogue with one corrected mistake | `synthetic_rephrase` | a wrong turn and its repair |
 | what-if analysis | `synthetic_qa` | consequences of a changed condition |
 
-The batch that entered the mixtures (v3, §7.3) keeps four of these forms, has the questions and the worked problems
-reworded as prose without fixed labels, and leaves the dialogue out.
+The batch that entered the mixtures (v3, §7.3) keeps five of these forms: three as written, and the questions and
+the worked problems reworded as prose without fixed labels. It leaves the dialogue out.
 
 The outputs are plain text without chat tokens: chat tokens in mid-training data took one published model's GSM8K
 score from 49 to 0. Every output is checked for length, refusals and meta-comments, and for copying: an output
