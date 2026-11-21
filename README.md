@@ -94,7 +94,7 @@ now catch them.
 | Probe | fixed fine-tune on 22,161 conversations (6.18M tokens, 3.49M of them with loss), 2 epochs, then 64 samples per question on GSM8K, MATH-500, HumanEval and MBPP (`results/probe_data_summary.json`) |
 | Regression suite | MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA, CMMLU, TriviaQA, plus few-shot GSM8K, MATH-500, HumanEval, MBPP on the base checkpoint (*planned*, §3.2) |
 | Hardware | 4 x A100 40 GB on a workstation shared with other jobs; A100 nodes (3 GPUs each) of a Slurm cluster through a file-based task queue |
-| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 5.7K for the forward and backward pass (speed test), 2.2K to 2.8K in the smoke run, where the optimizer step on the CPU took longer than the pass; that step now takes 2.1 s instead of 7.6 s (§5.1). 4B: 2.8K (speed test). The 9B runs over three GPUs; its speed is not measured yet |
+| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 4.2K in the design runs, 2.2K to 2.8K in the smoke run before the optimizer step on the CPU was rewritten (§5.1). 4B: 2.8K (speed test). The 9B runs over three GPUs; its speed is not measured yet |
 
 ### 1.2 Results so far
 
@@ -396,6 +396,8 @@ for all tensors; the conversions between BF16 and FP32 run on the CPU; and AdamW
 step takes 2.1 s in the same benchmark. After four steps the weights match the first version's on all but 96 of
 1.8 billion elements, a rounding difference in the last bit (`tests/test_train_continue.py`). The 0.8B model keeps
 its master weights on the GPU, and that path was not changed, so its design runs stay comparable with each other.
+The first 2B design run trains at 4.2K tokens/s, against 2.2K to 2.8K in the smoke run, so 40M tokens take 2.7 hours
+instead of about 4.5.
 
 ### 5.2 Exact mixtures
 
