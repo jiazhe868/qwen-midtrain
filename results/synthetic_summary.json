@@ -1,0 +1,27 @@
+{
+ "rewrites": 12000,
+ "dropped_by_reason": {
+  "cut_off": 347,
+  "refusal_or_meta_comment": 12
+ },
+ "sources": {
+  "synthetic_rephrase": {
+   "documents": 5772,
+   "tokens": 6485248,
+   "by_style": {
+    "explain_from_first_principles": 1965,
+    "socratic_dialogue": 1864,
+    "structured_notes": 1943
+   }
+  },
+  "synthetic_qa": {
+   "documents": 5869,
+   "tokens": 6002009,
+   "by_style": {
+    "question_answer_derivation": 1969,
+    "what_if_analysis": 2058,
+    "worked_problem": 1842
+   }
+  }
+ }
+}

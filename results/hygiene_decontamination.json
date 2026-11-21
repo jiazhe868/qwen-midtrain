@@ -88,6 +88,14 @@
      "documents": 273,
      "tokens": 873961
     },
+    "synthetic_qa": {
+     "documents": 8,
+     "tokens": 10000
+    },
+    "synthetic_rephrase": {
+     "documents": 3,
+     "tokens": 4171
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -193,6 +201,10 @@
       "documents": 63,
       "tokens": 143490
      },
+     "synthetic_qa": {
+      "documents": 2,
+      "tokens": 2637
+     },
      "textbooks": {
       "documents": 96,
       "tokens": 555951
@@ -227,6 +239,14 @@
       "documents": 3,
       "tokens": 2743
      },
+     "synthetic_qa": {
+      "documents": 3,
+      "tokens": 4296
+     },
+     "synthetic_rephrase": {
+      "documents": 2,
+      "tokens": 2715
+     },
      "textbooks": {
       "documents": 50,
       "tokens": 278010
@@ -256,6 +276,14 @@
      "replay_web_edu": {
       "documents": 198,
       "tokens": 640453
+     },
+     "synthetic_qa": {
+      "documents": 1,
+      "tokens": 1569
+     },
+     "synthetic_rephrase": {
+      "documents": 1,
+      "tokens": 1456
      },
      "textbooks": {
       "documents": 89,
@@ -290,6 +318,10 @@
      "replay_web_edu": {
       "documents": 18,
       "tokens": 34566
+     },
+     "synthetic_qa": {
+      "documents": 3,
+      "tokens": 3067
      },
      "textbooks": {
       "documents": 51,
@@ -366,6 +398,14 @@
      "documents": 273,
      "tokens": 873961
     },
+    "synthetic_qa": {
+     "documents": 8,
+     "tokens": 10000
+    },
+    "synthetic_rephrase": {
+     "documents": 3,
+     "tokens": 4171
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -406,6 +446,14 @@
    "documents": 495539,
    "tokens": 519317874
   },
+  "synthetic_qa": {
+   "documents": 5869,
+   "tokens": 6002009
+  },
+  "synthetic_rephrase": {
+   "documents": 5772,
+   "tokens": 6485248
+  },
   "textbooks": {
    "documents": 94096,
    "tokens": 226955391
@@ -422,25 +470,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 3257,
-   "words": 1450,
-   "mostly_numbers": 731,
-   "alphabet": 592
+   "numbers": 3259,
+   "words": 1455,
+   "mostly_numbers": 734,
+   "alphabet": 593
   },
   "by_task": {
    "mbpp": {
-    "numbers": 2195,
-    "alphabet": 592,
+    "numbers": 2196,
+    "alphabet": 593,
     "mostly_numbers": 41,
     "words": 57
    },
    "math500": {
-    "words": 265,
+    "words": 267,
     "numbers": 37,
-    "mostly_numbers": 565
+    "mostly_numbers": 568
    },
    "humaneval": {
-    "numbers": 3046,
+    "numbers": 3048,
     "mostly_numbers": 187,
     "words": 68,
     "alphabet": 36
@@ -449,7 +497,7 @@
     "words": 714
    },
    "mmlu_pro": {
-    "words": 163
+    "words": 166
    },
    "triviaqa": {
     "words": 141

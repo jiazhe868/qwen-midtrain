@@ -1,0 +1,67 @@
+{
+  "source": "synthetic_qa",
+  "document_count": 5869,
+  "token_count": 6002009,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1024,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.2118164905963,
+  "bigram_entropy_bits": 15.643069691073297,
+  "distinct_1": 0.027776,
+  "distinct_2": 0.2913626217430908,
+  "zstd_compression_ratio": 4.1240282527093175,
+  "template_repetition_rate": 0.006577058942848286,
+  "sentence_count": 45668,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "<name> <number>: <name> and <name>",
+      "occurrences": 120
+    },
+    {
+      "skeleton": "<name> <number>: <name> of <name>",
+      "occurrences": 83
+    },
+    {
+      "skeleton": "<name> <number>: <name> of <name> and <name>",
+      "occurrences": 48
+    },
+    {
+      "skeleton": "<name> <number>: <name> the conclusion.",
+      "occurrences": 24
+    },
+    {
+      "skeleton": "<name> external facts were introduced.",
+      "occurrences": 19
+    },
+    {
+      "skeleton": "<name> <number>: <name> the <name>.",
+      "occurrences": 16
+    },
+    {
+      "skeleton": "<number> + <number> = <number>.",
+      "occurrences": 15
+    },
+    {
+      "skeleton": "<name> <number>: <name> the <name>",
+      "occurrences": 14
+    },
+    {
+      "skeleton": "<name> <number>: <name> and <name>.",
+      "occurrences": 14
+    },
+    {
+      "skeleton": "<name> for <name> <number>",
+      "occurrences": 13
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.8068872094154358,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 18.617351304165037,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 6,
+  "hdbscan_noise_share": 0.6951111111111111,
+  "hdbscan_clusters_per_10k_documents": 13.333333333333332
+}

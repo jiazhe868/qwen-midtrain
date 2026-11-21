@@ -1,0 +1,67 @@
+{
+  "source": "passages_baseline",
+  "document_count": 60000,
+  "token_count": 51377547,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1280,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.806644280046221,
+  "bigram_entropy_bits": 16.53926870887511,
+  "distinct_1": 0.041372,
+  "distinct_2": 0.38351901836559793,
+  "zstd_compression_ratio": 3.3066295361612372,
+  "template_repetition_rate": 0.010641514799630306,
+  "sentence_count": 60267,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "##### <name>: <number> <name>:",
+      "occurrences": 64
+    },
+    {
+      "skeleton": "##### <name> <number> to <number> <name>:",
+      "occurrences": 49
+    },
+    {
+      "skeleton": "<name> of the <name>",
+      "occurrences": 37
+    },
+    {
+      "skeleton": "- <name> as <name>",
+      "occurrences": 32
+    },
+    {
+      "skeleton": "<name> [?]: <number> [<number>], given: <number>",
+      "occurrences": 32
+    },
+    {
+      "skeleton": "<name> from <name>, <name>",
+      "occurrences": 30
+    },
+    {
+      "skeleton": "<name> the end of this section, you will be able to:",
+      "occurrences": 26
+    },
+    {
+      "skeleton": "<name> at the <number> <name>",
+      "occurrences": 25
+    },
+    {
+      "skeleton": "<name> by : <name>.",
+      "occurrences": 24
+    },
+    {
+      "skeleton": "<name> : <name>: <name>",
+      "occurrences": 23
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.7456923723220825,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 31.436112655256288,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 6,
+  "hdbscan_noise_share": 0.6773333333333333,
+  "hdbscan_clusters_per_10k_documents": 13.333333333333332
+}
