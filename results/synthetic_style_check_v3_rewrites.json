@@ -1,0 +1,82 @@
+{
+ "batch": "v3",
+ "results_name": "rewrites.jsonl",
+ "token_sample_size": 100000,
+ "styles": {
+  "explain_from_first_principles": {
+   "rewrites": 410,
+   "kept": 399,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 8,
+    "cut_off": 2,
+    "mostly_copied": 1
+   },
+   "bigram_entropy_drop_bits": 0.09496108628191813,
+   "vendi_ratio": 0.8481346861120687,
+   "mean_vector_length": 0.7145395874977112,
+   "parent_mean_vector_length": 0.6951597929000854
+  },
+  "question_answer_derivation": {
+   "rewrites": 408,
+   "kept": 162,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 214,
+    "cut_off": 29,
+    "mostly_copied": 3
+   },
+   "bigram_entropy_drop_bits": 0.6200148582637564,
+   "vendi_ratio": 0.8431550049531422,
+   "mean_vector_length": 0.7357285022735596,
+   "parent_mean_vector_length": 0.7148736119270325
+  },
+  "socratic_dialogue": {
+   "rewrites": 409,
+   "kept": 321,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 74,
+    "cut_off": 14
+   },
+   "bigram_entropy_drop_bits": 0.6146365457750349,
+   "vendi_ratio": 0.6946407278237317,
+   "mean_vector_length": 0.7453921437263489,
+   "parent_mean_vector_length": 0.6979220509529114
+  },
+  "structured_notes": {
+   "rewrites": 409,
+   "kept": 368,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 37,
+    "cut_off": 4
+   },
+   "bigram_entropy_drop_bits": 0.18837389109713065,
+   "vendi_ratio": 0.8297995450187065,
+   "mean_vector_length": 0.7277824282646179,
+   "parent_mean_vector_length": 0.7046958208084106
+  },
+  "what_if_analysis": {
+   "rewrites": 411,
+   "kept": 388,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 21,
+    "cut_off": 1,
+    "mostly_copied": 1
+   },
+   "bigram_entropy_drop_bits": 0.2592022894452892,
+   "vendi_ratio": 0.8424123421773906,
+   "mean_vector_length": 0.7165894508361816,
+   "parent_mean_vector_length": 0.6971995830535889
+  },
+  "worked_problem": {
+   "rewrites": 409,
+   "kept": 219,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 173,
+    "cut_off": 17
+   },
+   "bigram_entropy_drop_bits": 0.5737956714026282,
+   "vendi_ratio": 0.8752473493313855,
+   "mean_vector_length": 0.7283288836479187,
+   "parent_mean_vector_length": 0.7126849293708801
+  }
+ }
+}

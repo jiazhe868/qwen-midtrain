@@ -212,6 +212,24 @@ loss curve to four decimals. Sampling the same fine-tuned checkpoint twice gave 
 within 2.5 points on the three tasks whose settings did not change, so differences of pass@64 smaller than that are
 sampling noise.
 
+**The 2B base model, measured the same way.** It is the reference of the 2B design (`results/regression/base_2B.json`,
+`results/probe/base_2B.json`; the 0.8B column repeats the tables above):
+
+| measurement | 0.8B | 2B |
+|---|---|---|
+| knowledge guard: cloze on five sets, and trivia | 34.7 | 41.8 |
+| TriviaQA exact match | 21.0 | 35.5 |
+| ARC-Challenge, lettered, with / without five examples | 68.2 / 71.7 | 75.5 / 83.5 |
+| gain from distant context (bits per token) | 0.20 | 0.18 |
+| probe pass@1: GSM8K, MATH-500, HumanEval, MBPP | 37.2, 13.6, 9.6, 22.8 | 53.2, 22.9, 21.5, 35.5 |
+| probe pass@64, same order | 95.5, 71.2, 57.3, 78.5 | 99.0, 81.2, 79.9, 82.5 |
+| time: regression suite, probe fine-tune | 12 min, 29 min | 19 min, 81 min |
+
+The 2B model knows more and solves more, and it has the same preference as the 0.8B: five examples lower its
+lettered accuracy (ARC 75.5 against 83.5), so the cloze guard serves both sizes. GSM8K pass@64 is at 99.0, so for the
+2B model only pass@1 and pass@16 of GSM8K can show a change; the other tasks keep room at every k. With about 20
+minutes of sampling, the evaluations of one 2B design run take about two hours on one A100, on top of its training.
+
 ---
 
 ## 2. Quick start

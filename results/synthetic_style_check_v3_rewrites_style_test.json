@@ -1,0 +1,41 @@
+{
+ "batch": "v3",
+ "results_name": "rewrites_style_test.jsonl",
+ "token_sample_size": 100000,
+ "styles": {
+  "dialogue_with_named_roles": {
+   "rewrites": 76,
+   "kept": 63,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 12,
+    "cut_off": 1
+   },
+   "vendi_ratio": 0.6558220281089912,
+   "mean_vector_length": 0.7680091857910156,
+   "parent_mean_vector_length": 0.6978384256362915
+  },
+  "questions_answered_in_prose": {
+   "rewrites": 75,
+   "kept": 61,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 12,
+    "cut_off": 2
+   },
+   "vendi_ratio": 0.8438141688684574,
+   "mean_vector_length": 0.736186683177948,
+   "parent_mean_vector_length": 0.7078783512115479
+  },
+  "worked_problems_in_prose": {
+   "rewrites": 75,
+   "kept": 55,
+   "dropped_by_reason": {
+    "refers_to_hidden_source": 15,
+    "cut_off": 4,
+    "mostly_copied": 1
+   },
+   "vendi_ratio": 0.9085405431254596,
+   "mean_vector_length": 0.7297340035438538,
+   "parent_mean_vector_length": 0.7155458927154541
+  }
+ }
+}
