@@ -1,0 +1,67 @@
+{
+  "source": "wiki_en",
+  "document_count": 221959,
+  "token_count": 253681974,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1024,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.738667748505561,
+  "bigram_entropy_bits": 16.16728528423351,
+  "distinct_1": 0.042074,
+  "distinct_2": 0.37825162262111484,
+  "zstd_compression_ratio": 3.3184603804616337,
+  "template_repetition_rate": 0.025529935702384158,
+  "sentence_count": 64274,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "<name> of the <name>",
+      "occurrences": 111
+    },
+    {
+      "skeleton": "<name> (<name>) <name> (<name>) <number> (<name>.<name>.",
+      "occurrences": 106
+    },
+    {
+      "skeleton": "<name> from <name>, <name>",
+      "occurrences": 85
+    },
+    {
+      "skeleton": "<number> establishments in <name>",
+      "occurrences": 82
+    },
+    {
+      "skeleton": "<name> of the <name> of <name>",
+      "occurrences": 65
+    },
+    {
+      "skeleton": "<number>) <name> (<name>) <number> (<name>.<name>.",
+      "occurrences": 55
+    },
+    {
+      "skeleton": "<name> at the <number> <name>",
+      "occurrences": 42
+    },
+    {
+      "skeleton": "<name> (<name>) (<name>) <name> (<name>) <number> (<name>.<name>.",
+      "occurrences": 42
+    },
+    {
+      "skeleton": "<name> of <name> alumni",
+      "occurrences": 35
+    },
+    {
+      "skeleton": "<name> people of <name> descent",
+      "occurrences": 35
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.6833550333976746,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 40.01654564905157,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 8,
+  "hdbscan_noise_share": 0.7448888888888889,
+  "hdbscan_clusters_per_10k_documents": 17.77777777777778
+}

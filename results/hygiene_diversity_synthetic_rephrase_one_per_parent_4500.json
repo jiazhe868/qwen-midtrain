@@ -1,0 +1,67 @@
+{
+  "source": "synthetic_rephrase_one_per_parent",
+  "document_count": 5052,
+  "token_count": 5642716,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1024,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.51687762060039,
+  "bigram_entropy_bits": 16.007690248439328,
+  "distinct_1": 0.032311,
+  "distinct_2": 0.329950295365238,
+  "zstd_compression_ratio": 3.841965020208162,
+  "template_repetition_rate": 0.0023479813696468746,
+  "sentence_count": 60008,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "**<name>: <name> and <name>**",
+      "occurrences": 26
+    },
+    {
+      "skeleton": "<name>: <name> makes sense.",
+      "occurrences": 21
+    },
+    {
+      "skeleton": "**<name>: <name> of <name>**",
+      "occurrences": 20
+    },
+    {
+      "skeleton": "<name>: <name>, <name> see.",
+      "occurrences": 16
+    },
+    {
+      "skeleton": "<name>: <name> is correct.",
+      "occurrences": 14
+    },
+    {
+      "skeleton": "**<name>: <name> a <name>**",
+      "occurrences": 13
+    },
+    {
+      "skeleton": "<name>: <name> start with the basics.",
+      "occurrences": 13
+    },
+    {
+      "skeleton": "**<name>: <name> the <name>**",
+      "occurrences": 12
+    },
+    {
+      "skeleton": "<name>: <name> a moment.",
+      "occurrences": 11
+    },
+    {
+      "skeleton": "<name>: <name> pause there.",
+      "occurrences": 11
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.7877223491668701,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 22.166510896369783,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 2,
+  "hdbscan_noise_share": 0.40955555555555556,
+  "hdbscan_clusters_per_10k_documents": 4.444444444444445
+}

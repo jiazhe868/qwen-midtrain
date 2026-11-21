@@ -1,0 +1,67 @@
+{
+  "source": "synthetic_qa_one_per_parent",
+  "document_count": 5125,
+  "token_count": 5189604,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1024,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.181991828945357,
+  "bigram_entropy_bits": 15.613685512930067,
+  "distinct_1": 0.027887,
+  "distinct_2": 0.2919172465706255,
+  "zstd_compression_ratio": 4.09886047442616,
+  "template_repetition_rate": 0.006580605851785017,
+  "sentence_count": 44218,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "<name> <number>: <name> and <name>",
+      "occurrences": 105
+    },
+    {
+      "skeleton": "<name> <number>: <name> of <name>",
+      "occurrences": 70
+    },
+    {
+      "skeleton": "<name> <number>: <name> of <name> and <name>",
+      "occurrences": 44
+    },
+    {
+      "skeleton": "<name> <number>: <name> the conclusion.",
+      "occurrences": 21
+    },
+    {
+      "skeleton": "<name> <number>: <name> the <name>",
+      "occurrences": 18
+    },
+    {
+      "skeleton": "<number> + <number> = <number>",
+      "occurrences": 17
+    },
+    {
+      "skeleton": "<name> to <name> <number>",
+      "occurrences": 16
+    },
+    {
+      "skeleton": "<name> <number>: <name> <number>.",
+      "occurrences": 13
+    },
+    {
+      "skeleton": "<name> <number>: <name> and <name>.",
+      "occurrences": 12
+    },
+    {
+      "skeleton": "<name> <number>: <name> in <name>",
+      "occurrences": 11
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.7941330075263977,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 18.687645171749004,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 6,
+  "hdbscan_noise_share": 0.6884444444444444,
+  "hdbscan_clusters_per_10k_documents": 13.333333333333332
+}

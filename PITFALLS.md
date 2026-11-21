@@ -7,9 +7,9 @@ How this pipeline silently fails, how each failure was detected, and what now pr
 Every entry is a mistake actually made here while building the continued-pretraining study, caught by measurement,
 corrected, and where possible given a permanent regression test. Nothing below is a generic best-practice list.
 
-**The organising observation: eight of the nine incidents produced something plausible that pointed the wrong way (a
+**The organising observation: eight of the ten incidents produced something plausible that pointed the wrong way (a
 pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, a sentence
-about where data came from), and none of them stopped the pipeline.** The one incident that stopped it (C1) was the cheapest to fix.
+about where data came from), and none of them stopped the pipeline.** The two incidents that stopped it (C1, C2) were the cheapest to fix.
 
 Companion document: [README.md](README.md) explains how the pipeline works and what the experiments showed.
 
@@ -26,6 +26,7 @@ Companion document: [README.md](README.md) explains how the pipeline works and w
 | B3 | Validation too small for the effects it was meant to show | metric validity | noise of ±0.4% read as an effect of the mixture |
 | B4 | A letter format reported a knowledge loss that was not there | metric validity | the mixture search would have avoided a mixture that cost nothing |
 | C1 | The serving engine refused the trained checkpoint | systems | every probe would have stopped; no wrong number |
+| C2 | The probe's server would not start on a shared GPU | systems | every 2B probe would have stopped; no wrong number |
 | D1 | Data provenance written from memory | selection & reporting | a wrong statement about who wrote the probe's training data |
 | E1 | The stop marker was invisible to the server | eval protocol | every probe score graded on answers from turns the model invented |
 
@@ -206,6 +207,33 @@ stops the first probe.
 
 **Generalisable lesson.** Save checkpoints in the format of the checkpoint you started from, not the format of the
 class you trained.
+
+---
+
+## C2 — The probe's server would not start on a shared GPU
+
+**Symptom.** The 2B smoke run trained normally, then its probe stopped: "Free memory on device cuda:0 (30.86/39.49
+GiB) on startup is less than desired GPU memory utilization (0.8, 31.59 GiB)". The same probe had run on the 0.8B
+model many times.
+
+**The false story.** "The 2B model is too large for the probe's server on a 40 GB GPU."
+
+**Root cause.** The server's memory share is a share of the whole GPU, and all of it must be free when the server
+starts. Another user's job held 3 GiB of the GPU, and the probe's own process still held about 5 GiB after the
+fine-tune: a reference to the output layer, the last batch's hidden states and the allocator's cache. The 0.8B
+model's leftovers are smaller, so its probe fitted by a small margin.
+
+**Fix.** The fine-tune drops every reference to the model and empties the allocator's cache before the server
+starts. When the server still finds too little free memory, it is started again with the free share less 1 GiB
+(`start_inference_server` in `sft_probe.py`).
+
+**Permanent regression test.** `test_server_starts_again_with_the_free_share_and_then_with_the_block_limit` feeds
+the server's two start-up complaints to the start function and checks the shares and limits it retries with.
+
+**Invalidated artifacts.** None; it was caught in the smoke run, before any 2B design run.
+
+**Generalisable lesson.** On a GPU that others share, size a memory share from what is free at start, and free your
+own leftovers before you hand the GPU to a second process.
 
 ---
 

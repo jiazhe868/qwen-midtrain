@@ -94,7 +94,7 @@ now catch them.
 | Probe | fixed fine-tune on 22,161 conversations (6.18M tokens, 3.49M of them with loss), 2 epochs, then 64 samples per question on GSM8K, MATH-500, HumanEval and MBPP (`results/probe_data_summary.json`) |
 | Regression suite | MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA, CMMLU, TriviaQA, plus few-shot GSM8K, MATH-500, HumanEval, MBPP on the base checkpoint (*planned*, §3.2) |
 | Hardware | 4 x A100 40 GB on a workstation shared with other jobs; A100 nodes (3 GPUs each) of a Slurm cluster through a file-based task queue |
-| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation); 2B: 5.7K; 4B: 2.8K (speed test). The 9B runs over three GPUs; its speed is not measured yet |
+| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 5.7K for the forward and backward pass (speed test), 2.2K to 2.8K in the smoke run, where the optimizer step on the CPU took longer than the pass; that step now takes 2.1 s instead of 7.6 s (§5.1). 4B: 2.8K (speed test). The 9B runs over three GPUs; its speed is not measured yet |
 
 ### 1.2 Results so far
 
@@ -127,7 +127,26 @@ Four things can be read from it.
 
 Caveats, plainly: one seed per run; 24,576 validation tokens per source, so differences below about 0.5% are noise
 (English Wikipedia at +0.4% after a run that was 15% Wikipedia is one of them; the design runs use 131,072 tokens);
-loss only, and §3 explains why loss is not the yardstick here; the 3e-6 run and every probe result are still running.
+loss only, and §3 explains why loss is not the yardstick here. The 3e-6 pilot was set aside, because half of the
+design runs test 3e-6 at the full budget (§6.2).
+
+**Pilot, probe and knowledge.** The same three runs at 1e-5 against the base model, paired question by question
+(`results/comparisons/pilot_*__minus__base_0.8B.json`, `mixing_law.py compare`):
+
+| trained on (20M tokens, LR 1e-5) | probe pass@1, pooled | pass@16 | pass@64 | CommonsenseQA, cloze |
+|---|---|---|---|---|
+| replay only | +0.03 [−0.42, +0.47] | −0.27 [−1.46, +0.92] | −1.23 [−3.69, +1.11] | +2.38 [+0.82, +3.85] |
+| replay 50%, math 30%, code 20% | −0.17 [−0.60, +0.27] | +0.92 [−0.25, +2.11] | +1.47 [−0.74, +3.69] | +3.19 [+1.64, +4.75] |
+| replay 50%, curated 50% | −0.24 [−0.64, +0.16] | −0.05 [−1.27, +1.19] | −1.72 [−4.05, +0.49] | +3.36 [+1.72, +4.91] |
+
+No pilot moves pooled pass@1 beyond its noise. The hard mixture leans the right way on the larger k, with MATH-500
+pass@16 at +2.48 [+0.24, +4.85], and the curated mixture leans the wrong way on pass@64. Each run makes 16 probe
+comparisons (four tasks, four values of k), so about one interval in twenty excludes zero by chance; single values
+like MATH-500's are hints. One effect appears in every run so far, the pilots and design runs 1 and 4 alike: the
+cloze accuracy on CommonsenseQA rises by 2.0 to 3.4 points, each time with the interval above zero. ARC rises a
+little in all five runs (+0.7 to +1.4, two intervals above zero), and the other three cloze sets stay within about
+one point. **At this size and budget a single run is too weak a signal for the probe**,
+which is why the design fits one model to 18 runs (§6.3) and does not read runs one at a time.
 
 **The regression suite on the base model.** It takes 12 minutes on one A100 for the 0.8B checkpoint
 (`results/regression/base_0.8B.json`):
@@ -344,6 +363,16 @@ The usual choice is a general trainer. Three properties of this problem made a s
 The schedule is linear warm-up over 2% of the steps, then linear decay to zero. Decay to zero is the cooldown that
 the project is about: the last steps make small moves on the final mixture.
 
+**Master weights on the CPU.** The 2B model's FP32 master weights and Adam moments (about 22 GB) do not fit next to
+the model on a 40 GB GPU, so they live on the CPU. The first version moved each tensor with a plain copy, FP32
+through pageable memory in both directions, and ran AdamW one tensor at a time. That step took 7.6 s for 1.8B
+parameters, longer than the forward and backward pass, and the 2B smoke run reached only 2.2K to 2.8K tokens/s.
+The step now keeps one page-locked BF16 buffer per tensor, so each direction moves half the bytes and waits once
+for all tensors; the conversions between BF16 and FP32 run on the CPU; and AdamW runs as one fused CPU kernel. The
+step takes 2.1 s in the same benchmark. After four steps the weights match the first version's on all but 96 of
+1.8 billion elements, a rounding difference in the last bit (`tests/test_train_continue.py`). The 0.8B model keeps
+its master weights on the GPU, and that path was not changed, so its design runs stay comparable with each other.
+
 ### 5.2 Exact mixtures
 
 The common way to mix sources is to pick a source at random for each sequence. A 20M-token run has about 5,000
@@ -473,7 +502,7 @@ pages and forum answers (`synthetic_rephrase.py`). Six forms show the same conte
 | structured notes | `synthetic_rephrase` | definitions, relations, a procedure, two typical mistakes |
 | questions with worked answers | `synthetic_qa` | reasoning over the passage |
 | worked problems | `synthetic_qa` | exercises made from the content, solved and checked |
-| dialogue with one corrected mistake | `synthetic_qa` | a wrong turn and its repair |
+| dialogue with one corrected mistake | `synthetic_rephrase` | a wrong turn and its repair |
 | what-if analysis | `synthetic_qa` | consequences of a changed condition |
 
 The outputs are plain text without chat tokens: chat tokens in mid-training data took one published model's GSM8K
@@ -481,8 +510,8 @@ score from 49 to 0. Every output is checked for length, refusals and meta-commen
 that shares more than half of its 8-word sequences with its source is dropped, because a copy is a real passage
 at a higher price. The batch then has to pass the diversity gate of §11 before a recipe may use it.
 
-**A first sample.** 600 rewrites from two teacher servers (`synthetic/rewrites.jsonl` under the data folder; the
-counts below are in `results/synthetic_summary.json` once the batch is published):
+**A first sample.** 600 rewrites from two teacher servers (`synthetic/v1/rewrites.jsonl` under the data folder;
+the counts of the whole first batch are in `results/synthetic_summary_v1.json`):
 
 | style | kept | median words | copied 8-word sequences (median) |
 |---|---|---|---|
@@ -497,6 +526,43 @@ Every dropped rewrite had hit the 1,500-token limit, mostly dialogues; the limit
 each style: they stay on the passage's content, and the forms differ the way the instructions ask. Generation runs
 at about 3,400 rewrites an hour on two shared GPUs, so the batch is 12,000 rewrites (about 11M tokens), enough for
 the screening design: its run with the most rewritten text draws 4.5M tokens from each of the two sources.
+
+### 7.3 The first batch failed the diversity gate
+
+The usual worry about rewritten text is wrong facts. The check that failed here was diversity. The first batch (v1:
+12,000 rewrites, 11,574 kept, temperature 0.8, one or two styles per passage) was compared with the real passages
+chosen for it, 4,500 documents and 1M tokens on each side (`results/hygiene_diversity_*.json`):
+
+| measure | real passages | rephrase | qa | the gate needs |
+|---|---|---|---|---|
+| Vendi score of the embeddings | 31.4 | **22.1** | **18.6** | at least 25.1 |
+| bigram entropy (bits) | 16.54 | **15.97** | **15.64** | at least 16.04 |
+| mean cosine to the nearest neighbour | 0.746 | 0.806 | 0.807 | not gated |
+| zstd compression ratio | 3.31 | 3.83 | 4.12 | at most 4.30 |
+
+The Vendi score is the effective number of distinct documents in a sample: the exponential of the entropy of the
+eigenvalues of the documents' similarity matrix, 1 when every document is the same and the sample size when all are
+unrelated. English Wikipedia alone scores 40.0 on the same sample size.
+
+Two explanations fit these numbers. The batch has fewer distinct parents than documents, because half of the
+passages were rewritten twice; or the rewriting itself narrows the text. Keeping one rewrite per parent separates
+the two: 22.2 and 18.7, no better. So the narrowing comes from the rewriting. One teacher writes every passage for
+the same reader in the same voice, and each style imposes its structure on every topic.
+
+Therefore, I changed the request and kept the gate (v2). The temperature is 1.0. Each request draws a reader (12
+kinds, from a high-school student to a researcher who needs a refresher) and a writer's voice (12 kinds, from a
+patient tutor to a puzzle setter). Each passage gets one style, so every rewrite has a parent of its own. The v2
+passages also skip every document that the decontamination gate flagged. v1 chose its passages before that check
+existed, and a rewrite can carry an evaluation item along in words that no n-gram check finds again. Last, the
+rewritten sources no longer count in a run's validation loss: that loss measures how well a run fits the teacher's
+text, which no analysis uses, and runs that started before the change measured v1.
+
+**A sample before the full batch.** A full batch costs about 3.5 hours of two GPUs, so a sample of 600 rewrites is
+checked first, against its own parents at equal size (`synthetic_rephrase.py check-sample`). Small samples are more
+lenient. v1 checked this way, at 300 rewrites per source, still fails, but by less: the Vendi ratio is 0.74 and 0.61
+(0.70 and 0.59 at full size) and the bigram entropy drops by 0.46 and 0.70 bits (0.57 and 0.90)
+(`results/synthetic_sample_check_v1_300.json`). So a v2 sample has to pass with about that much room, a Vendi ratio
+near 0.84 or more and a bigram drop near 0.40 bits or less, before the full batch is written.
 
 ---
 

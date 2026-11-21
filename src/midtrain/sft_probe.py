@@ -349,7 +349,7 @@ def start_inference_server(checkpoint_path: str, port: int, log_path: Path, maxi
         elif free_memory is not None:
             free_gib, total_gib = float(free_memory.group(1)), float(free_memory.group(2))
             memory_share = math.floor((free_gib - 1.0) / total_gib * 100) / 100
-            # a 2B model with a useful cache needs about 12 GiB of a 40 GiB A100
+            # below 30% of a 40 GiB A100 the 2B model's weights (4.5 GiB) would leave little room for its caches
             assert memory_share >= 0.3, f"only {free_gib:.1f} of {total_gib:.1f} GiB are free for the server; see {log_path}"
             print(f"{free_gib:.1f} of {total_gib:.1f} GiB are free; starting the server again with a share of "
                   f"{memory_share:.2f}", flush=True)

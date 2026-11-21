@@ -1,0 +1,67 @@
+{
+  "source": "passages_parents_of_rewrites",
+  "document_count": 7896,
+  "token_count": 6746502,
+  "seed": 0,
+  "token_sample_size": 1000000,
+  "token_sample_document_count": 1280,
+  "sampled_token_count": 1000000,
+  "unigram_entropy_bits": 10.831737076097857,
+  "bigram_entropy_bits": 16.55133887126075,
+  "distinct_1": 0.0417,
+  "distinct_2": 0.38526505481303497,
+  "zstd_compression_ratio": 3.309841893170678,
+  "template_repetition_rate": 0.010494220093529141,
+  "sentence_count": 60622,
+  "most_repeated_sentence_skeletons": [
+    {
+      "skeleton": "<name> by : <name>.",
+      "occurrences": 35
+    },
+    {
+      "skeleton": "<number>: <name> - <name>",
+      "occurrences": 33
+    },
+    {
+      "skeleton": "<name> : <name>: <name>",
+      "occurrences": 32
+    },
+    {
+      "skeleton": "<name> of the <name>",
+      "occurrences": 30
+    },
+    {
+      "skeleton": "- <name> as <name>",
+      "occurrences": 28
+    },
+    {
+      "skeleton": "- <name>: <name>, <name>",
+      "occurrences": 27
+    },
+    {
+      "skeleton": "<name> from <name>, <name>",
+      "occurrences": 22
+    },
+    {
+      "skeleton": "<number> establishments in <name>",
+      "occurrences": 21
+    },
+    {
+      "skeleton": "\u2022 <name> : <number>k+",
+      "occurrences": 20
+    },
+    {
+      "skeleton": "<name> at the <number> <name>",
+      "occurrences": 19
+    }
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "nearest_neighbour_sample_document_count": 4500,
+  "mean_nearest_neighbour_cosine_similarity": 0.7458812594413757,
+  "cluster_sample_document_count": 4500,
+  "embedding_vendi_score": 31.37444137778562,
+  "hdbscan_principal_direction_count": 16,
+  "hdbscan_cluster_count": 8,
+  "hdbscan_noise_share": 0.6422222222222222,
+  "hdbscan_clusters_per_10k_documents": 17.77777777777778
+}

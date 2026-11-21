@@ -1,0 +1,327 @@
+{
+ "batch": "v1",
+ "documents_per_source": 300,
+ "seed": 0,
+ "kept_rewrites": 11641,
+ "rewrites": 12000,
+ "sources": {
+  "synthetic_rephrase": {
+   "documents": 300,
+   "token_sample_size": 241980,
+   "tokens": {
+    "rewrites": 339724,
+    "parents": 254716
+   },
+   "passed": false,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 15.00668147184121,
+     "baseline": 15.47150622589736,
+     "requirement": "at least 14.97",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.00014632208975815048,
+     "baseline": 0.01036507510511463,
+     "requirement": "at most 0.0311",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 66.66666666666667,
+     "baseline": 66.66666666666667,
+     "requirement": "at least 33.33",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.5928748495691876,
+     "baseline": 3.084706108582783,
+     "requirement": "at most 4.01",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 17.95661766640721,
+     "baseline": 24.3247538881027,
+     "requirement": "at least 19.46",
+     "passed": false,
+     "missed_by": 1.5031854440749477
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 300,
+     "token_count": 339724,
+     "seed": 0,
+     "token_sample_size": 241980,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 241980,
+     "unigram_entropy_bits": 10.244788750076657,
+     "bigram_entropy_bits": 15.00668147184121,
+     "distinct_1": 0.06966278204810315,
+     "distinct_2": 0.4229137023923762,
+     "zstd_compression_ratio": 3.5928748495691876,
+     "template_repetition_rate": 0.00014632208975815048,
+     "sentence_count": 15552,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name>: <name> makes sense.",
+       "occurrences": 7
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 300,
+     "mean_nearest_neighbour_cosine_similarity": 0.7324891090393066,
+     "cluster_sample_document_count": 300,
+     "embedding_vendi_score": 17.95661766640721,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.74,
+     "hdbscan_clusters_per_10k_documents": 66.66666666666667
+    },
+    "parents": {
+     "document_count": 300,
+     "token_count": 254716,
+     "seed": 0,
+     "token_sample_size": 241980,
+     "token_sample_document_count": 300,
+     "sampled_token_count": 241980,
+     "unigram_entropy_bits": 10.610941923660071,
+     "bigram_entropy_bits": 15.47150622589736,
+     "distinct_1": 0.09312753120092569,
+     "distinct_2": 0.48713248984252816,
+     "zstd_compression_ratio": 3.084706108582783,
+     "template_repetition_rate": 0.01036507510511463,
+     "sentence_count": 14279,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "##### <name>: <number> <name>:",
+       "occurrences": 18
+      },
+      {
+       "skeleton": "<name> <number> <name>, featuring <number> teams, was held from <name> <number> to <name> <number>.",
+       "occurrences": 18
+      },
+      {
+       "skeleton": ", <number> (<number>) first places",
+       "occurrences": 18
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "<name> <number>, <number> at <number>",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "<name> (<number>) - <name>",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "\\(\\begin{array} {r} {<number>} \\\\ {\\underline{+<number>}} \\end{array}\\)",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "<number> in the <name> <number> in <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> all that apply",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "asked by <name> on <name> <number>, <number>",
+       "occurrences": 8
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 300,
+     "mean_nearest_neighbour_cosine_similarity": 0.6882776618003845,
+     "cluster_sample_document_count": 300,
+     "embedding_vendi_score": 24.3247538881027,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.48,
+     "hdbscan_clusters_per_10k_documents": 66.66666666666667
+    }
+   }
+  },
+  "synthetic_qa": {
+   "documents": 300,
+   "token_sample_size": 238737,
+   "tokens": {
+    "rewrites": 312277,
+    "parents": 251303
+   },
+   "passed": false,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 14.833431922911593,
+     "baseline": 15.526266766404238,
+     "requirement": "at least 15.03",
+     "passed": false,
+     "missed_by": 0.19283484349264413
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.003619355618690685,
+     "baseline": 0.00709622480840193,
+     "requirement": "at most 0.03",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 66.66666666666667,
+     "baseline": 66.66666666666667,
+     "requirement": "at least 33.33",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.848368688119181,
+     "baseline": 3.0384371872638525,
+     "requirement": "at most 3.95",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 15.956492539849089,
+     "baseline": 26.181744263317196,
+     "requirement": "at least 20.95",
+     "passed": false,
+     "missed_by": 4.9889028708046705
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 300,
+     "token_count": 312277,
+     "seed": 0,
+     "token_sample_size": 238737,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 238737,
+     "unigram_entropy_bits": 10.089711419135494,
+     "bigram_entropy_bits": 14.833431922911593,
+     "distinct_1": 0.06273849466148942,
+     "distinct_2": 0.3971648749727473,
+     "zstd_compression_ratio": 3.848368688119181,
+     "template_repetition_rate": 0.003619355618690685,
+     "sentence_count": 11441,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> <number>: <name> and <name>",
+       "occurrences": 30
+      },
+      {
+       "skeleton": "<name> <number>: <name> of <name>",
+       "occurrences": 19
+      },
+      {
+       "skeleton": "<name> <number>: <name> of <name> and <name>",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "<name> (<number>\u2013<number>) does not fit.",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "<number> + <number> = <number>.",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "<name> is composed by <name> and <name>.",
+       "occurrences": 7
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 300,
+     "mean_nearest_neighbour_cosine_similarity": 0.7413400411605835,
+     "cluster_sample_document_count": 300,
+     "embedding_vendi_score": 15.956492539849089,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.7333333333333333,
+     "hdbscan_clusters_per_10k_documents": 66.66666666666667
+    },
+    "parents": {
+     "document_count": 300,
+     "token_count": 251303,
+     "seed": 0,
+     "token_sample_size": 238737,
+     "token_sample_document_count": 300,
+     "sampled_token_count": 238737,
+     "unigram_entropy_bits": 10.676208218843513,
+     "bigram_entropy_bits": 15.526266766404238,
+     "distinct_1": 0.09520937265694049,
+     "distinct_2": 0.498137974418117,
+     "zstd_compression_ratio": 3.0384371872638525,
+     "template_repetition_rate": 0.00709622480840193,
+     "sentence_count": 14107,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "- <number>th place <name>, <name>",
+       "occurrences": 23
+      },
+      {
+       "skeleton": "##### <name> on other sites",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "a) x = <number>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "c) x = <number>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "- <number>nd place <name>, <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "- <number>rd place <name>, <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> of the <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> by : <name>.",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<number> <name> and <name>",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "b) x = <number>",
+       "occurrences": 8
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 300,
+     "mean_nearest_neighbour_cosine_similarity": 0.6772599220275879,
+     "cluster_sample_document_count": 300,
+     "embedding_vendi_score": 26.181744263317196,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.59,
+     "hdbscan_clusters_per_10k_documents": 66.66666666666667
+    }
+   }
+  }
+ }
+}
