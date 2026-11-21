@@ -517,12 +517,12 @@ def main() -> None:
     analyze_parser.add_argument("design")
     analyze_parser.add_argument("--model-size", required=True)
     analyze_parser.add_argument("--target", default="probe/mean/pass@16")
-    analyze_parser.add_argument("--guard", default="regression/knowledge_mean_both_formats")
+    analyze_parser.add_argument("--guard", default="regression/knowledge_cloze_mean")
     analyze_parser.add_argument("--guard-tolerance", type=float, default=0.5,
                                 help="how far below the replay-only prediction the guard may fall, in its own unit")
     analyze_parser.add_argument("--compare-with", default=None, help="a second model size, for rank agreement")
     analyze_parser.add_argument("--show", nargs="+", default=["probe/mean/pass@1", "probe/mean/pass@16", "probe/mean/pass@64",
-                                                             "regression/knowledge_mean_both_formats", "loss/math_web", "loss/code",
+                                                             "regression/knowledge_cloze_mean", "loss/math_web", "loss/code",
                                                              "loss/replay_web"])
     compare_parser = commands.add_parser("compare")
     compare_parser.add_argument("first_run")

@@ -4,22 +4,28 @@ Why this file exists. Continued pretraining on a new mixture can make a model be
 what it knew. The fine-tuning probe (sft_probe.py) does not see that: it tests math and code after a fine-tune on
 math and code. This suite asks the checkpoint itself, with the prompts a base model understands, and reports three
 groups of numbers:
-    knowledge      five multiple-choice sets, scored by the log-likelihood of the answer letter after a few-shot
-                   prompt, and trivia questions answered greedily
+    knowledge      five multiple-choice sets scored two ways, and trivia questions answered greedily. Lettered: the
+                   log-likelihood of the answer letter, with five examples and without. Cloze: the log-likelihood of
+                   each answer's own text after the question, per character, with no letters at all
     few-shot work  math and code solved from few-shot prompts, 16 samples per question: pass@1 and pass@16 of the
                    checkpoint with no fine-tune in between (README §13 P11 compares their spread with the probe's)
     use of context how much the few-shot examples help (accuracy with shots minus accuracy without), and how much
                    the loss on the last 2,048 tokens of a long document falls when 14,336 tokens of context are
                    given compared with 2,048. These are where long-context training should show (README §9).
 
-Multiple choice is scored from one forward pass per question: the prompt ends in `Answer:` and the logits of the
-candidate letters at that position are compared. No text is generated, so there is no answer extraction to get
-wrong, and 5,600 questions take minutes.
+Lettered multiple choice is scored from one forward pass per question: the prompt ends in `Answer:` and the logits
+of the candidate letters at that position are compared. No text is generated, so there is no answer extraction to
+get wrong, and 5,600 questions take minutes. Small models have letter preferences, though: the 0.8B base picks "B"
+more often after five examples (33 of 80 ARC questions against 27 without), and after the first design run its
+zero-shot lettered HellaSwag fell 6.4 points while the five-example score did not move (11-20). Cloze scoring has no
+letters to prefer, which is why it is the knowledge guard of the mixture search (README §6.4).
 
 Commands (after `source scripts/env.sh`):
     CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression run \
         --checkpoint $MIDTRAIN_DATA/runs/<run>/checkpoint_final --run-name <run>     # writes results/regression/<run>.json
     CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression run --checkpoint ... --run-name ... --quick-test
+    CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression add-cloze --checkpoint ... --run-name ...
+        # adds the cloze scores to a result written before they existed (about 2 minutes for the 0.8B model)
 """
 from __future__ import annotations
 
@@ -79,7 +85,7 @@ def logits_after_each_prompt(model, prompt_token_ids: list[list[int]], candidate
         token_ids = np.full((len(batch), longest), padding_id, dtype=np.int64)
         for row, index in enumerate(batch):
             token_ids[row, :len(prompt_token_ids[index])] = prompt_token_ids[index]
-        hidden_states = model.model(input_ids=torch.from_numpy(token_ids).to(input_device)).last_hidden_state
+        hidden_states = model.model(input_ids=torch.from_numpy(token_ids).to(input_device), use_cache=False).last_hidden_state
         last_positions = torch.tensor([len(prompt_token_ids[index]) - 1 for index in batch], device=hidden_states.device)
         last_states = hidden_states[torch.arange(len(batch), device=hidden_states.device), last_positions]
         logits = output_layer(last_states.to(output_layer.weight.device)).float().cpu().numpy()
@@ -113,6 +119,81 @@ def score_multiple_choice_task(model, tokenizer, task_name: str, with_shots: boo
     return [int(int(np.argmax(logits)) == item["answer_index"]) for logits, item in zip(candidate_logits, items)]
 
 
+def cloze_context_and_choices(item: dict) -> tuple[str, list[str]]:
+    """The text before the answer and each answer's own text, for cloze scoring.
+
+    HellaSwag is a passage and its possible endings, so the passage is the context. Every other set is a question:
+    `Question: ... Answer:` and the answer text after a space, or the Chinese labels without one."""
+    if item["task"] == "hellaswag":
+        return item["meta"]["passage"], [" " + choice for choice in item["choices"]]
+    if item["meta"].get("language") == "zh":
+        return f"题目：{item['question']}\n答案：", list(item["choices"])
+    return f"Question: {item['question']}\nAnswer:", [" " + choice for choice in item["choices"]]
+
+
+@torch.no_grad()
+def continuation_log_likelihoods(model, sequences: list[tuple[list[int], list[int]]], tokens_per_forward: int,
+                                 padding_id: int) -> list[float]:
+    """The summed log-probability of each continuation's tokens after its context: one value per (context, continuation).
+
+    Only the positions that predict a continuation token go through the output layer, because its 248,320 outputs
+    per position are the expensive part."""
+    input_device = model.get_input_embeddings().weight.device
+    output_layer = model.get_output_embeddings()
+    order = sorted(range(len(sequences)), key=lambda index: -(len(sequences[index][0]) + len(sequences[index][1])))
+    log_likelihoods: list[float] = [0.0] * len(sequences)
+    batch_start = 0
+    while batch_start < len(order):
+        longest = len(sequences[order[batch_start]][0]) + len(sequences[order[batch_start]][1])
+        batch = order[batch_start:batch_start + max(1, tokens_per_forward // longest)]
+        token_ids = np.full((len(batch), longest), padding_id, dtype=np.int64)
+        rows, positions, targets = [], [], []
+        for row, index in enumerate(batch):
+            context_ids, continuation_ids = sequences[index]
+            token_ids[row, :len(context_ids) + len(continuation_ids)] = context_ids + continuation_ids
+            for offset, target in enumerate(continuation_ids):
+                rows.append(row)
+                positions.append(len(context_ids) + offset - 1)       # the position that predicts this token
+                targets.append(target)
+        hidden_states = model.model(input_ids=torch.from_numpy(token_ids).to(input_device), use_cache=False).last_hidden_state
+        states = hidden_states[torch.tensor(rows, device=hidden_states.device), torch.tensor(positions, device=hidden_states.device)]
+        target_ids = torch.tensor(targets, device=output_layer.weight.device)
+        picked_chunks = []
+        # 1,024 positions at a time: the log-softmax over 248,320 words for a whole batch took 5.7 GB (11-20)
+        for chunk_start in range(0, len(targets), 1024):
+            chunk = slice(chunk_start, chunk_start + 1024)
+            log_probabilities = torch.log_softmax(output_layer(states[chunk].to(output_layer.weight.device)).float(), dim=-1)
+            picked_chunks.append(log_probabilities.gather(1, target_ids[chunk].unsqueeze(1)).squeeze(1))
+        picked = torch.cat(picked_chunks).cpu().numpy()
+        cursor = 0
+        for index in batch:
+            continuation_length = len(sequences[index][1])
+            log_likelihoods[index] = float(picked[cursor:cursor + continuation_length].sum())
+            cursor += continuation_length
+        batch_start += len(batch)
+    return log_likelihoods
+
+
+def score_cloze_task(model, tokenizer, task_name: str, tokens_per_forward: int, item_count_limit: int | None) -> list[int]:
+    """1 or 0 per item: whether the answer with the highest log-likelihood per character is the right one."""
+    items = eval_tasks.load_evaluation_items(task_name)[:item_count_limit]
+    sequences, owners, character_counts = [], [], []
+    for item_index, item in enumerate(items):
+        context, choices = cloze_context_and_choices(item)
+        context_ids = tokenizer(context, add_special_tokens=False)["input_ids"]
+        for choice_index, choice in enumerate(choices):
+            sequences.append((context_ids, tokenizer(choice, add_special_tokens=False)["input_ids"]))
+            owners.append((item_index, choice_index))
+            character_counts.append(max(1, len(choice.strip())))
+    log_likelihoods = continuation_log_likelihoods(model, sequences, tokens_per_forward, end_of_text_token_id())
+    best: dict[int, tuple[float, int]] = {}
+    for (item_index, choice_index), log_likelihood, characters in zip(owners, log_likelihoods, character_counts):
+        per_character = log_likelihood / characters
+        if item_index not in best or per_character > best[item_index][0]:
+            best[item_index] = (per_character, choice_index)
+    return [int(best[item_index][1] == item["answer_index"]) for item_index, item in enumerate(items)]
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # use of context: does distant text lower the loss
 # ---------------------------------------------------------------------------------------------------------------
@@ -136,7 +217,7 @@ def distant_context_gain(model, tokens_per_forward: int, document_count: int) ->
         rows_per_forward = max(1, tokens_per_forward // windows.shape[1])
         for row_start in range(0, len(windows), rows_per_forward):
             token_ids = torch.from_numpy(windows[row_start:row_start + rows_per_forward]).to(input_device)
-            hidden_states = model.model(input_ids=token_ids).last_hidden_state
+            hidden_states = model.model(input_ids=token_ids, use_cache=False).last_hidden_state
             chunk_loss, chunk_tokens = chunked_language_model_loss(
                 hidden_states, token_ids, output_layer, 1.0, with_gradient=False,
                 label_mask=torch.from_numpy(label_mask[row_start:row_start + rows_per_forward]).to(input_device))
@@ -180,6 +261,12 @@ def run_regression_suite(checkpoint_path: str, run_name: str, tokens_per_forward
         print(f"{run_name} {task_name}: {scores[f'multiple_choice/{task_name}']:.1f} with shots, "
               f"{scores[f'multiple_choice_zero_shot/{task_name}']:.1f} without ({(time.time() - started) / 60:.1f} min)", flush=True)
     scores["shot_gain_mean"] = round(float(np.mean([scores[f"shot_gain/{name}"] for name in multiple_choice_task_names])), 2)
+    for task_name in multiple_choice_task_names:
+        correct = score_cloze_task(model, tokenizer, task_name, tokens_per_forward, item_count_limit)
+        scores[f"cloze/{task_name}"] = round(100 * float(np.mean(correct)), 2)
+        item_correct[f"cloze/{task_name}"] = correct
+    print(f"{run_name} cloze: " + ", ".join(f"{name} {scores[f'cloze/{name}']:.1f}" for name in multiple_choice_task_names)
+          + f" ({(time.time() - started) / 60:.1f} min)", flush=True)
     scores.update(distant_context_gain(model, tokens_per_forward, 8 if is_quick_test else long_document_count))
     print(f"{run_name} distant context: {scores['context/distant_gain_bits_per_token']:.4f} bits per token gained", flush=True)
 
@@ -199,23 +286,50 @@ def run_regression_suite(checkpoint_path: str, run_name: str, tokens_per_forward
                     scores[f"few_shot/{task_name}/pass@{k}"] = task_result[f"pass@{k}"]["value"]
     few_shot_pass_at_1 = [value for name, value in scores.items() if name.startswith("few_shot/") and name.endswith("pass@1")]
     scores["few_shot_mean/pass@1"] = round(float(np.mean(few_shot_pass_at_1)), 2)
-    # the guard of the mixture search (mixing_law.py): the mean of the six knowledge scores
     scores["knowledge_mean"] = round(float(np.mean([scores[f"multiple_choice/{name}"] for name in multiple_choice_task_names]
                                                    + [scores["trivia_exact_match"]])), 2)
+    # the guard of the mixture search (mixing_law.py): the five sets scored by cloze, and trivia
+    scores["knowledge_cloze_mean"] = round(float(np.mean([scores[f"cloze/{name}"] for name in multiple_choice_task_names]
+                                                         + [scores["trivia_exact_match"]])), 2)
     return {"run_name": run_name, "minutes": round((time.time() - started) / 60, 1), "scores": scores,
             "item_correct": item_correct,
             "few_shot_generation": {task_name: {key: task_result[key] for key in ("item_ids", "correct_counts", "sample_count")}
                                     for task_name, task_result in generation["tasks"].items()}}
 
 
+def add_cloze_scores(checkpoint_path: str, run_name: str, tokens_per_forward: int) -> dict:
+    """Score the five sets by cloze and merge the scores into results/regression/<run>.json, which a version of this
+    file without cloze scoring wrote; the guard `knowledge_cloze_mean` is computed with the stored trivia score."""
+    from transformers import AutoTokenizer
+
+    result_path = repository_root / "results" / "regression" / f"{run_name}.json"
+    results = json.loads(result_path.read_text())
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
+    model = load_working_model(checkpoint_path)
+    place_model_on_devices(model, [f"cuda:{index}" for index in range(torch.cuda.device_count())])
+    model.eval()
+    for task_name in multiple_choice_task_names:
+        correct = score_cloze_task(model, tokenizer, task_name, tokens_per_forward, None)
+        results["scores"][f"cloze/{task_name}"] = round(100 * float(np.mean(correct)), 2)
+        results["item_correct"][f"cloze/{task_name}"] = correct
+    scores = results["scores"]
+    scores["knowledge_cloze_mean"] = round(float(np.mean([scores[f"cloze/{name}"] for name in multiple_choice_task_names]
+                                                         + [scores["trivia_exact_match"]])), 2)
+    result_path.write_text(json.dumps(results) + "\n")
+    return {name: value for name, value in scores.items() if name.startswith(("cloze/", "knowledge_cloze"))}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["run"])
+    parser.add_argument("command", choices=["run", "add-cloze"])
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--tokens-per-forward", type=int, default=16384)
     parser.add_argument("--quick-test", action="store_true", help="24 questions per set, 8 long documents: minutes")
     arguments = parser.parse_args()
+    if arguments.command == "add-cloze":
+        print(json.dumps(add_cloze_scores(arguments.checkpoint, arguments.run_name, arguments.tokens_per_forward), indent=1))
+        return
     (data_root() / "runs" / arguments.run_name).mkdir(parents=True, exist_ok=True)
     results = run_regression_suite(arguments.checkpoint, arguments.run_name, arguments.tokens_per_forward, arguments.quick_test)
     if arguments.quick_test:
