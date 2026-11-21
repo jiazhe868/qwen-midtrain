@@ -570,6 +570,54 @@ lenient. v1 checked this way, at 300 rewrites per source, still fails, but by le
 (`results/synthetic_sample_check_v1_300.json`). So a v2 sample has to pass with about that much room, a Vendi ratio
 near 0.84 or more and a bigram drop near 0.40 bits or less, before the full batch is written.
 
+**The v2 sample failed by more, and the main cause was one habit of the teacher.** At 300 rewrites per source the
+Vendi ratio fell to 0.63 and 0.59 (`results/synthetic_sample_check_v2_300.json`). Two measurements found why
+(`results/synthetic_shared_direction.json`, from `scripts/request_variants.py --diagnose`). With each set's mean
+direction removed, the rewrites are 92% as spread as their parents, in v1 and v2 alike, so the
+topics survive the rewriting. What the rewrites share is one direction: the length of their mean unit embedding grows
+from 0.70 for the parents to 0.74 (v1) and 0.76 (v2), and that alone pulls the Vendi score down. The words of the
+documents furthest along this direction are the words of talking about a text ("passage", "text", "explicitly",
+"consequently", "conclusion"); the words least far along are concrete ones ("named", "history", "early", "called"). A
+count settled it: 83 of 144 rewrites of the plain request refer to "the passage", "the text" or "the author"
+within their first 400 words, a source that their reader never sees. The reader and voice of v2 added a register of
+their own: "Good evening, everyone." opens 14 of its 571 rewrites.
+
+Then I tried seven wordings of the request on the same 150 passages, each measured against those passages
+(`scripts/request_variants.py`, `results/synthetic_request_variants.json`):
+
+| wording | Vendi ratio | mean-vector length (parents 0.70) | bigram drop (bits) | refer to their source |
+|---|---|---|---|---|
+| v2: a reader and a voice | 0.65 | 0.76 | 0.34 | 74 of 142 |
+| a random format for each style | 0.67 | 0.75 | 0.36 | 58 of 146 |
+| keep the genre of the source | 0.71 | 0.75 | 0.32 | 66 of 144 |
+| plain, temperature 1.0 | 0.73 | 0.74 | 0.36 | 83 of 144 |
+| keep the specific names and numbers | 0.74 | 0.74 | 0.40 | 75 of 145 |
+| write as the author, never refer to a source | 0.78 | 0.73 | 0.15 | 15 of 149 |
+| **both of the last two (v3)** | **0.86** | 0.72 | 0.28 | 23 of 146 |
+| plain paraphrase, no reasoning styles | 0.85 | 0.72 | 0.06 | 18 of 149 |
+
+Every instruction that adds a frame (a reader, a format, a genre) makes the rewrites more alike. Taking away the
+frame the teacher added by itself, the reference to its source, does the most. Therefore, v3 asks the teacher to
+write as the author of the material, never referring to a source, and to keep the material's own names, places,
+dates and numbers. A rewrite that still points at a hidden source ("The text states that...") is dropped. v3 keeps
+the six reasoning styles; a plain paraphrase passes too, but it adds no reasoning to the passage.
+
+**The v3 sample passes** (`results/synthetic_sample_check_v3_300.json`). Of 600 rewrites 452 were kept; 127 were
+dropped for pointing at a hidden source, most of them question-answer rewrites. The kept rewrites share less: their
+mean-vector length is 0.72, and without the mean direction they are 94% as spread as their parents:
+
+| source | rewrites | Vendi ratio (needs 0.80) | bigram drop (needs at most 0.50) |
+|---|---|---|---|
+| rephrase | 264 | 0.83 | 0.24 |
+| qa | 188 | 0.86 | 0.30 |
+
+The rephrase margin is thin, and small samples are lenient, so the full batch is checked again at 2,200 rewrites with
+600 per source. The question-answer styles keep fewer of their rewrites (63% against 88%), so 2,500 extra passages go
+to those styles alone, 16,500 in all, for about 5M tokens per source.
+
+**One repeated phrase can move a diversity score more than any added variety. Find what the documents share before
+adding variety.**
+
 ---
 
 ## 8. Curation for learnability

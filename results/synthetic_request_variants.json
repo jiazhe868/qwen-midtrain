@@ -1,0 +1,110 @@
+{
+ "passages": 150,
+ "embedding_model": "BAAI/bge-small-en-v1.5",
+ "variants": {
+  "v2_reader_voice": {
+   "rewrites": 150,
+   "kept": 142,
+   "vendi": 12.441719341736277,
+   "parent_vendi": 19.234163130338573,
+   "vendi_ratio": 0.6468552469595942,
+   "mean_vector_length": 0.7606126070022583,
+   "parent_mean_vector_length": 0.6968943476676941,
+   "bigram_entropy_drop_bits": 0.3416392658139529,
+   "token_sample_size": 111709,
+   "median_words": 818,
+   "rewrites_referring_to_their_source": 74
+  },
+  "plain": {
+   "rewrites": 150,
+   "kept": 144,
+   "vendi": 14.111963359548765,
+   "parent_vendi": 19.393524685626396,
+   "vendi_ratio": 0.7276636706481682,
+   "mean_vector_length": 0.7429907321929932,
+   "parent_mean_vector_length": 0.6958653330802917,
+   "bigram_entropy_drop_bits": 0.3640531087015244,
+   "token_sample_size": 112730,
+   "median_words": 792,
+   "rewrites_referring_to_their_source": 83
+  },
+  "keep_genre": {
+   "rewrites": 150,
+   "kept": 144,
+   "vendi": 13.796722431790087,
+   "parent_vendi": 19.44514129793296,
+   "vendi_ratio": 0.7095202971477864,
+   "mean_vector_length": 0.7464022040367126,
+   "parent_mean_vector_length": 0.6959505081176758,
+   "bigram_entropy_drop_bits": 0.3240906890949429,
+   "token_sample_size": 113048,
+   "median_words": 788,
+   "rewrites_referring_to_their_source": 66
+  },
+  "formats": {
+   "rewrites": 150,
+   "kept": 146,
+   "vendi": 13.185200185981214,
+   "parent_vendi": 19.58338743940095,
+   "vendi_ratio": 0.6732849578134346,
+   "mean_vector_length": 0.7535605430603027,
+   "parent_mean_vector_length": 0.6956843137741089,
+   "bigram_entropy_drop_bits": 0.35853707689501846,
+   "token_sample_size": 113993,
+   "median_words": 796,
+   "rewrites_referring_to_their_source": 58
+  },
+  "specific": {
+   "rewrites": 150,
+   "kept": 145,
+   "vendi": 14.410426996013028,
+   "parent_vendi": 19.36588963644543,
+   "vendi_ratio": 0.7441138654892197,
+   "mean_vector_length": 0.7414522171020508,
+   "parent_mean_vector_length": 0.6967476606369019,
+   "bigram_entropy_drop_bits": 0.39588219522815926,
+   "token_sample_size": 114054,
+   "median_words": 755,
+   "rewrites_referring_to_their_source": 75
+  },
+  "own_voice": {
+   "rewrites": 150,
+   "kept": 149,
+   "vendi": 15.274148347124584,
+   "parent_vendi": 19.691726878558942,
+   "vendi_ratio": 0.7756632235111702,
+   "mean_vector_length": 0.730746328830719,
+   "parent_mean_vector_length": 0.6956042051315308,
+   "bigram_entropy_drop_bits": 0.15233629387958914,
+   "token_sample_size": 117241,
+   "median_words": 809,
+   "rewrites_referring_to_their_source": 15
+  },
+  "own_voice_specific": {
+   "rewrites": 150,
+   "kept": 146,
+   "vendi": 16.704311349950952,
+   "parent_vendi": 19.50486648248032,
+   "vendi_ratio": 0.8564176209539868,
+   "mean_vector_length": 0.7194406986236572,
+   "parent_mean_vector_length": 0.6960018873214722,
+   "bigram_entropy_drop_bits": 0.27614361161362844,
+   "token_sample_size": 115063,
+   "median_words": 801,
+   "rewrites_referring_to_their_source": 23
+  },
+  "paraphrase": {
+   "rewrites": 150,
+   "kept": 149,
+   "vendi": 16.65272457158546,
+   "parent_vendi": 19.6241245682898,
+   "vendi_ratio": 0.8485843286224465,
+   "mean_vector_length": 0.7186872363090515,
+   "parent_mean_vector_length": 0.6959758400917053,
+   "bigram_entropy_drop_bits": 0.06459041409344835,
+   "token_sample_size": 117102,
+   "median_words": 793,
+   "rewrites_referring_to_their_source": 18
+  }
+ }
+}

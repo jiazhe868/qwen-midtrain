@@ -1,0 +1,351 @@
+{
+ "batch": "v2",
+ "documents_per_source": 300,
+ "seed": 0,
+ "kept_rewrites": 571,
+ "rewrites": 600,
+ "sources": {
+  "synthetic_rephrase": {
+   "documents": 291,
+   "token_sample_size": 232533,
+   "tokens": {
+    "rewrites": 340924,
+    "parents": 244772
+   },
+   "passed": false,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 15.061165158100861,
+     "baseline": 15.467691200538104,
+     "requirement": "at least 14.97",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.0008707601463965497,
+     "baseline": 0.0066022462814934735,
+     "requirement": "at most 0.03",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 68.72852233676976,
+     "baseline": 68.72852233676976,
+     "requirement": "at least 34.36",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.4547022514991137,
+     "baseline": 3.096042458120502,
+     "requirement": "at most 4.025",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 15.233382204361966,
+     "baseline": 24.22641587849932,
+     "requirement": "at least 19.38",
+     "passed": false,
+     "missed_by": 4.147750498437492
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 291,
+     "token_count": 340924,
+     "seed": 0,
+     "token_sample_size": 232533,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 232533,
+     "unigram_entropy_bits": 10.28399965262896,
+     "bigram_entropy_bits": 15.061165158100861,
+     "distinct_1": 0.07311650389407096,
+     "distinct_2": 0.4368993048830353,
+     "zstd_compression_ratio": 3.4547022514991137,
+     "template_repetition_rate": 0.0008707601463965497,
+     "sentence_count": 16934,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "**<name>: <name> and <name>**",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "**<name>: <name> for <name>**",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "**<name>: <name> of <name>**",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 291,
+     "mean_nearest_neighbour_cosine_similarity": 0.7497860789299011,
+     "cluster_sample_document_count": 291,
+     "embedding_vendi_score": 15.233382204361966,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.7972508591065293,
+     "hdbscan_clusters_per_10k_documents": 68.72852233676976
+    },
+    "parents": {
+     "document_count": 291,
+     "token_count": 244772,
+     "seed": 0,
+     "token_sample_size": 232533,
+     "token_sample_document_count": 291,
+     "sampled_token_count": 232533,
+     "unigram_entropy_bits": 10.598106092115044,
+     "bigram_entropy_bits": 15.467691200538104,
+     "distinct_1": 0.09274382560754818,
+     "distinct_2": 0.4939679669336089,
+     "zstd_compression_ratio": 3.096042458120502,
+     "template_repetition_rate": 0.0066022462814934735,
+     "sentence_count": 12963,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "##### <name>: <number> <name>:",
+       "occurrences": 22
+      },
+      {
+       "skeleton": "\u2013 <name> <number> '<number> at <number>",
+       "occurrences": 12
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "<number> ounces <number> pounds",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "- <name> and <name>",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "<number> establishments in <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> from <name>, <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> at the <number> <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> (<name> - <name>) - <number>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> by : <name>.",
+       "occurrences": 8
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 291,
+     "mean_nearest_neighbour_cosine_similarity": 0.6889171600341797,
+     "cluster_sample_document_count": 291,
+     "embedding_vendi_score": 24.22641587849932,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.7525773195876289,
+     "hdbscan_clusters_per_10k_documents": 68.72852233676976
+    }
+   }
+  },
+  "synthetic_qa": {
+   "documents": 280,
+   "token_sample_size": 224647,
+   "tokens": {
+    "rewrites": 321300,
+    "parents": 236471
+   },
+   "passed": false,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 14.829086766964089,
+     "baseline": 15.43829636042922,
+     "requirement": "at least 14.94",
+     "passed": false,
+     "missed_by": 0.10920959346513115
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.0031070960948270487,
+     "baseline": 0.013403873886115287,
+     "requirement": "at most 0.04021",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 0.0,
+     "baseline": 71.42857142857143,
+     "requirement": "at least 35.71",
+     "passed": false,
+     "missed_by": 35.714285714285715
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.665381660353961,
+     "baseline": 3.0722516562450592,
+     "requirement": "at most 3.994",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 13.83800016943771,
+     "baseline": 23.257979917061924,
+     "requirement": "at least 18.61",
+     "passed": false,
+     "missed_by": 4.76838376421183
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 280,
+     "token_count": 321300,
+     "seed": 0,
+     "token_sample_size": 224647,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 224647,
+     "unigram_entropy_bits": 10.046304109746611,
+     "bigram_entropy_bits": 14.829086766964089,
+     "distinct_1": 0.06494633803255774,
+     "distinct_2": 0.4085605193161921,
+     "zstd_compression_ratio": 3.665381660353961,
+     "template_repetition_rate": 0.0031070960948270487,
+     "sentence_count": 13648,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> <number>: <name> and <name>",
+       "occurrences": 12
+      },
+      {
+       "skeleton": "**<name> <number>: <name> of <name>**",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "<name> <number>: <name> of <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name>: <name> of <name>",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "| <number> | <number> |",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "<number> * <number> = <number>.",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "<name> <number>: <name> the conclusion.",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "$$<number> / <number> = <number> / <number>$$",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "### <name> <number>: <name> (<name>)",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<number> + <number> = <number>.",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 280,
+     "mean_nearest_neighbour_cosine_similarity": 0.7557864785194397,
+     "cluster_sample_document_count": 280,
+     "embedding_vendi_score": 13.83800016943771,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 0,
+     "hdbscan_noise_share": 1.0,
+     "hdbscan_clusters_per_10k_documents": 0.0
+    },
+    "parents": {
+     "document_count": 280,
+     "token_count": 236471,
+     "seed": 0,
+     "token_sample_size": 224647,
+     "token_sample_document_count": 280,
+     "sampled_token_count": 224647,
+     "unigram_entropy_bits": 10.594148984980063,
+     "bigram_entropy_bits": 15.43829636042922,
+     "distinct_1": 0.09623097570855609,
+     "distinct_2": 0.49443129704651506,
+     "zstd_compression_ratio": 3.0722516562450592,
+     "template_repetition_rate": 0.013403873886115287,
+     "sentence_count": 13441,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<number> l <number> <name> pt",
+       "occurrences": 22
+      },
+      {
+       "skeleton": "<number> / <number> = <number> / <number>",
+       "occurrences": 18
+      },
+      {
+       "skeleton": "##### <name>: <number> <name>:",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<number> \u2013 <name> for <name> in <name>",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<name> - <name>, <name>",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<name> indicates how strong in your memory this concept is",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "<name>: <name>, asked <number> days, <number> hours ago",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> (<name> <number> \u2013 <name> <number>)",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "### <name> #<number> : <name>",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 8
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 280,
+     "mean_nearest_neighbour_cosine_similarity": 0.6928080916404724,
+     "cluster_sample_document_count": 280,
+     "embedding_vendi_score": 23.257979917061924,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.7142857142857143,
+     "hdbscan_clusters_per_10k_documents": 71.42857142857143
+    }
+   }
+  }
+ }
+}

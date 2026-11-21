@@ -13,7 +13,14 @@ the wording that won became the v3 request of synthetic_rephrase.py.
     $MIDTRAIN_PYTHON scripts/request_variants.py --endpoint http://127.0.0.1:8200 plain own_voice_specific ...
     $MIDTRAIN_PYTHON scripts/request_variants.py --measure-only v2_reader_voice plain keep_genre formats specific \
         own_voice own_voice_specific paraphrase          # results/synthetic_request_variants.json
+    $MIDTRAIN_PYTHON scripts/request_variants.py --diagnose v1 v2 v3   # results/synthetic_shared_direction.json
+
+`--diagnose` explains a batch's Vendi score: for 600 rewrites (one per parent) and their parents it gives the Vendi
+score as the gate measures it and after removing each set's mean direction, and the length of the mean unit embedding;
+for the plain wording it lists the words whose documents lie furthest along, and least far along, the direction from
+the parents' mean to the rewrites' mean.
 """
+import collections
 import argparse
 import concurrent.futures
 import json
@@ -129,13 +136,81 @@ def measure_variant(records: list[dict], passage_by_parent: dict, tokenize_texts
             "rewrites_referring_to_their_source": sum(1 for text in texts if source_reference.search(" ".join(text.split()[:400])))}
 
 
+def vendi_without_mean_direction(embeddings: np.ndarray) -> float:
+    """The Vendi score after removing the set's mean direction: how spread the documents are around their centre."""
+    centered = embeddings - embeddings.mean(axis=0, keepdims=True)
+    centered /= np.linalg.norm(centered, axis=1, keepdims=True)
+    return vendi_score_of_unit_vectors(centered)
+
+
+def diagnose_batches(batch_names: list[str]) -> dict:
+    """Vendi score with and without the mean direction, and the mean-vector length, for each batch and its parents;
+    then the words along the direction that separates the plain wording's rewrites from their parents."""
+    diagnosis = {"embedding_model": default_embedding_model, "batches": {}}
+    for batch_name in batch_names:
+        passages = {passage["parent_doc_id"]: passage
+                    for passage in read_json_lines(data_root() / "synthetic" / batch_name / "passages.jsonl")}
+        records, parents_seen = [], set()
+        for record in read_json_lines(data_root() / "synthetic" / batch_name / "rewrites.jsonl"):
+            if record["drop_reason"] or record["parent_doc_id"] in parents_seen:
+                continue
+            parents_seen.add(record["parent_doc_id"])
+            records.append(record)
+            if len(records) == 600:
+                break
+        entry = {"documents": len(records)}
+        for side_name, texts in (("parents", [passages[record["parent_doc_id"]]["passage"] for record in records]),
+                                 ("rewrites", [record["text"] for record in records])):
+            embeddings = embed_documents(texts, default_embedding_model, "cpu")
+            entry[side_name] = {"vendi": vendi_score_of_unit_vectors(embeddings),
+                                "vendi_without_mean_direction": vendi_without_mean_direction(embeddings),
+                                "mean_vector_length": float(np.linalg.norm(embeddings.mean(axis=0)))}
+        entry["spread_ratio_without_mean_direction"] = (entry["rewrites"]["vendi_without_mean_direction"]
+                                                        / entry["parents"]["vendi_without_mean_direction"])
+        diagnosis["batches"][batch_name] = entry
+        print(f"{batch_name}: {len(records)} rewrites; vendi ratio {entry['rewrites']['vendi'] / entry['parents']['vendi']:.3f}, "
+              f"without the mean direction {entry['spread_ratio_without_mean_direction']:.3f}; mean-vector length "
+              f"{entry['parents']['mean_vector_length']:.3f} -> {entry['rewrites']['mean_vector_length']:.3f}", flush=True)
+    # words along the shared direction, for the plain wording on the 150 test passages
+    passages = {passage["parent_doc_id"]: passage for passage in read_json_lines(data_root() / "synthetic" / "v2" / "passages.jsonl")}
+    records = [record for record in read_json_lines(variant_directory / "plain.jsonl") if not record["drop_reason"]]
+    rewrite_texts = [record["text"] for record in records]
+    parent_texts = [passages[record["parent_doc_id"]]["passage"] for record in records]
+    rewrite_embeddings = embed_documents(rewrite_texts, default_embedding_model, "cpu")
+    parent_embeddings = embed_documents(parent_texts, default_embedding_model, "cpu")
+    direction = rewrite_embeddings.mean(axis=0) - parent_embeddings.mean(axis=0)
+    direction /= np.linalg.norm(direction)
+    projections = np.concatenate([rewrite_embeddings @ direction, parent_embeddings @ direction])
+    documents_of_word = collections.defaultdict(list)
+    for document_index, text in enumerate(rewrite_texts + parent_texts):
+        # the embedding reads about the first 512 tokens, so only the first 400 words count
+        for word in set(re.findall(r"[a-z]+", text.lower())[:400]):
+            documents_of_word[word].append(document_index)
+    word_scores = sorted((float(np.mean(projections[indices])), word, len(indices))
+                         for word, indices in documents_of_word.items() if len(indices) >= 25)
+    diagnosis["plain_wording_direction"] = {
+        "documents": len(records) * 2,
+        "projection_mean": {"rewrites": float(projections[:len(records)].mean()), "parents": float(projections[len(records):].mean())},
+        "words_furthest_along": [{"word": word, "documents": count} for _, word, count in word_scores[-20:][::-1]],
+        "words_least_far_along": [{"word": word, "documents": count} for _, word, count in word_scores[:20]]}
+    print("words furthest along:", ", ".join(item["word"] for item in diagnosis["plain_wording_direction"]["words_furthest_along"]))
+    print("words least far along:", ", ".join(item["word"] for item in diagnosis["plain_wording_direction"]["words_least_far_along"]))
+    return diagnosis
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("variants", nargs="+", help="v2_reader_voice (the v2 batch's own rewrites) or a wording above")
     parser.add_argument("--endpoint", default=None, help="the teacher; needed for wordings not generated yet")
     parser.add_argument("--passage-count", type=int, default=150)
     parser.add_argument("--measure-only", action="store_true")
+    parser.add_argument("--diagnose", action="store_true", help="the positional names are batches (v1 v2 ...)")
     arguments = parser.parse_args()
+    if arguments.diagnose:
+        output_path = repository_root / "results" / "synthetic_shared_direction.json"
+        output_path.write_text(json.dumps(diagnose_batches(arguments.variants), indent=1) + "\n")
+        print(f"wrote {output_path}")
+        return
     passages = read_json_lines(data_root() / "synthetic" / "v2" / "passages.jsonl")[:arguments.passage_count]
     passage_by_parent = {passage["parent_doc_id"]: passage for passage in passages}
     v2_records = {record["parent_doc_id"]: record for record in read_json_lines(data_root() / "synthetic" / "v2" / "rewrites.jsonl")}

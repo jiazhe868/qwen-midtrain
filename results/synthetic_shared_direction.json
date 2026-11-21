@@ -1,0 +1,218 @@
+{
+ "embedding_model": "BAAI/bge-small-en-v1.5",
+ "batches": {
+  "v1": {
+   "documents": 600,
+   "parents": {
+    "vendi": 28.89609566821476,
+    "vendi_without_mean_direction": 160.26417580699092,
+    "mean_vector_length": 0.6871948838233948
+   },
+   "rewrites": {
+    "vendi": 19.567221010713986,
+    "vendi_without_mean_direction": 146.96522420844,
+    "mean_vector_length": 0.7354559898376465
+   },
+   "spread_ratio_without_mean_direction": 0.9170185630594881
+  },
+  "v2": {
+   "documents": 571,
+   "parents": {
+    "vendi": 26.833232130382765,
+    "vendi_without_mean_direction": 154.53755413134124,
+    "mean_vector_length": 0.6951797008514404
+   },
+   "rewrites": {
+    "vendi": 16.139357311324066,
+    "vendi_without_mean_direction": 142.07787308713955,
+    "mean_vector_length": 0.7585206627845764
+   },
+   "spread_ratio_without_mean_direction": 0.919374412813521
+  },
+  "v3": {
+   "documents": 600,
+   "parents": {
+    "vendi": 26.414964700896913,
+    "vendi_without_mean_direction": 157.65138742933854,
+    "mean_vector_length": 0.6986654996871948
+   },
+   "rewrites": {
+    "vendi": 21.938188234202684,
+    "vendi_without_mean_direction": 148.00437071365772,
+    "mean_vector_length": 0.7206805348396301
+   },
+   "spread_ratio_without_mean_direction": 0.9388079174374235
+  }
+ },
+ "plain_wording_direction": {
+  "documents": 288,
+  "projection_mean": {
+   "rewrites": 0.3165094256401062,
+   "parents": 0.1799209713935852
+  },
+  "words_furthest_along": [
+   {
+    "word": "scenario",
+    "documents": 25
+   },
+   {
+    "word": "explicitly",
+    "documents": 44
+   },
+   {
+    "word": "likely",
+    "documents": 36
+   },
+   {
+    "word": "conclusion",
+    "documents": 36
+   },
+   {
+    "word": "core",
+    "documents": 30
+   },
+   {
+    "word": "notes",
+    "documents": 40
+   },
+   {
+    "word": "passage",
+    "documents": 50
+   },
+   {
+    "word": "rather",
+    "documents": 55
+   },
+   {
+    "word": "consequently",
+    "documents": 40
+   },
+   {
+    "word": "context",
+    "documents": 42
+   },
+   {
+    "word": "determine",
+    "documents": 44
+   },
+   {
+    "word": "relationship",
+    "documents": 34
+   },
+   {
+    "word": "indicates",
+    "documents": 29
+   },
+   {
+    "word": "regarding",
+    "documents": 44
+   },
+   {
+    "word": "must",
+    "documents": 60
+   },
+   {
+    "word": "required",
+    "documents": 25
+   },
+   {
+    "word": "student",
+    "documents": 33
+   },
+   {
+    "word": "distinct",
+    "documents": 49
+   },
+   {
+    "word": "consider",
+    "documents": 50
+   },
+   {
+    "word": "might",
+    "documents": 49
+   }
+  ],
+  "words_least_far_along": [
+   {
+    "word": "references",
+    "documents": 27
+   },
+   {
+    "word": "north",
+    "documents": 26
+   },
+   {
+    "word": "history",
+    "documents": 33
+   },
+   {
+    "word": "english",
+    "documents": 30
+   },
+   {
+    "word": "th",
+    "documents": 30
+   },
+   {
+    "word": "along",
+    "documents": 26
+   },
+   {
+    "word": "named",
+    "documents": 25
+   },
+   {
+    "word": "c",
+    "documents": 29
+   },
+   {
+    "word": "world",
+    "documents": 36
+   },
+   {
+    "word": "his",
+    "documents": 50
+   },
+   {
+    "word": "name",
+    "documents": 36
+   },
+   {
+    "word": "later",
+    "documents": 37
+   },
+   {
+    "word": "early",
+    "documents": 43
+   },
+   {
+    "word": "life",
+    "documents": 35
+   },
+   {
+    "word": "line",
+    "documents": 29
+   },
+   {
+    "word": "several",
+    "documents": 29
+   },
+   {
+    "word": "known",
+    "documents": 38
+   },
+   {
+    "word": "g",
+    "documents": 38
+   },
+   {
+    "word": "until",
+    "documents": 29
+   },
+   {
+    "word": "called",
+    "documents": 30
+   }
+  ]
+ }
+}

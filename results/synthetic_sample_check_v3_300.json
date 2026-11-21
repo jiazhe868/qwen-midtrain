@@ -1,0 +1,295 @@
+{
+ "batch": "v3",
+ "documents_per_source": 300,
+ "seed": 0,
+ "kept_rewrites": 452,
+ "rewrites": 600,
+ "sources": {
+  "synthetic_rephrase": {
+   "documents": 264,
+   "token_sample_size": 221977,
+   "tokens": {
+    "rewrites": 286340,
+    "parents": 233661
+   },
+   "passed": true,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 15.188275363301738,
+     "baseline": 15.430001877167918,
+     "requirement": "at least 14.93",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.00023795490571494466,
+     "baseline": 0.003557152810884154,
+     "requirement": "at most 0.03",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 75.75757575757576,
+     "baseline": 0.0,
+     "requirement": "at least 0",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.431599609026481,
+     "baseline": 3.0910708660905937,
+     "requirement": "at most 4.018",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 19.6567031742529,
+     "baseline": 23.70957578498247,
+     "requirement": "at least 18.97",
+     "passed": true,
+     "missed_by": 0.0
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 264,
+     "token_count": 286340,
+     "seed": 0,
+     "token_sample_size": 221977,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 221977,
+     "unigram_entropy_bits": 10.393615068186906,
+     "bigram_entropy_bits": 15.188275363301738,
+     "distinct_1": 0.07908477004374327,
+     "distinct_2": 0.46304763450751224,
+     "zstd_compression_ratio": 3.431599609026481,
+     "template_repetition_rate": 0.00023795490571494466,
+     "sentence_count": 13852,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<number> times <number> is <number>.",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 264,
+     "mean_nearest_neighbour_cosine_similarity": 0.7058776021003723,
+     "cluster_sample_document_count": 264,
+     "embedding_vendi_score": 19.6567031742529,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.7954545454545454,
+     "hdbscan_clusters_per_10k_documents": 75.75757575757576
+    },
+    "parents": {
+     "document_count": 264,
+     "token_count": 233661,
+     "seed": 0,
+     "token_sample_size": 221977,
+     "token_sample_document_count": 256,
+     "sampled_token_count": 221977,
+     "unigram_entropy_bits": 10.58160259959137,
+     "bigram_entropy_bits": 15.430001877167918,
+     "distinct_1": 0.0937935011284953,
+     "distinct_2": 0.4945111940971658,
+     "zstd_compression_ratio": 3.0910708660905937,
+     "template_repetition_rate": 0.003557152810884154,
+     "sentence_count": 12173,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> by : <name>.",
+       "occurrences": 19
+      },
+      {
+       "skeleton": "<name> : <name>: <name>",
+       "occurrences": 18
+      },
+      {
+       "skeleton": "<number> cubic feet <number> teaspoons",
+       "occurrences": 10
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> <number>, <number> at <number>",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "<name> of <name> in <name>",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<name> of places in <name> by population",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 264,
+     "mean_nearest_neighbour_cosine_similarity": 0.6798319816589355,
+     "cluster_sample_document_count": 264,
+     "embedding_vendi_score": 23.70957578498247,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 0,
+     "hdbscan_noise_share": 1.0,
+     "hdbscan_clusters_per_10k_documents": 0.0
+    }
+   }
+  },
+  "synthetic_qa": {
+   "documents": 188,
+   "token_sample_size": 155240,
+   "tokens": {
+    "rewrites": 215639,
+    "parents": 163411
+   },
+   "passed": true,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 14.775329915292481,
+     "baseline": 15.079521426094534,
+     "requirement": "at least 14.58",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.0002808475980509177,
+     "baseline": 0.006711536758473236,
+     "requirement": "at most 0.03",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 106.38297872340425,
+     "baseline": 106.38297872340425,
+     "requirement": "at least 53.19",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.5495764858171994,
+     "baseline": 3.0593037570877852,
+     "requirement": "at most 3.977",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 17.076359196711433,
+     "baseline": 19.75079226752498,
+     "requirement": "at least 15.8",
+     "passed": true,
+     "missed_by": 0.0
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 188,
+     "token_count": 215639,
+     "seed": 0,
+     "token_sample_size": 155240,
+     "token_sample_document_count": 188,
+     "sampled_token_count": 155240,
+     "unigram_entropy_bits": 10.207138761887531,
+     "bigram_entropy_bits": 14.775329915292481,
+     "distinct_1": 0.08685261530533368,
+     "distinct_2": 0.4662480174336888,
+     "zstd_compression_ratio": 3.5495764858171994,
+     "template_repetition_rate": 0.0002808475980509177,
+     "sentence_count": 8893,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> <number>: <name> of <name>",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 188,
+     "mean_nearest_neighbour_cosine_similarity": 0.7158858776092529,
+     "cluster_sample_document_count": 188,
+     "embedding_vendi_score": 17.076359196711433,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.6968085106382979,
+     "hdbscan_clusters_per_10k_documents": 106.38297872340425
+    },
+    "parents": {
+     "document_count": 188,
+     "token_count": 163411,
+     "seed": 0,
+     "token_sample_size": 155240,
+     "token_sample_document_count": 188,
+     "sampled_token_count": 155240,
+     "unigram_entropy_bits": 10.460967225874489,
+     "bigram_entropy_bits": 15.079521426094534,
+     "distinct_1": 0.10795542385982994,
+     "distinct_2": 0.5063458487572713,
+     "zstd_compression_ratio": 3.0593037570877852,
+     "template_repetition_rate": 0.006711536758473236,
+     "sentence_count": 8930,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "##### <name>: <number> <name>:",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<name> indicates how strong in your memory this concept is",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<name> \u2014 <name>, <name>",
+       "occurrences": 14
+      },
+      {
+       "skeleton": "\"<name> (<name> mix)\" \u2013 <number>",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "asked by <name> on <name> <number>, <number>",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<name> mat[<number>][<number>] and mat[<number>][<number>] by -<number>.",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<number>: <name> of <name>",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<name> possible, write your answer as an ordered pair.",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<name> <number> <number> <name>",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 188,
+     "mean_nearest_neighbour_cosine_similarity": 0.686939001083374,
+     "cluster_sample_document_count": 188,
+     "embedding_vendi_score": 19.75079226752498,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.6808510638297872,
+     "hdbscan_clusters_per_10k_documents": 106.38297872340425
+    }
+   }
+  }
+ }
+}
