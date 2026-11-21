@@ -106,6 +106,29 @@ style_instructions = {
         "Pose three what-if variations of the situation in the passage (a changed condition, a removed assumption, an "
         "extreme case) and reason through what would follow in each, step by step, consistent with the passage.",
 }
+# Three styles reworded for v3 (11-21). At 600 rewrites per source the qa source missed the bigram-entropy limit by
+# 0.01 bits; per style against each style's own parents, the dialogue lost 0.63 bits, the questions 0.58 and the worked
+# problems 0.53, against 0.09 to 0.28 for the other three. Their fixed labels ("Teacher:", "Question", "Step 1",
+# "Solution", "Check") repeat in every rewrite. The reworded styles ask for the same reasoning without fixed labels.
+style_instructions.update({
+    "dialogue_with_named_roles":
+        "Write a dialogue in which a person who knows this material leads a learner to its conclusions by asking "
+        "questions. Give both speakers names and roles that fit the material, and write their lines as natural speech. "
+        "The learner makes one plausible mistake on the way; a question exposes it, and the learner corrects it and "
+        "explains what went wrong.",
+    "questions_answered_in_prose":
+        "Pose four questions that can only be answered by reasoning about this material, not by recalling one sentence "
+        "of it, and answer each in connected prose that shows the steps and ends with the conclusion. Vary how the "
+        "questions are introduced, and do not use labels such as 'Question', 'Answer' or 'Step'. Each answer states the "
+        "facts it uses.",
+    "worked_problems_in_prose":
+        "Create two exercises from this material, one easier and one harder. State each exercise fully, then solve it in "
+        "connected prose and check the result at the end. For material without numbers, make the exercises case "
+        "analyses with a justified conclusion. Do not use labels such as 'Step 1', 'Solution' or 'Check'; state every "
+        "fact the solution uses.",
+})
+pool_source_of_style.update({"dialogue_with_named_roles": "synthetic_rephrase",
+                             "questions_answered_in_prose": "synthetic_qa", "worked_problems_in_prose": "synthetic_qa"})
 style_names = list(style_instructions)
 # One reader and one writer's voice are drawn for every request (v2). The first batch wrote every rewrite for the same
 # reader in the same voice and failed the diversity gate (see the history above). Both lists keep to readers and
@@ -205,7 +228,7 @@ def select_passages(batch_name: str, passage_count: int, seed: int, style_subset
     passages_path = synthetic_directory(batch_name) / "passages.jsonl"
     existing_passages = read_json_lines(passages_path) if should_append else []
     parents_already_taken = {passage["parent_doc_id"] for passage in existing_passages}
-    styles_to_deal = style_subset or style_names
+    styles_to_deal = style_subset or style_names[:6]
     assert all(style_name in style_instructions for style_name in styles_to_deal), f"unknown style in {styles_to_deal}"
     passages = []
     for source_name, share in passage_share_by_source.items():
@@ -318,14 +341,22 @@ def ask_teacher(endpoint: str, passage: dict, style_name: str, temperature: floa
 
 
 def generate_rewrites(batch_name: str, endpoints: list[str], requests_in_flight_per_endpoint: int,
-                      stop_after_hours: float, temperature: float, maximum_rewrites: int | None) -> None:
+                      stop_after_hours: float, temperature: float, maximum_rewrites: int | None,
+                      style_filter: list[str] | None = None, results_name: str = "rewrites.jsonl") -> None:
+    """Ask the teachers for every planned rewrite of the batch not yet in its results file, and append each result.
+
+    `style_filter` limits the work to some styles. `results_name` writes to another file of the batch folder: the
+    data folder is on NFS, where two processes appending to one file can overwrite each other's lines, so a second
+    generator writes its own file, and the files are joined when neither is running.
+    """
     passages = read_json_lines(synthetic_directory(batch_name) / "passages.jsonl")
-    results_path = synthetic_directory(batch_name) / "rewrites.jsonl"
+    results_path = synthetic_directory(batch_name) / results_name
     finished_keys = set()
     if results_path.exists():
         finished_keys = {record["key"] for record in read_json_lines(results_path)}
     todo = [(passage, style_name) for passage in passages for style_name in passage["styles"]
-            if rewrite_key(passage["parent_doc_id"], style_name) not in finished_keys]
+            if rewrite_key(passage["parent_doc_id"], style_name) not in finished_keys
+            and (style_filter is None or style_name in style_filter)]
     if maximum_rewrites is not None:
         # the passages are in a seeded random order, so the first ones are a fair sample of all of them
         todo = todo[:max(0, maximum_rewrites - len(finished_keys))]
@@ -374,12 +405,14 @@ def generate_rewrites(batch_name: str, endpoints: list[str], requests_in_flight_
 # ---------------------------------------------------------------------------------------------------------------
 # publish: kept rewrites become pool rows of the two synthetic sources
 # ---------------------------------------------------------------------------------------------------------------
-def publish_rewrites_to_pool(batch_name: str) -> None:
-    """Write the kept rewrites of one batch as the pool rows of the two sources, replacing whatever batch was there."""
+def publish_rewrites_to_pool(batch_name: str, styles_left_out: list[str] | None = None) -> None:
+    """Write the kept rewrites of one batch as the pool rows of the two sources, replacing whatever batch was there.
+    `styles_left_out` names styles whose rewrites stay out (v3: the three styles that were reworded)."""
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
-    records = read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
+    records = [record for record in read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
+               if record["style"] not in (styles_left_out or [])]
     drop_counts: dict[str, int] = {}
     rows_by_source: dict[str, list] = {"synthetic_rephrase": [], "synthetic_qa": []}
     seen_text_hashes = set()
@@ -393,7 +426,8 @@ def publish_rewrites_to_pool(batch_name: str) -> None:
             continue
         seen_text_hashes.add(text_hash)
         rows_by_source[pool_source_of_style[record["style"]]].append(record)
-    summary = {"batch": batch_name, "rewrites": len(records), "dropped_by_reason": drop_counts, "sources": {}}
+    summary = {"batch": batch_name, "styles_left_out": styles_left_out or [], "rewrites": len(records),
+               "dropped_by_reason": drop_counts, "sources": {}}
     for source_name, source_records in rows_by_source.items():
         texts = [record["text"] for record in source_records]
         token_counts = [len(token_ids) for token_ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
@@ -414,7 +448,8 @@ def publish_rewrites_to_pool(batch_name: str) -> None:
 # ---------------------------------------------------------------------------------------------------------------
 # check-sample: the diversity gate on a batch's rewrites against the passages they were written from
 # ---------------------------------------------------------------------------------------------------------------
-def check_sample_against_parents(batch_name: str, documents_per_source: int, device: str, seed: int) -> int:
+def check_sample_against_parents(batch_name: str, documents_per_source: int, device: str, seed: int,
+                                 styles_left_out: list[str] | None = None) -> int:
     """Run gate 2 of data_hygiene.py on the kept rewrites of a batch against their own parent passages; return the
     number of pool sources that failed.
 
@@ -427,7 +462,8 @@ def check_sample_against_parents(batch_name: str, documents_per_source: int, dev
 
     passages_by_parent = {passage["parent_doc_id"]: passage
                           for passage in read_json_lines(synthetic_directory(batch_name) / "passages.jsonl")}
-    records = read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
+    records = [record for record in read_json_lines(synthetic_directory(batch_name) / "rewrites.jsonl")
+               if record["style"] not in (styles_left_out or [])]
     random_generator = np.random.default_rng(seed)
     records_by_source: dict[str, list] = {"synthetic_rephrase": [], "synthetic_qa": []}
     parents_taken = set()
@@ -442,6 +478,7 @@ def check_sample_against_parents(batch_name: str, documents_per_source: int, dev
     tokenize_texts = data_hygiene.load_qwen_tokenize_function()
     output_root = data_root() / "hygiene" / f"sample_check_{batch_name}"
     report = {"batch": batch_name, "documents_per_source": documents_per_source, "seed": seed,
+              "styles_left_out": styles_left_out or [],
               "kept_rewrites": sum(1 for record in records if not record["drop_reason"]), "rewrites": len(records),
               "sources": {}}
     failed_source_count = 0
@@ -480,6 +517,52 @@ def check_sample_against_parents(batch_name: str, documents_per_source: int, dev
     return failed_source_count
 
 
+def check_styles_against_parents(batch_name: str, results_name: str, token_sample_size: int, device: str) -> dict:
+    """For every style of a results file: the share of its rewrites kept, why the others were dropped, and against
+    exactly its own parents the bigram-entropy drop (on `token_sample_size` tokens a side), the Vendi ratio and the
+    length of the mean unit embedding. It shows which style holds a source back (11-21: the three styles with fixed
+    labels lost 0.53 to 0.63 bits, the others 0.09 to 0.28). Writes results/synthetic_style_check_<batch>_<file>.json.
+    """
+    from midtrain import data_hygiene
+    from midtrain.curation_funnel import embed_documents
+
+    passages_by_parent = {passage["parent_doc_id"]: passage
+                          for passage in read_json_lines(synthetic_directory(batch_name) / "passages.jsonl")}
+    records = read_json_lines(synthetic_directory(batch_name) / results_name)
+    tokenize_texts = data_hygiene.load_qwen_tokenize_function()
+    report = {"batch": batch_name, "results_name": results_name, "token_sample_size": token_sample_size, "styles": {}}
+    for style_name in sorted({record["style"] for record in records}):
+        style_records = [record for record in records if record["style"] == style_name]
+        kept = [record for record in style_records if not record["drop_reason"]]
+        drop_counts: dict[str, int] = {}
+        for record in style_records:
+            if record["drop_reason"]:
+                drop_counts[record["drop_reason"]] = drop_counts.get(record["drop_reason"], 0) + 1
+        entry = {"rewrites": len(style_records), "kept": len(kept), "dropped_by_reason": drop_counts}
+        texts = [record["text"] for record in kept]
+        parent_texts = [passages_by_parent[record["parent_doc_id"]]["passage"] for record in kept]
+        token_ids, parent_token_ids = tokenize_texts(texts), tokenize_texts(parent_texts)
+        if min(sum(map(len, token_ids)), sum(map(len, parent_token_ids))) >= token_sample_size:
+            entry["bigram_entropy_drop_bits"] = (
+                data_hygiene.measure_token_statistics(parent_token_ids, token_sample_size)["bigram_entropy_bits"]
+                - data_hygiene.measure_token_statistics(token_ids, token_sample_size)["bigram_entropy_bits"])
+        embeddings = embed_documents(texts, data_hygiene.default_embedding_model, device)
+        parent_embeddings = embed_documents(parent_texts, data_hygiene.default_embedding_model, device)
+        entry["vendi_ratio"] = (data_hygiene.vendi_score_of_unit_vectors(embeddings)
+                                / data_hygiene.vendi_score_of_unit_vectors(parent_embeddings))
+        entry["mean_vector_length"] = float(np.linalg.norm(embeddings.mean(axis=0)))
+        entry["parent_mean_vector_length"] = float(np.linalg.norm(parent_embeddings.mean(axis=0)))
+        report["styles"][style_name] = entry
+        bigram_text = f"{entry['bigram_entropy_drop_bits']:.2f}" if "bigram_entropy_drop_bits" in entry else "too few tokens"
+        print(f"{style_name:32s} kept {len(kept):4d} of {len(style_records):4d}  bigram drop {bigram_text}  "
+              f"vendi ratio {entry['vendi_ratio']:.3f}  mean-vector length {entry['mean_vector_length']:.3f} "
+              f"(parents {entry['parent_mean_vector_length']:.3f})  dropped {drop_counts}", flush=True)
+    output_path = repository_root / "results" / f"synthetic_style_check_{batch_name}_{Path(results_name).stem}.json"
+    output_path.write_text(json.dumps(report, indent=1) + "\n")
+    print(f"wrote {output_path}")
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -501,13 +584,21 @@ def main() -> None:
                                "(its largest synthetic share is 9M of 40M tokens, at about 800 tokens per rewrite)")
     generate.add_argument("--temperature", type=float, default=1.0,
                           help="1.0 from v2 on: the v1 batch at 0.8 failed the diversity gate")
+    generate.add_argument("--styles", nargs="+", default=None, help="only these styles")
+    generate.add_argument("--results-name", default="rewrites.jsonl", help="results file in the batch folder")
     check_sample = commands.add_parser("check-sample")
     check_sample.add_argument("--documents-per-source", type=int, default=300)
     check_sample.add_argument("--device", default="cpu", help="for the embedding model: cpu, cuda or cuda:1")
     check_sample.add_argument("--seed", type=int, default=0)
-    commands.add_parser("publish")
-    for command_parser in (select, generate, check_sample, commands.choices["publish"]):
+    check_styles = commands.add_parser("check-styles")
+    check_styles.add_argument("--results-name", default="rewrites.jsonl")
+    check_styles.add_argument("--token-sample-size", type=int, default=100_000)
+    check_styles.add_argument("--device", default="cpu")
+    publish = commands.add_parser("publish")
+    for command_parser in (select, generate, check_sample, check_styles, publish):
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
+    for command_parser in (check_sample, publish):
+        command_parser.add_argument("--leave-out-styles", nargs="+", default=None, help="styles whose rewrites stay out")
     arguments = parser.parse_args()
     if arguments.command == "select":
         select_passages(arguments.batch, arguments.passage_count, arguments.seed, arguments.styles, arguments.append)
@@ -515,12 +606,15 @@ def main() -> None:
         serve_teacher(arguments.gpu, arguments.port)
     elif arguments.command == "generate":
         generate_rewrites(arguments.batch, arguments.endpoint, arguments.requests_in_flight_per_endpoint,
-                          arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites)
+                          arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites, arguments.styles,
+                          arguments.results_name)
+    elif arguments.command == "check-styles":
+        check_styles_against_parents(arguments.batch, arguments.results_name, arguments.token_sample_size, arguments.device)
     elif arguments.command == "check-sample":
         sys.exit(1 if check_sample_against_parents(arguments.batch, arguments.documents_per_source, arguments.device,
-                                                   arguments.seed) else 0)
+                                                   arguments.seed, arguments.leave_out_styles) else 0)
     else:
-        publish_rewrites_to_pool(arguments.batch)
+        publish_rewrites_to_pool(arguments.batch, arguments.leave_out_styles)
 
 
 if __name__ == "__main__":
