@@ -181,13 +181,19 @@ def cut_passage_at_paragraphs(text: str, token_count: int) -> str | None:
     return window if len(window) >= low_characters else None
 
 
-def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
+def select_passages(batch_name: str, passage_count: int, seed: int, style_subset: list[str] | None = None,
+                    should_append: bool = False) -> None:
     """Pick the passages and give each one style and the current framing of the request; writes
     synthetic/<batch>/passages.jsonl.
 
-    The styles are dealt in turn over the shuffled passages, so each of the six gets a sixth of them and the two pool
-    sources get equal numbers of rewrites. (The first batch gave half of the passages two styles; with one style per
-    passage every rewrite has a parent of its own, which matters for diversity, see the history above.)
+    The styles are dealt in turn over the shuffled passages, so each style gets an equal share and, with all six, the
+    two pool sources get equal numbers of rewrites. (The first batch gave half of the passages two styles; with one
+    style per passage every rewrite has a parent of its own, which matters for diversity, see the history above.)
+
+    `should_append` adds new passages to an existing batch, none of them a parent already in it, dealt among
+    `style_subset` only. It exists because the styles do not keep the same share of their rewrites: in the v3 sample
+    the question-answer styles lost 37% of theirs to the hidden-source check and the rephrase styles 12%, so the qa
+    source needs more passages for the same number of tokens.
     """
     from midtrain.mixture import load_decontamination_gate
 
@@ -196,6 +202,11 @@ def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
     # A rewrite of a passage that the decontamination gate flagged would carry the evaluation item along in other
     # words, where no n-gram check finds it again. (The first batch chose its passages before this check existed.)
     flagged_document_ids = load_decontamination_gate()["flagged_document_ids"]
+    passages_path = synthetic_directory(batch_name) / "passages.jsonl"
+    existing_passages = read_json_lines(passages_path) if should_append else []
+    parents_already_taken = {passage["parent_doc_id"] for passage in existing_passages}
+    styles_to_deal = style_subset or style_names
+    assert all(style_name in style_instructions for style_name in styles_to_deal), f"unknown style in {styles_to_deal}"
     passages = []
     for source_name, share in passage_share_by_source.items():
         wanted = int(round(share * passage_count))
@@ -212,7 +223,7 @@ def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
         kept = 0
         for position in order:
             document_id, text, token_count = rows[position]
-            if document_id in flagged_in_source:
+            if document_id in flagged_in_source or document_id in parents_already_taken:
                 continue
             passage_text = cut_passage_at_paragraphs(text, token_count)
             if passage_text is None:
@@ -224,12 +235,13 @@ def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
         print(f"{source_name}: {kept} passages", flush=True)
     random_generator.shuffle(passages)
     for passage_index, passage in enumerate(passages):
-        passage["styles"] = [style_names[passage_index % len(style_names)]]
+        passage["styles"] = [styles_to_deal[passage_index % len(styles_to_deal)]]
         passage["framing"] = current_framing
-    with (synthetic_directory(batch_name) / "passages.jsonl").open("w") as passage_file:
+    with passages_path.open("a" if should_append else "w") as passage_file:
         for passage in passages:
             passage_file.write(json.dumps(passage, ensure_ascii=False) + "\n")
-    print(f"{len(passages)} passages, {sum(len(passage['styles']) for passage in passages)} rewrites planned")
+    print(f"{len(passages)} passages {'added' if should_append else 'selected'}, "
+          f"{len(existing_passages) + len(passages)} in the batch")
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -475,6 +487,8 @@ def main() -> None:
     select.add_argument("--passage-count", type=int, default=14000,
                         help="one rewrite per passage; the screening design needs about 12,000 kept rewrites")
     select.add_argument("--seed", type=int, default=20261122)
+    select.add_argument("--append", action="store_true", help="add new passages to the batch instead of replacing it")
+    select.add_argument("--styles", nargs="+", default=None, help="deal only these styles (default: all six)")
     serve = commands.add_parser("serve")
     serve.add_argument("--gpu", type=int, required=True)
     serve.add_argument("--port", type=int, required=True)
@@ -496,7 +510,7 @@ def main() -> None:
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
     arguments = parser.parse_args()
     if arguments.command == "select":
-        select_passages(arguments.batch, arguments.passage_count, arguments.seed)
+        select_passages(arguments.batch, arguments.passage_count, arguments.seed, arguments.styles, arguments.append)
     elif arguments.command == "serve":
         serve_teacher(arguments.gpu, arguments.port)
     elif arguments.command == "generate":
