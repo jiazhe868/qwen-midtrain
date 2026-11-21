@@ -363,6 +363,12 @@ The usual choice is a general trainer. Three properties of this problem made a s
 The schedule is linear warm-up over 2% of the steps, then linear decay to zero. Decay to zero is the cooldown that
 the project is about: the last steps make small moves on the final mixture.
 
+The global gradient norm is clipped at 1.0, and on this data the base models' gradient norm is about 3 (median 3.1
+to 3.3 in every run so far, never below 2.5; `gradient_norm` in each run's log). So every step is clipped. Under
+AdamW a nearly constant rescaling of the gradient changes almost nothing, because the update divides the first moment
+by the root of the second; what the clip still does is damp the spikes (up to 12.7). It is the same in every run, so
+it does not bias the design.
+
 **Master weights on the CPU.** The 2B model's FP32 master weights and Adam moments (about 22 GB) do not fit next to
 the model on a 40 GB GPU, so they live on the CPU. The first version moved each tensor with a plain copy, FP32
 through pageable memory in both directions, and ran AdamW one tensor at a time. That step took 7.6 s for 1.8B
