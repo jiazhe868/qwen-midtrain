@@ -32,7 +32,7 @@ evaluation:
   item_seed: 20261120                        # the items of each task are the first N after a shuffle with this seed
   tasks:                                     # items, and the longest completion allowed
     gsm8k: {item_count: 200, maximum_new_tokens: 512}
-    math500: {item_count: 250, maximum_new_tokens: 512}
+    math500: {item_count: 250, maximum_new_tokens: 1024}       # at 512, 17.4% of the base probe's answers were cut (11-20)
     humaneval: {item_count: 164, maximum_new_tokens: 512}
     mbpp: {item_count: 200, maximum_new_tokens: 512}
   pass_at_k: [1, 2, 4, 8, 16, 32, 64]
