@@ -531,6 +531,9 @@ pages and forum answers (`synthetic_rephrase.py`). Six forms show the same conte
 | dialogue with one corrected mistake | `synthetic_rephrase` | a wrong turn and its repair |
 | what-if analysis | `synthetic_qa` | consequences of a changed condition |
 
+The batch that entered the mixtures (v3, §7.3) keeps four of these forms, has the questions and the worked problems
+reworded as prose without fixed labels, and leaves the dialogue out.
+
 The outputs are plain text without chat tokens: chat tokens in mid-training data took one published model's GSM8K
 score from 49 to 0. Every output is checked for length, refusals and meta-comments, and for copying: an output
 that shares more than half of its 8-word sequences with its source is dropped, because a copy is a real passage
@@ -631,9 +634,28 @@ mean-vector length is 0.72, and without the mean direction they are 94% as sprea
 | rephrase | 264 | 0.83 | 0.24 |
 | qa | 188 | 0.86 | 0.30 |
 
-The rephrase margin is thin, and small samples are lenient, so the full batch is checked again at 2,200 rewrites with
-600 per source. The question-answer styles keep fewer of their rewrites (63% against 88%), so 2,500 extra passages go
-to those styles alone, 16,500 in all, for about 5M tokens per source.
+**A second check at 600 per source caught the rest.** Small samples are lenient, so the batch was checked again
+after 2,225 rewrites, at 600 per source. The rephrase source passed with a Vendi ratio of 0.81, and the qa source
+missed the bigram-entropy limit by 0.01 bits. Measured per style against each style's own parents, three styles lost
+0.57 to 0.62 bits and the other three 0.09 to 0.26 (`synthetic_rephrase.py check-styles`,
+`results/synthetic_style_check_v3_rewrites.json`): the dialogue, the questions with answers and the worked problems.
+All three repeat fixed labels ("Teacher:", "Question", "Step 1", "Solution", "Check"). Reworded without labels, the
+questions lost 0.10 bits instead of 0.45 on the same small sample, and kept 81% of their rewrites instead of 40%. The
+worked problems kept 73% instead of 54%, with the same entropy. A dialogue with named roles was no better (Vendi
+ratio 0.66), so the dialogue left v3 (`results/synthetic_style_check_v3_rewrites_style_test.json`). Extra passages
+for the reworded styles brought each source above 5M tokens.
+
+**The full batch passes the gate**, 4,500 rewrites and 1M tokens on each side (`results/synthetic_sample_check_v3_4500.json`,
+`results/synthetic_summary_v3.json`):
+
+| source | styles (documents) | tokens | Vendi ratio (needs 0.80) | bigram drop (needs at most 0.50) |
+|---|---|---|---|---|
+| synthetic_rephrase | explanation 2,754, structured notes 2,503 | 5.5M | 0.83 | 0.29 |
+| synthetic_qa | what-if 2,942, questions in prose 1,513, worked problems in prose 696 | 5.6M | 0.82 | 0.39 |
+
+Of the 11,686 rewrites in these styles, 1,149 were dropped for pointing at a hidden source, 94 for running past
+1,800 tokens and 35 for copying. Decontamination flagged 3 of the kept rewrites, and the sampler leaves them out.
+The 12 design runs with rewritten text started on 11-21 at 05:00.
 
 **One repeated phrase can move a diversity score more than any added variety. Find what the documents share before
 adding variety.**
@@ -724,7 +746,8 @@ The fourth lever in the project brief is text that widens what the model can rea
 primitives, traces that contain a mistake and its repair, and generic tool-use formats. Its generator is not built
 in this version, so this factor is absent from the design in §6.2 and prediction P4 in §13 stays untested. Two
 parts of the question are still covered by what exists: the probe reports pass@64 next to pass@1 for every
-mixture, and one of the rewriting forms in §7 contains a corrected mistake.
+mixture. The one rewriting form with a corrected mistake, the dialogue, left the final batch because it failed the
+diversity gate in both of its wordings (§7.3).
 
 ---
 
@@ -744,7 +767,8 @@ number of embedding clusters) and compares it with a baseline measured on real t
 batch that is clearly less diverse than real text is rejected before it reaches a recipe.
 
 **What the 13-gram layer found.** It scanned 2,686,237 documents against 8,886 evaluation items in 2 minutes and
-flagged 6,030 documents, 0.22% of the pool (`results/hygiene_decontamination.json`). That count overstates the
+flagged 6,030 documents, 0.22% of the pool. (Since the rewritten sources joined the pool on 11-21, the scan covers
+2,696,645 documents and flags 6,033; the 3 new ones are rewrites; `results/hygiene_decontamination.json`.) That count overstates the
 contamination. Reading the matched 13-grams showed four kinds:
 
 | kind of match | documents | what it is |
