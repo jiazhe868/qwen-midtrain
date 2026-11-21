@@ -30,8 +30,18 @@ and a writer's voice drawn at random for each request (12 of each), and one styl
 has a parent of its own. A 600-rewrite sample has to pass the gate against its own parents (`check-sample`) before
 the full batch is written. Each batch lives in its own folder, synthetic/<batch>.
 
+The v2 sample failed by more than v1 (Vendi ratio 0.63 and 0.60 at 300 rewrites per source). Two measurements found
+why. With each set's mean direction removed, the rewrites are 92% as spread as their parents, so the topics survive;
+what they share is one direction (the mean unit embedding grows from 0.70 to 0.76), and the words along it are those of
+talking about a text: "passage", "text", "explicitly", "therefore". 58% of the rewrites of a 150-passage test
+referred to "the passage", "the text" or "the author" in their first 400 words, a passage their reader never sees.
+Of seven request wordings tried on the same 150 passages, asking the teacher to write as the author of the material,
+never referring to a source, and to keep the material's own names and numbers, worked best (Vendi ratio 0.86 against
+0.73 for the plain request; references to the source in 23 of 146 rewrites against 83 of 144). That is v3, and the
+remaining references ("The text states that...") are now a reason to drop a rewrite.
+
 Commands (after `source scripts/env.sh`; the teacher is served by any OpenAI-compatible server; --batch defaults to
-the current batch, v2):
+the current batch, v3):
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase select --passage-count 14000
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase serve --gpu 1 --port 8201 &         # one teacher per GPU
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase generate --endpoint http://127.0.0.1:8201 [--endpoint ...] \
@@ -112,7 +122,22 @@ writer_voices = [
     "a puzzle setter", "a careful reviewer who checks every step", "a popular-science columnist",
     "a mathematician who values rigour", "a technical writer", "a coach who explains with everyday examples",
     "a lecturer giving an evening class"]
-current_batch_name = "v2"
+# v3: the teacher writes as the author of the material, never pointing at a source, and keeps the material's own
+# specifics (see the history above). v2 batches keep their reader and voice; v1 batches have neither.
+own_voice_instruction = (
+    "Write as the author of a document that presents this material in your own words. Never refer to a passage, a "
+    "text, a source, an excerpt or an author. Keep the material's own names, places, dates, numbers and examples, and "
+    "open with them.")
+current_batch_name = "v3"
+current_framing = "own_voice_specific"
+# Phrases that point the reader at a source they never see. "The text states that..." survived the v3 wording in 12
+# of 146 test rewrites, mostly in worked answers; such a rewrite is dropped. "The passage of" is left alone: the
+# passage of a law or of time.
+hidden_source_reference = re.compile(
+    r"\b(?:the|this) (?:passage|excerpt)\b(?! of\b)|\bthe (?:given|provided|original|source) text\b|\bthe source material\b|"
+    r"\bthe text (?:states|mentions|notes|says|explicitly|suggests|lists|confirms|specifies|emphasizes|presents|"
+    r"describes|indicates|shows|provides|gives|reports|implies|clarifies|highlights|defines)\b|"
+    r"\b(?:in|from|by) the text\b", re.IGNORECASE)
 refusal_or_meta_patterns = re.compile(
     r"^(here is|here's|sure[,!]|certainly|i cannot|i can't|i'm sorry|as an ai|below is|the passage|this passage|"
     r"rewritten|okay[,.]|of course)", re.IGNORECASE)
@@ -157,7 +182,7 @@ def cut_passage_at_paragraphs(text: str, token_count: int) -> str | None:
 
 
 def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
-    """Pick the passages and give each one style, one reader and one writer's voice; writes
+    """Pick the passages and give each one style and the current framing of the request; writes
     synthetic/<batch>/passages.jsonl.
 
     The styles are dealt in turn over the shuffled passages, so each of the six gets a sixth of them and the two pool
@@ -200,8 +225,7 @@ def select_passages(batch_name: str, passage_count: int, seed: int) -> None:
     random_generator.shuffle(passages)
     for passage_index, passage in enumerate(passages):
         passage["styles"] = [style_names[passage_index % len(style_names)]]
-        passage["reader"] = reader_descriptions[int(random_generator.integers(len(reader_descriptions)))]
-        passage["writer_voice"] = writer_voices[int(random_generator.integers(len(writer_voices)))]
+        passage["framing"] = current_framing
     with (synthetic_directory(batch_name) / "passages.jsonl").open("w") as passage_file:
         for passage in passages:
             passage_file.write(json.dumps(passage, ensure_ascii=False) + "\n")
@@ -251,15 +275,20 @@ def reason_to_drop(output_text: str, source_text: str, finish_reason: str) -> st
         return "chat_tokens"
     if copied_eight_gram_share(output_text, source_text) > maximum_copied_eight_gram_share:
         return "mostly_copied"
+    if hidden_source_reference.search(output_text):
+        return "refers_to_hidden_source"
     return None
 
 
 def build_request_text(passage: dict, style_name: str) -> str:
-    """The user message of one rewrite: the reader and the voice (from v2 on), the style, the shared rules, the passage."""
-    reader_and_voice = ""
-    if passage.get("reader"):
-        reader_and_voice = f"Write for {passage['reader']}, in the voice of {passage['writer_voice']}. "
-    return f"{reader_and_voice}{style_instructions[style_name]} {shared_instruction}\n\nPassage:\n{passage['passage']}"
+    """The user message of one rewrite: the framing of its batch, the style, the shared rules, then the passage.
+    v3 passages carry framing "own_voice_specific"; v2 passages a reader and a voice; v1 passages neither."""
+    framing = ""
+    if passage.get("framing") == "own_voice_specific":
+        framing = own_voice_instruction + " "
+    elif passage.get("reader"):
+        framing = f"Write for {passage['reader']}, in the voice of {passage['writer_voice']}. "
+    return f"{framing}{style_instructions[style_name]} {shared_instruction}\n\nPassage:\n{passage['passage']}"
 
 
 def ask_teacher(endpoint: str, passage: dict, style_name: str, temperature: float) -> tuple[str, str]:
@@ -308,8 +337,9 @@ def generate_rewrites(batch_name: str, endpoints: list[str], requests_in_flight_
             return
         drop_reason = reason_to_drop(output_text, passage["passage"], finish_reason)
         record = {"key": rewrite_key(passage["parent_doc_id"], style_name), "parent_doc_id": passage["parent_doc_id"],
-                  "parent_source": passage["parent_source"], "style": style_name, "reader": passage.get("reader"),
-                  "writer_voice": passage.get("writer_voice"), "temperature": temperature, "drop_reason": drop_reason,
+                  "parent_source": passage["parent_source"], "style": style_name, "framing": passage.get("framing"),
+                  "reader": passage.get("reader"), "writer_voice": passage.get("writer_voice"), "temperature": temperature,
+                  "drop_reason": drop_reason,
                   "copied_eight_gram_share": round(copied_eight_gram_share(output_text, passage["passage"]), 3),
                   "text": output_text}
         with write_lock:
@@ -357,7 +387,7 @@ def publish_rewrites_to_pool(batch_name: str) -> None:
         token_counts = [len(token_ids) for token_ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
         metas = [{"style": record["style"], "parent_doc_id": record["parent_doc_id"], "parent_source": record["parent_source"],
                   "copied_eight_gram_share": record["copied_eight_gram_share"], "batch": batch_name,
-                  "reader": record.get("reader"), "writer_voice": record.get("writer_voice"),
+                  "framing": record.get("framing"), "reader": record.get("reader"), "writer_voice": record.get("writer_voice"),
                   "generator": Path(os.environ.get("MIDTRAIN_TEACHER", "teacher")).name} for record in source_records]
         write_pool_rows(source_name, [document_id_for_text(source_name, text) for text in texts], texts, token_counts, metas)
         by_style: dict[str, int] = {}
@@ -444,7 +474,7 @@ def main() -> None:
     select = commands.add_parser("select")
     select.add_argument("--passage-count", type=int, default=14000,
                         help="one rewrite per passage; the screening design needs about 12,000 kept rewrites")
-    select.add_argument("--seed", type=int, default=20261121)
+    select.add_argument("--seed", type=int, default=20261122)
     serve = commands.add_parser("serve")
     serve.add_argument("--gpu", type=int, required=True)
     serve.add_argument("--port", type=int, required=True)
