@@ -147,9 +147,12 @@ factor_labels = {
     "schedule": {"en": "schedule", "zh": "时间安排"},
 }
 level_words = {"none": "无", "random": "随机", "semantic": "语义", "uniform": "均匀", "late": "靠后", "early": "靠前"}
-design_rows = [("probe/mean/pass@1", {"en": "Δ pass@1", "zh": "Δ pass@1"}),
-               ("probe/mean/pass@16", {"en": "Δ pass@16", "zh": "Δ pass@16"}),
-               ("regression/knowledge_cloze_mean", {"en": "Δ knowledge", "zh": "Δ 知识"})]
+# The rows contrast what the mixture moves with what it does not (README §1.2): few-shot generation of the trained
+# checkpoint, the same tasks after the probe's fine-tune, the knowledge guard, and the math loss as a positive control.
+design_rows = [("regression/few_shot_mean/pass@1", {"en": "Δ few-shot pass@1", "zh": "Δ 少样本 pass@1"}),
+               ("probe/mean/pass@1", {"en": "Δ probe pass@1", "zh": "Δ 探针 pass@1"}),
+               ("regression/knowledge_cloze_mean", {"en": "Δ knowledge", "zh": "Δ 知识"}),
+               ("loss/math_web", {"en": "Δ math loss", "zh": "Δ 数学损失"})]
 
 
 def level_tick_label(level, language: str) -> str:

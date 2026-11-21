@@ -1,0 +1,107 @@
+{
+ "run_name": "screen18_r18_0.8B",
+ "tokens_seen": 40009728,
+ "hours": 1.47,
+ "tokens_by_stream": {
+  "replay_web": 28913664,
+  "wiki_zh": 5099520,
+  "synthetic_rephrase": 901120,
+  "synthetic_qa": 901120,
+  "code": 675840,
+  "textbooks": 270336,
+  "wiki_en": 225280,
+  "math_web": 225280,
+  "forum_qa": 225280,
+  "long_context": 2392064,
+  "papers": 180224
+ },
+ "passes_over_each_stream": {
+  "replay_web": 1,
+  "wiki_zh": 1,
+  "wiki_en": 1,
+  "textbooks": 1,
+  "papers": 1,
+  "forum_qa": 1,
+  "synthetic_rephrase": 1,
+  "synthetic_qa": 1,
+  "math_web": 1,
+  "code": 1,
+  "long_context": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 2.0499,
+   "bits_per_byte": 0.7816
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9626,
+   "bits_per_byte": 1.0348
+  },
+  "math_web": {
+   "nats_per_token": 1.6077,
+   "bits_per_byte": 0.6929
+  },
+  "papers": {
+   "nats_per_token": 1.4395,
+   "bits_per_byte": 0.6649
+  },
+  "replay_web": {
+   "nats_per_token": 3.0299,
+   "bits_per_byte": 0.975
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.5943,
+   "bits_per_byte": 0.8106
+  },
+  "textbooks": {
+   "nats_per_token": 1.8944,
+   "bits_per_byte": 0.6365
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5108,
+   "bits_per_byte": 0.8812
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0788,
+   "bits_per_byte": 1.2008
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 2.0338,
+   "bits_per_byte": 0.7754
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9469,
+   "bits_per_byte": 1.0293
+  },
+  "math_web": {
+   "nats_per_token": 1.6325,
+   "bits_per_byte": 0.7036
+  },
+  "papers": {
+   "nats_per_token": 1.4504,
+   "bits_per_byte": 0.6699
+  },
+  "replay_web": {
+   "nats_per_token": 3.008,
+   "bits_per_byte": 0.968
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.596,
+   "bits_per_byte": 0.8111
+  },
+  "textbooks": {
+   "nats_per_token": 1.891,
+   "bits_per_byte": 0.6353
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5112,
+   "bits_per_byte": 0.8813
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0389,
+   "bits_per_byte": 1.1852
+  }
+ }
+}

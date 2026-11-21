@@ -1,0 +1,105 @@
+{
+ "run_name": "screen18_r08_0.8B",
+ "tokens_seen": 40009728,
+ "hours": 1.46,
+ "tokens_by_stream": {
+  "replay_web": 28905472,
+  "wiki_zh": 5099520,
+  "math_web": 1687552,
+  "code": 1687552,
+  "synthetic_rephrase": 749568,
+  "synthetic_qa": 749568,
+  "textbooks": 339968,
+  "wiki_en": 282624,
+  "forum_qa": 282624,
+  "papers": 225280
+ },
+ "passes_over_each_stream": {
+  "replay_web": 1,
+  "wiki_zh": 1,
+  "wiki_en": 1,
+  "textbooks": 1,
+  "papers": 1,
+  "forum_qa": 1,
+  "synthetic_rephrase": 1,
+  "synthetic_qa": 1,
+  "math_web": 1,
+  "code": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 2.0499,
+   "bits_per_byte": 0.7816
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9626,
+   "bits_per_byte": 1.0348
+  },
+  "math_web": {
+   "nats_per_token": 1.6077,
+   "bits_per_byte": 0.6929
+  },
+  "papers": {
+   "nats_per_token": 1.4395,
+   "bits_per_byte": 0.6649
+  },
+  "replay_web": {
+   "nats_per_token": 3.0299,
+   "bits_per_byte": 0.975
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.5943,
+   "bits_per_byte": 0.8106
+  },
+  "textbooks": {
+   "nats_per_token": 1.8944,
+   "bits_per_byte": 0.6365
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5108,
+   "bits_per_byte": 0.8812
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0788,
+   "bits_per_byte": 1.2008
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 2.019,
+   "bits_per_byte": 0.7698
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9471,
+   "bits_per_byte": 1.0293
+  },
+  "math_web": {
+   "nats_per_token": 1.5951,
+   "bits_per_byte": 0.6874
+  },
+  "papers": {
+   "nats_per_token": 1.4366,
+   "bits_per_byte": 0.6636
+  },
+  "replay_web": {
+   "nats_per_token": 3.0031,
+   "bits_per_byte": 0.9664
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.5846,
+   "bits_per_byte": 0.8076
+  },
+  "textbooks": {
+   "nats_per_token": 1.892,
+   "bits_per_byte": 0.6357
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5014,
+   "bits_per_byte": 0.8779
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0327,
+   "bits_per_byte": 1.1828
+  }
+ }
+}

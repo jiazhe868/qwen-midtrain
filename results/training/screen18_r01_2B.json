@@ -1,0 +1,101 @@
+{
+ "run_name": "screen18_r01_2B",
+ "tokens_seen": 40009728,
+ "hours": 2.69,
+ "tokens_by_stream": {
+  "replay_web": 18706432,
+  "textbooks": 4050944,
+  "wiki_en": 3375104,
+  "forum_qa": 3375104,
+  "code": 3375104,
+  "wiki_zh": 3301376,
+  "papers": 2699264,
+  "math_web": 1126400
+ },
+ "passes_over_each_stream": {
+  "replay_web": 1,
+  "wiki_zh": 1,
+  "wiki_en": 1,
+  "textbooks": 1,
+  "papers": 1,
+  "forum_qa": 1,
+  "math_web": 1,
+  "code": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 1.8781,
+   "bits_per_byte": 0.7161
+  },
+  "forum_qa": {
+   "nats_per_token": 2.7636,
+   "bits_per_byte": 0.9652
+  },
+  "math_web": {
+   "nats_per_token": 1.4575,
+   "bits_per_byte": 0.6281
+  },
+  "papers": {
+   "nats_per_token": 1.3041,
+   "bits_per_byte": 0.6024
+  },
+  "replay_web": {
+   "nats_per_token": 2.7844,
+   "bits_per_byte": 0.896
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.3954,
+   "bits_per_byte": 0.7485
+  },
+  "textbooks": {
+   "nats_per_token": 1.7261,
+   "bits_per_byte": 0.5799
+  },
+  "wiki_en": {
+   "nats_per_token": 2.2672,
+   "bits_per_byte": 0.7957
+  },
+  "wiki_zh": {
+   "nats_per_token": 2.7709,
+   "bits_per_byte": 1.0807
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 1.8437,
+   "bits_per_byte": 0.7029
+  },
+  "forum_qa": {
+   "nats_per_token": 2.7334,
+   "bits_per_byte": 0.9547
+  },
+  "math_web": {
+   "nats_per_token": 1.446,
+   "bits_per_byte": 0.6232
+  },
+  "papers": {
+   "nats_per_token": 1.2963,
+   "bits_per_byte": 0.5987
+  },
+  "replay_web": {
+   "nats_per_token": 2.7638,
+   "bits_per_byte": 0.8894
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.3885,
+   "bits_per_byte": 0.7463
+  },
+  "textbooks": {
+   "nats_per_token": 1.7015,
+   "bits_per_byte": 0.5717
+  },
+  "wiki_en": {
+   "nats_per_token": 2.2543,
+   "bits_per_byte": 0.7912
+  },
+  "wiki_zh": {
+   "nats_per_token": 2.74,
+   "bits_per_byte": 1.0686
+  }
+ }
+}
