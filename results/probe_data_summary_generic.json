@@ -1,0 +1,13 @@
+{
+ "conversations": 6842,
+ "dropped_as_too_long": 58,
+ "tokens": 2025995,
+ "tokens_with_loss": 1042121,
+ "conversations_by_source": {
+  "code_instructions": 2999,
+  "instruction_following": 1500,
+  "rewriting": 800,
+  "summarization": 743,
+  "everyday_conversation": 800
+ }
+}

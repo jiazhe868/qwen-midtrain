@@ -107,6 +107,37 @@ sources:
     max_documents: 320000
     minimum_token_count: 150
 
+  math_web_extra:
+    role: hard
+    description: three more shards of the same FineMath-4+ crawl, for runs of hundreds of millions of tokens (added
+      11-22 as a source of its own, so that runs reading math_web were not disturbed while it was built)
+    hub_dataset: HuggingFaceTB/finemath
+    files: [finemath-4plus/train-00003-of-00064.parquet, finemath-4plus/train-00004-of-00064.parquet, finemath-4plus/train-00005-of-00064.parquet]
+    reader: parquet
+    text_field: text
+    meta_fields: [url, score]
+    license: ODC-By 1.0
+    max_documents: 330000
+    minimum_token_count: 150
+
+  reasoning_qa:
+    role: hard
+    description: questions with worked answers mined from the web (StackExchange, Socratic and other sites) and
+      rewritten by open-weight models (WebInstructSub, from the MAmmoTH2 work); the refined question and answer are kept
+    hub_dataset: TIGER-Lab/WebInstructSub
+    files: [data/train-00000-of-00013.parquet, data/train-00001-of-00013.parquet, data/train-00002-of-00013.parquet,
+            data/train-00003-of-00013.parquet, data/train-00004-of-00013.parquet, data/train-00005-of-00013.parquet,
+            data/train-00006-of-00013.parquet, data/train-00007-of-00013.parquet, data/train-00008-of-00013.parquet,
+            data/train-00009-of-00013.parquet, data/train-00010-of-00013.parquet, data/train-00011-of-00013.parquet,
+            data/train-00012-of-00013.parquet]
+    reader: parquet_question_answer
+    question_field: question
+    text_field: answer
+    meta_fields: [source]
+    license: Apache 2.0
+    max_documents: 2400000
+    minimum_token_count: 60
+
   code:
     role: hard
     description: permissively licensed educational code (Stack-Edu) and Python enhancement proposals

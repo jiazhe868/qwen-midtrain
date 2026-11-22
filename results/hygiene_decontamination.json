@@ -76,9 +76,17 @@
      "documents": 3095,
      "tokens": 16557818
     },
+    "math_web_extra": {
+     "documents": 3103,
+     "tokens": 14210652
+    },
     "papers": {
      "documents": 829,
      "tokens": 26702159
+    },
+    "reasoning_qa": {
+     "documents": 3822,
+     "tokens": 1935632
     },
     "replay_web": {
      "documents": 183,
@@ -115,6 +123,14 @@
       "documents": 13,
       "tokens": 40674
      },
+     "math_web_extra": {
+      "documents": 21,
+      "tokens": 46090
+     },
+     "reasoning_qa": {
+      "documents": 31,
+      "tokens": 9267
+     },
      "replay_web": {
       "documents": 6,
       "tokens": 4686
@@ -141,9 +157,17 @@
       "documents": 2,
       "tokens": 34535
      },
+     "math_web_extra": {
+      "documents": 3,
+      "tokens": 3019
+     },
      "papers": {
       "documents": 1,
       "tokens": 33399
+     },
+     "reasoning_qa": {
+      "documents": 5,
+      "tokens": 2198
      },
      "replay_web": {
       "documents": 1,
@@ -164,6 +188,10 @@
      "math_web": {
       "documents": 4,
       "tokens": 75943
+     },
+     "math_web_extra": {
+      "documents": 11,
+      "tokens": 15851
      }
     },
     "hellaswag": {
@@ -174,6 +202,10 @@
      "math_web": {
       "documents": 2,
       "tokens": 3973
+     },
+     "math_web_extra": {
+      "documents": 1,
+      "tokens": 570
      }
     },
     "humaneval": {
@@ -189,9 +221,17 @@
       "documents": 2093,
       "tokens": 11700955
      },
+     "math_web_extra": {
+      "documents": 2094,
+      "tokens": 10404116
+     },
      "papers": {
       "documents": 561,
       "tokens": 16867477
+     },
+     "reasoning_qa": {
+      "documents": 671,
+      "tokens": 418880
      },
      "replay_web": {
       "documents": 77,
@@ -227,9 +267,17 @@
       "documents": 591,
       "tokens": 3204093
      },
+     "math_web_extra": {
+      "documents": 587,
+      "tokens": 2099808
+     },
      "papers": {
       "documents": 211,
       "tokens": 8786413
+     },
+     "reasoning_qa": {
+      "documents": 2964,
+      "tokens": 1436692
      },
      "replay_web_edu": {
       "documents": 3,
@@ -261,9 +309,17 @@
       "documents": 1749,
       "tokens": 9116221
      },
+     "math_web_extra": {
+      "documents": 1762,
+      "tokens": 8123673
+     },
      "papers": {
       "documents": 349,
       "tokens": 9899116
+     },
+     "reasoning_qa": {
+      "documents": 323,
+      "tokens": 181530
      },
      "replay_web": {
       "documents": 145,
@@ -295,9 +351,17 @@
       "documents": 83,
       "tokens": 757727
      },
+     "math_web_extra": {
+      "documents": 99,
+      "tokens": 541009
+     },
      "papers": {
       "documents": 4,
       "tokens": 125861
+     },
+     "reasoning_qa": {
+      "documents": 55,
+      "tokens": 22323
      },
      "replay_web": {
       "documents": 4,
@@ -328,6 +392,10 @@
      "math_web": {
       "documents": 4,
       "tokens": 5347
+     },
+     "math_web_extra": {
+      "documents": 7,
+      "tokens": 5530
      },
      "papers": {
       "documents": 1,
@@ -370,9 +438,17 @@
      "documents": 3095,
      "tokens": 16557818
     },
+    "math_web_extra": {
+     "documents": 3103,
+     "tokens": 14210652
+    },
     "papers": {
      "documents": 829,
      "tokens": 26702159
+    },
+    "reasoning_qa": {
+     "documents": 3822,
+     "tokens": 1935632
     },
     "replay_web": {
      "documents": 183,
@@ -418,9 +494,17 @@
    "documents": 308181,
    "tokens": 480211280
   },
+  "math_web_extra": {
+   "documents": 308036,
+   "tokens": 474484026
+  },
   "papers": {
    "documents": 59795,
    "tokens": 978803261
+  },
+  "reasoning_qa": {
+   "documents": 2300917,
+   "tokens": 795906149
   },
   "replay_web": {
    "documents": 665813,
@@ -454,46 +538,47 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 3257,
-   "words": 1453,
-   "mostly_numbers": 731,
-   "alphabet": 592
+   "numbers": 5865,
+   "words": 3537,
+   "mostly_numbers": 2684,
+   "alphabet": 872
   },
   "by_task": {
    "mbpp": {
-    "numbers": 2195,
-    "alphabet": 592,
-    "mostly_numbers": 41,
-    "words": 57
+    "numbers": 3930,
+    "alphabet": 872,
+    "mostly_numbers": 60,
+    "words": 108
    },
    "math500": {
-    "words": 268,
-    "numbers": 37,
-    "mostly_numbers": 565
+    "words": 1974,
+    "numbers": 77,
+    "mostly_numbers": 2370
    },
    "humaneval": {
-    "numbers": 3046,
-    "mostly_numbers": 187,
-    "words": 68,
-    "alphabet": 36
+    "numbers": 5495,
+    "mostly_numbers": 340,
+    "words": 192,
+    "alphabet": 75
    },
    "cmmlu": {
-    "words": 714
+    "words": 722
    },
    "mmlu_pro": {
-    "words": 163
+    "words": 312,
+    "mostly_numbers": 5
    },
    "triviaqa": {
-    "words": 141
+    "words": 148
    },
    "hellaswag": {
-    "words": 3
-   },
-   "gsm8k": {
     "words": 4
    },
+   "gsm8k": {
+    "words": 15
+   },
    "arc_challenge": {
-    "words": 50
+    "words": 102
    },
    "commonsenseqa": {
     "words": 4

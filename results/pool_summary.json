@@ -41,6 +41,20 @@
    "documents_of_at_least_4096_tokens": 127
   }
  },
+ "math_web_extra": {
+  "train": {
+   "documents": 306469,
+   "tokens": 472046014,
+   "median_document_tokens": 884,
+   "documents_of_at_least_4096_tokens": 18495
+  },
+  "validation": {
+   "documents": 1567,
+   "tokens": 2438012,
+   "median_document_tokens": 910,
+   "documents_of_at_least_4096_tokens": 97
+  }
+ },
  "papers": {
   "train": {
    "documents": 59525,
@@ -53,6 +67,20 @@
    "tokens": 4744581,
    "median_document_tokens": 12023,
    "documents_of_at_least_4096_tokens": 246
+  }
+ },
+ "reasoning_qa": {
+  "train": {
+   "documents": 2289334,
+   "tokens": 791877778,
+   "median_document_tokens": 309,
+   "documents_of_at_least_4096_tokens": 33
+  },
+  "validation": {
+   "documents": 11583,
+   "tokens": 4028371,
+   "median_document_tokens": 311,
+   "documents_of_at_least_4096_tokens": 2
   }
  },
  "replay_web": {

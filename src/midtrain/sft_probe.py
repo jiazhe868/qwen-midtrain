@@ -46,16 +46,29 @@ import yaml
 from midtrain import eval_tasks
 from midtrain.data_sources import data_root, repository_root, tokenizer_path
 
-probe_configuration_path = repository_root / "configs" / "probe.yaml"
 turn_start, turn_end = "<|im_start|>", "<|im_end|>"
+# Two variants of the probe (README §3.3). "in_domain", the first one, fine-tunes on the training solutions of the
+# tested tasks (GSM8K, MATH, MBPP) and so teaches the test: across the 18 runs of the 0.8B design it made the mixtures
+# indistinguishable (11-21, README §1.2). "generic" fine-tunes on instruction data alone, so what the model shows
+# afterwards on math and code comes from the checkpoint, not from the fine-tune. Each variant has its own config,
+# data folder and results folder; the variant is chosen once per process with --variant.
+probe_variants = {
+    "in_domain": {"configuration": "probe.yaml", "data_folder": "probe", "results_folder": "probe"},
+    "generic": {"configuration": "probe_generic.yaml", "data_folder": "probe_generic", "results_folder": "probe_generic"},
+}
+active_probe_variant = {"name": "in_domain"}
+
+
+def probe_variant_settings() -> dict:
+    return probe_variants[active_probe_variant["name"]]
 
 
 def load_probe_configuration() -> dict:
-    return yaml.safe_load(probe_configuration_path.read_text())
+    return yaml.safe_load((repository_root / "configs" / probe_variant_settings()["configuration"]).read_text())
 
 
 def probe_directory() -> Path:
-    return data_root() / "probe"
+    return data_root() / probe_variant_settings()["data_folder"]
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -114,9 +127,31 @@ def collect_probe_conversations(configuration: dict) -> list[dict]:
     def question_then_answer(item: dict, answer_text: str) -> list[dict]:
         return eval_tasks.render_chat_messages(item) + [{"role": "assistant", "content": answer_text}]
 
-    gsm8k_train = load_dataset("openai/gsm8k", "main", split="train").shuffle(seed=seed)
-    take(gsm8k_train, "gsm8k_train", lambda row: question_then_answer(
-        {"task": "gsm8k", "kind": "numeric", "question": row["question"]}, gsm8k_solution_as_answer(row["answer"])))
+    if wanted.get("gsm8k_train"):
+        gsm8k_train = load_dataset("openai/gsm8k", "main", split="train").shuffle(seed=seed)
+        take(gsm8k_train, "gsm8k_train", lambda row: question_then_answer(
+            {"task": "gsm8k", "kind": "numeric", "question": row["question"]}, gsm8k_solution_as_answer(row["answer"])))
+    if wanted.get("math_train"):
+        take_math_training_solutions(take, question_then_answer, seed)
+    if wanted.get("mbpp_train"):
+        take_mbpp_training_programs(take, question_then_answer)
+
+    smoltalk_subsets = {"code_instructions": "self-oss-instruct", "instruction_following": "smol-constraints",
+                        "summarization": "smol-summarize", "rewriting": "smol-rewrite",
+                        "everyday_conversation": "everyday-conversations"}
+    for source_name, subset_name in smoltalk_subsets.items():
+        if not wanted.get(source_name):
+            continue
+        rows = load_dataset("HuggingFaceTB/smoltalk", subset_name, split="train").shuffle(seed=seed)
+        take(rows, source_name, lambda row: [{"role": message["role"], "content": message["content"]}
+                                             for message in row["messages"]]
+             if row["messages"] and row["messages"][-1]["role"] == "assistant" else None)
+    return conversations
+
+
+def take_math_training_solutions(take, question_then_answer, seed: int) -> None:
+    """MATH training problems with their written solutions (only those that end in a boxed answer)."""
+    from datasets import load_dataset
 
     math_rows = []
     for subject in ("algebra", "counting_and_probability", "geometry", "intermediate_algebra", "number_theory",
@@ -125,6 +160,11 @@ def collect_probe_conversations(configuration: dict) -> list[dict]:
     np.random.default_rng(seed).shuffle(math_rows)
     take(math_rows, "math_train", lambda row: question_then_answer(
         {"task": "math500", "kind": "numeric", "question": row["problem"]}, row["solution"]) if "\\boxed" in row["solution"] else None)
+
+
+def take_mbpp_training_programs(take, question_then_answer) -> None:
+    """MBPP training and validation tasks with their reference programs."""
+    from datasets import load_dataset
 
     # MBPP task ids: 11-510 are the test split, 511-600 validation, 601-974 train. The probe trains on the last two,
     # so none of the tested tasks is seen; the assert keeps that true if the hub files ever change.
@@ -140,16 +180,6 @@ def collect_probe_conversations(configuration: dict) -> list[dict]:
         return question_then_answer(item, f"```python\n{row['code'].strip()}\n```")
 
     take(mbpp_rows, "mbpp_train", mbpp_question_then_answer)
-
-    smoltalk_subsets = {"code_instructions": "self-oss-instruct", "instruction_following": "smol-constraints",
-                        "summarization": "smol-summarize", "rewriting": "smol-rewrite",
-                        "everyday_conversation": "everyday-conversations"}
-    for source_name, subset_name in smoltalk_subsets.items():
-        rows = load_dataset("HuggingFaceTB/smoltalk", subset_name, split="train").shuffle(seed=seed)
-        take(rows, source_name, lambda row: [{"role": message["role"], "content": message["content"]}
-                                             for message in row["messages"]]
-             if row["messages"] and row["messages"][-1]["role"] == "assistant" else None)
-    return conversations
 
 
 def build_probe_data() -> None:
@@ -186,7 +216,8 @@ def build_probe_data() -> None:
     summary = {"conversations": len(kept_conversations), "dropped_as_too_long": dropped_as_too_long,
                "tokens": int(offsets[-1]), "tokens_with_loss": int(sum(int(row.sum()) for row in loss_mask_rows)),
                "conversations_by_source": by_source}
-    (repository_root / "results" / "probe_data_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+    summary_name = "probe_data_summary.json" if active_probe_variant["name"] == "in_domain" else f"probe_data_summary_{active_probe_variant['name']}.json"
+    (repository_root / "results" / summary_name).write_text(json.dumps(summary, indent=1) + "\n")
     print(json.dumps(summary, indent=1))
 
 
@@ -520,10 +551,12 @@ def port_for_this_process() -> int:
 
 
 def write_probe_results(run_name: str, results: dict) -> None:
-    results_directory = repository_root / "results" / "probe"
+    results["probe_variant"] = active_probe_variant["name"]
+    results_directory = repository_root / "results" / probe_variant_settings()["results_folder"]
     results_directory.mkdir(parents=True, exist_ok=True)
     (results_directory / f"{run_name}.json").write_text(json.dumps(results, indent=1) + "\n")
-    (data_root() / "runs" / run_name / "probe_results.json").write_text(json.dumps(results, indent=1) + "\n")
+    run_file_name = "probe_results.json" if active_probe_variant["name"] == "in_domain" else f"probe_results_{active_probe_variant['name']}.json"
+    (data_root() / "runs" / run_name / run_file_name).write_text(json.dumps(results, indent=1) + "\n")
 
 
 def main() -> None:
@@ -539,7 +572,10 @@ def main() -> None:
                         help="20 fine-tuning steps, 12 items per task, 8 samples: checks that every stage runs, in minutes")
     parser.add_argument("--training-seed", type=int, default=None,
                         help="another batch order for the fine-tune; only for measuring the probe's own noise (README §3.4)")
+    parser.add_argument("--variant", choices=list(probe_variants), default="in_domain",
+                        help="in_domain: fine-tunes on the tested tasks' training solutions; generic: instruction data only")
     arguments = parser.parse_args()
+    active_probe_variant["name"] = arguments.variant
     step_count_limit, item_count_limit = (20, 12) if arguments.quick_test else (None, None)
     if arguments.command == "build-data":
         build_probe_data()
@@ -552,7 +588,7 @@ def main() -> None:
         return
     import shutil
 
-    probe_checkpoint = data_root() / "runs" / arguments.run_name / "probe_checkpoint"
+    probe_checkpoint = data_root() / "runs" / arguments.run_name / f"probe_checkpoint_{arguments.variant}"
     training_summary = train_probe(arguments.checkpoint, probe_checkpoint, arguments.tokens_per_forward,
                                    arguments.master_weights_on, step_count_limit, arguments.training_seed)
     print(f"{arguments.run_name}: probe fine-tune {json.dumps(training_summary)}", flush=True)

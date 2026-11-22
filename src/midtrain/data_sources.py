@@ -119,6 +119,16 @@ def iterate_raw_documents(source_specification: dict) -> Iterator[tuple[str, dic
             for record_batch in parquet_file.iter_batches(batch_size=2048, columns=columns):
                 for row in record_batch.to_pylist():
                     yield row[text_field], {name: row[name] for name in columns[1:]}
+        elif source_specification["reader"] == "parquet_question_answer":
+            # one question and its worked answer per row (WebInstructSub): kept as plain text with two labels, the
+            # form in which question-answer data enters mid-training mixtures
+            question_field, answer_field = source_specification["question_field"], text_field
+            parquet_file = pq.ParquetFile(raw_path)
+            columns = [question_field, answer_field] + [name for name in wanted_meta_fields if name in parquet_file.schema_arrow.names]
+            for record_batch in parquet_file.iter_batches(batch_size=2048, columns=columns):
+                for row in record_batch.to_pylist():
+                    yield (f"Question: {row[question_field].strip()}\n\nAnswer: {row[answer_field].strip()}",
+                           {name: row[name] for name in columns[2:]})
         elif source_specification["reader"] == "dolma_json_gz":
             # the Common Pile's layout: top-level id/text/source, everything else under "metadata"
             with gzip.open(raw_path, "rt", encoding="utf-8") as raw_file:
