@@ -2,7 +2,7 @@
 
 # qwen-midtrain
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md) | [Hugging Face 上的数据](https://huggingface.co/datasets/jiazhe868/qwen-midtrain-data) | [Hugging Face 上的检查点](https://huggingface.co/jiazhe868/qwen-midtrain-checkpoints)
 
 在通用文本上对 Qwen3.5 基座模型做继续预训练（continued pretraining），也就是“中期训练”（mid-training）。要回答的问题是：这些文本怎样配比（mixture）、精选（curation）和打包（packing），才能让基座模型微调得更好、在 k 次尝试内解出更多的题，同时不丢掉原来会的东西。小模型（0.8B、2B）负责做实验，4B 用来验证，9B 是目标。硬件：一台工作站上的四张 A100 40 GB GPU，以及一个 Slurm 集群的 A100 节点。
 
@@ -16,7 +16,7 @@
 　　　　               下一批配方 ◄───── "不遗忘"约束下的最优解 ◄───── 混合定律、干扰矩阵 ◄───┘
 ```
 
-> **状态，2026-11-20（第 1 天）。** 文本池（pool）、训练器、配比采样器、带判分器的评测集、微调探针（probe）和集群队列都已搭好并通过测试。0.8B 模型上的六次预实验（pilot）正在进行。第 13 节记录了预测，它们写在任何探针结果出现之前。标有*计划中*的章节，描述的是还没有写或还没有运行的代码。每出一个结果，本文件就更新一次。
+> **状态，2026-11-22。** 0.8B 模型上 18 次运行的筛选设计已经分析完（§1.2）：每次 4,000 万 token 时，配比会改变损失和少样本分数，而在被测任务自己的解答上做的微调会抹平这些差别。剂量实验（每次 3 亿 token，用贪心少样本准确率和通用探针来评判）正在运行。文本池、改写文本、探针数据和所有检查点都放在 Hugging Face Hub 上（§2）。第 13 节记录了写在任何探针结果出现之前的预测，以及到目前为止的结果。每出一个结果，本文件就更新一次。
 
 ## 概要
 
@@ -213,6 +213,11 @@
 # --- 环境 ------------------------------------------------------------------------------------------------------
 cp site.env.example site.env            # 数据、模型和 Python 环境在这台机器上的位置
 source scripts/env.sh                   # 设置 MIDTRAIN_DATA、MIDTRAIN_MODELS、MIDTRAIN_PYTHON、PYTHONPATH=src
+
+# --- 快速做法：从 Hugging Face Hub 取文本池、打包序列、改写文本、探针数据和检查点 ------------------------------------
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # 约 19 GB，放进 $MIDTRAIN_DATA
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
+# （然后构建下面的评测集；这一块的其余步骤都可以跳过）
 
 # --- 文本池：下载、规范化、分词（CPU，约一小时）-------------------------------------------------------------------
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.data_sources download
@@ -661,6 +666,7 @@ src/midtrain/
   base_regression.py      回归测试套件：把检查点当作基座模型来测
   mixing_law.py           正交设计、配比定律、干扰矩阵、逐题配对比较
   figures.py              本 README 的所有图，都从 results/ 画出
+  hub.py                  数据和检查点上传到 Hugging Face Hub，或从那里下载
 tests/                    每个模块一个文件
 results/                  小的结果文件；本 README 中的每个数字都出自其中之一
 assets/                   图：README 用的 PNG 和 PDF，中英文各一份

@@ -2,7 +2,7 @@
 
 # qwen-midtrain
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md) | [data on Hugging Face](https://huggingface.co/datasets/jiazhe868/qwen-midtrain-data) | [checkpoints on Hugging Face](https://huggingface.co/jiazhe868/qwen-midtrain-checkpoints)
 
 Continued pretraining ("mid-training") of the Qwen3.5 base models on general-purpose text. The question is which
 mixture, curation and packing of that text leaves a base model that fine-tunes better and can solve more problems
@@ -19,10 +19,12 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
                     next recipes ◄── optimum under "no forgetting" ◄── mixing law, interference matrix ◄┘
 ```
 
-> **Status, 2026-11-20 (day 1).** The pool, the trainer, the mixture sampler, the evaluation sets with graders, the
-> fine-tuning probe and the cluster queue are built and tested. Six pilot runs on the 0.8B model are in progress.
-> Section 13 holds the predictions, written before any probe result existed. Sections marked *planned* describe
-> code that is not written or not run yet. This file is updated with every result.
+> **Status, 2026-11-22.** The 18-run screening design on the 0.8B model is analysed (§1.2): at 40M tokens per run
+> the mixture moves the losses and the few-shot scores, and a fine-tune on the tested tasks' own solutions erases the
+> difference. The dose experiment (300M tokens per run, judged by greedy few-shot accuracy and a generic probe) is
+> running. The pool, the rewritten text, the probe data and every checkpoint are on the Hugging Face Hub (§2).
+> Section 13 holds the predictions, written before any probe result existed, with their outcomes so far. This file
+> is updated with every result.
 
 ## Summary
 
@@ -330,6 +332,11 @@ minutes of sampling, the evaluations of one 2B design run take about two hours o
 # --- environment -----------------------------------------------------------------------------------------------
 cp site.env.example site.env            # where the data, the models and the Python environment live on this machine
 source scripts/env.sh                   # sets MIDTRAIN_DATA, MIDTRAIN_MODELS, MIDTRAIN_PYTHON, PYTHONPATH=src
+
+# --- the fast way: the pool, packs, rewrites, probe data and checkpoints from the Hugging Face Hub ----------------
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # about 19 GB into $MIDTRAIN_DATA
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
+# (then the evaluation sets below; everything else of this block can be skipped)
 
 # --- the pool: download, normalise, tokenize (CPU, about an hour) -------------------------------------------------
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.data_sources download
@@ -992,6 +999,7 @@ src/midtrain/
   base_regression.py      the regression suite: the checkpoint as a base model
   mixing_law.py           the orthogonal design, the mixing law, the interference matrix, paired comparisons
   figures.py              every figure of this README, drawn from results/
+  hub.py                  data and checkpoints to and from the Hugging Face Hub
 tests/                    one file per module
 results/                  small result files; every number in this README comes from one of them
 assets/                   the figures, PNG for the README and PDF, in English and Chinese
