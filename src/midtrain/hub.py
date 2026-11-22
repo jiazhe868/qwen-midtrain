@@ -15,7 +15,7 @@ hard links that mirrors the repository layout (data_root()/hub_staging), so noth
 the published folders can leave the machine.
 
 Commands (after `source scripts/env.sh`; HF_HUB_OFFLINE=0 for anything that reaches the hub):
-    $MIDTRAIN_PYTHON -m midtrain.hub download-data                         # about 19 GB into $MIDTRAIN_DATA
+    $MIDTRAIN_PYTHON -m midtrain.hub download-data                         # about 28 GB into $MIDTRAIN_DATA
     $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
     $MIDTRAIN_PYTHON -m midtrain.hub upload-data                           # maintainer only
     $MIDTRAIN_PYTHON -m midtrain.hub upload-checkpoints --runs screen18_r01_0.8B ...   # maintainer only

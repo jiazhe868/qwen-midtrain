@@ -215,7 +215,7 @@ cp site.env.example site.env            # 数据、模型和 Python 环境在这
 source scripts/env.sh                   # 设置 MIDTRAIN_DATA、MIDTRAIN_MODELS、MIDTRAIN_PYTHON、PYTHONPATH=src
 
 # --- 快速做法：从 Hugging Face Hub 取文本池、打包序列、改写文本、探针数据和检查点 ------------------------------------
-env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # 约 19 GB，放进 $MIDTRAIN_DATA
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # 约 28 GB，放进 $MIDTRAIN_DATA
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
 # （然后构建下面的评测集；这一块的其余步骤都可以跳过）
 

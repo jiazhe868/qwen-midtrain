@@ -334,7 +334,7 @@ cp site.env.example site.env            # where the data, the models and the Pyt
 source scripts/env.sh                   # sets MIDTRAIN_DATA, MIDTRAIN_MODELS, MIDTRAIN_PYTHON, PYTHONPATH=src
 
 # --- the fast way: the pool, packs, rewrites, probe data and checkpoints from the Hugging Face Hub ----------------
-env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # about 19 GB into $MIDTRAIN_DATA
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # about 28 GB into $MIDTRAIN_DATA
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
 # (then the evaluation sets below; everything else of this block can be skipped)
 
