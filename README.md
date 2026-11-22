@@ -282,6 +282,28 @@ runs therefore give the 0.8B model 300M tokens, 7.5 times the dose, of a reasoni
 3e-5. WebInstructSub's 2.3M question-answer pairs (Apache-2.0) passed the decontamination gate with 3,822 flagged
 and left out.
 
+**The first dose runs made the model worse.** Every run of 300M tokens ends below the base model, the replay-only
+control included, and the higher the learning rate the larger the loss (greedy accuracy on the full test sets;
+`results/final_eval/`, `results/regression/`, `results/training/`):
+
+| run (300M tokens) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
+|---|---|---|---|---|---|---|
+| base model | 42.7 | 23.0 | 21.3 | 37.4 | 34.7 | — |
+| reasoning mix, 1e-5 | 40.1 | 21.0 | 20.1 | 31.9 | 34.5 | +0.2% |
+| reasoning mix, 3e-5 | 33.5 | 17.2 | 12.2 | 22.2 | 32.0 | +3.0% |
+| reasoning mix, 1e-4 | 18.4 | 11.2 | 3.7 | 7.4 | 26.8 | +9.7% |
+| replay only, 3e-5 | 28.2 | 8.6 | 7.3 | 18.3 | 32.9 | +0.9% |
+
+The control trained on FineWeb-Edu, and its loss on held-out FineWeb-Edu rose. Training on a distribution should
+not make held-out text of that distribution worse, so this is not a mixture effect: a re-warmed learning rate
+pushes the model out of the optimum its own training annealed it into, and 300M tokens of decay do not bring it
+back. At 3e-6 and 40M tokens (design run 1) every held-out loss had improved, by 0.3% to 1.8%; at 300M tokens,
+1e-5 is already too much. The reasoning text does what it was chosen for in loss (its own validation loss falls by
+20% at 1e-5) and still costs accuracy everywhere. **A strong, annealed base model is easier to damage than to
+improve: the learning rate has to stay near the end of its own schedule.** The next runs test 3e-6 at the same
+dose, a question-answer-heavy mixture, weight interpolation with the base, and worked solutions written by the
+teacher for the training problems of GSM8K and MATH.
+
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
 
