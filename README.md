@@ -251,6 +251,35 @@ Caveats, plainly:
   mean of 60.0, within one run's noise); it is not a proposal.
 - One seed per run, 40M tokens per run, one model size so far.
 
+**A probe that teaches the test.** The first probe fine-tunes on about 15,000 training solutions of GSM8K, MATH
+and MBPP before it tests those tasks. A second probe (`configs/probe_generic.yaml`) fine-tunes on 6,842
+instruction conversations alone: general Python tasks, constraints, summaries, rewrites and everyday conversation,
+none of them from a tested task. On the 0.8B base model the generic probe scores higher on every task, so the
+training solutions did more than flatten the mixtures: their terse style (GSM8K's calculator notes, MATH's short
+solutions) is worse than the model's own. From here on the generic probe is the check after post-training, and the
+main measure is the base model's few-shot accuracy, the standard yardstick of mid-training, on the full test sets
+with greedy decoding (`base_regression.py final`):
+
+| task | first probe, pass@1 | generic probe, pass@1 | 0.8B base, greedy few-shot | 2B base, greedy few-shot |
+|---|---|---|---|---|
+| GSM8K | 37.2 | 39.8 | 42.7 | 61.6 |
+| MATH-500 | 13.6 | 22.8 | 23.0 | 37.2 |
+| HumanEval | 9.6 | 15.4 | 21.3 | 34.1 |
+| MBPP | 22.8 | 29.0 | 37.4 | 49.4 |
+
+(`results/probe/base_0.8B.json`, `results/probe_generic/base_0.8B.json`, `results/final_eval/base_*.json`.) Greedy
+answers that hit the length limit (MATH-500: 22.8% for the 0.8B, 14.4% for the 2B) are mostly loops that repeat an
+equation; they count as wrong, for every model alike.
+
+**The dose experiment.** The design gave each run 40M tokens at a peak learning rate of at most 1e-5, and the
+losses moved by about 1%. Published mid-training gains come from hundreds of millions of tokens and more. The next
+runs therefore give the 0.8B model 300M tokens, 7.5 times the dose, of a reasoning-dense mixture: FineMath pages
+(25%), questions with worked answers mined from the web (WebInstructSub, 25%), the teacher's rewrites (5%), code
+(7%) and textbooks (3%), with 35% replay of educational web text and Chinese Wikipedia
+(`configs/recipes/dose/`). It runs at peak learning rates of 1e-5, 3e-5 and 1e-4, against a replay-only control at
+3e-5. WebInstructSub's 2.3M question-answer pairs (Apache-2.0) passed the decontamination gate with 3,822 flagged
+and left out.
+
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
 
