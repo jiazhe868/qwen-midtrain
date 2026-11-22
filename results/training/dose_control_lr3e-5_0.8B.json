@@ -1,0 +1,105 @@
+{
+ "run_name": "dose_control_lr3e-5_0.8B",
+ "tokens_seen": 300023808,
+ "hours": 10.83,
+ "tokens_by_stream": {
+  "replay_web_edu": 255021056,
+  "wiki_zh": 45002752
+ },
+ "passes_over_each_stream": {
+  "replay_web_edu": 1,
+  "wiki_zh": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 2.0499,
+   "bits_per_byte": 0.7816
+  },
+  "forum_qa": {
+   "nats_per_token": 2.9626,
+   "bits_per_byte": 1.0348
+  },
+  "math_web": {
+   "nats_per_token": 1.6077,
+   "bits_per_byte": 0.6929
+  },
+  "math_web_extra": {
+   "nats_per_token": 1.7773,
+   "bits_per_byte": 0.7563
+  },
+  "papers": {
+   "nats_per_token": 1.4395,
+   "bits_per_byte": 0.6649
+  },
+  "reasoning_qa": {
+   "nats_per_token": 0.7544,
+   "bits_per_byte": 0.3412
+  },
+  "replay_web": {
+   "nats_per_token": 3.0299,
+   "bits_per_byte": 0.975
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.5943,
+   "bits_per_byte": 0.8106
+  },
+  "textbooks": {
+   "nats_per_token": 1.8944,
+   "bits_per_byte": 0.6365
+  },
+  "wiki_en": {
+   "nats_per_token": 2.5108,
+   "bits_per_byte": 0.8812
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.0788,
+   "bits_per_byte": 1.2008
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 2.5721,
+   "bits_per_byte": 0.9806
+  },
+  "forum_qa": {
+   "nats_per_token": 3.1209,
+   "bits_per_byte": 1.0901
+  },
+  "math_web": {
+   "nats_per_token": 1.8647,
+   "bits_per_byte": 0.8036
+  },
+  "math_web_extra": {
+   "nats_per_token": 2.0087,
+   "bits_per_byte": 0.8547
+  },
+  "papers": {
+   "nats_per_token": 1.699,
+   "bits_per_byte": 0.7848
+  },
+  "reasoning_qa": {
+   "nats_per_token": 1.0177,
+   "bits_per_byte": 0.4603
+  },
+  "replay_web": {
+   "nats_per_token": 3.1287,
+   "bits_per_byte": 1.0068
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.6169,
+   "bits_per_byte": 0.8177
+  },
+  "textbooks": {
+   "nats_per_token": 2.005,
+   "bits_per_byte": 0.6736
+  },
+  "wiki_en": {
+   "nats_per_token": 2.629,
+   "bits_per_byte": 0.9227
+  },
+  "wiki_zh": {
+   "nats_per_token": 3.2035,
+   "bits_per_byte": 1.2494
+  }
+ }
+}

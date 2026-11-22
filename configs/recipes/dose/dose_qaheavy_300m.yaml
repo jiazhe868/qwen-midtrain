@@ -1,0 +1,21 @@
+# A question-answer-heavy mixture of the dose experiment (README §1.2), 300M tokens.
+#
+# Why. In the first dose runs (300M tokens) every mixture made the 0.8B model worse than the base, and the replay-only
+# control did too, so web text was no neutral anchor (its own held-out loss rose 0.9%). This recipe keeps web text
+# small (10% FineWeb-Edu, 15% FineMath pages) and makes questions with worked answers the largest part (45%), the
+# kind of text a strong base model met last in its own training.
+token_budget: 300023808           # 9,156 steps of 32,768 tokens
+context_length: 4096
+components:
+  reasoning_qa: 0.45
+  math_web: 0.10
+  math_web_extra: 0.05
+  synthetic_rephrase: 0.025
+  synthetic_qa: 0.025
+  code: 0.10
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.10
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1

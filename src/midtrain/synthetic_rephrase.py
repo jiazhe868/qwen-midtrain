@@ -449,6 +449,137 @@ def publish_rewrites_to_pool(batch_name: str, styles_left_out: list[str] | None 
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# solve: worked solutions by the teacher for training-split math problems, kept only when the answer is right
+# ---------------------------------------------------------------------------------------------------------------
+# Why. Rewrites keep a passage's facts and change its form; they did not make the 0.8B model better at mathematics
+# at 300M tokens (README §1.2). A stronger model's worked solutions to problems with known answers carry the skill
+# itself: the teacher (Qwen3.8-27B) solves the training problems of GSM8K and MATH (both MIT), several times each, and
+# only solutions whose final answer the project's graders accept are kept. The test splits are never read.
+solution_instruction = (
+    "Solve the problem step by step. Write each step as a short sentence or an equation, check the result, and end "
+    "with the sentence 'The final answer is \\boxed{...}.'")
+math_train_subjects = ("algebra", "counting_and_probability", "geometry", "intermediate_algebra", "number_theory",
+                       "prealgebra", "precalculus")
+
+
+def load_training_problems() -> list[dict]:
+    """GSM8K and MATH training problems with their reference answers; figures in Asymptote code are left out."""
+    from datasets import load_dataset
+
+    from midtrain.eval_tasks import find_last_boxed_content
+
+    problems = []
+    for row_index, row in enumerate(load_dataset("openai/gsm8k", "main", split="train")):
+        problems.append({"problem_id": f"gsm8k_train:{row_index}", "task": "gsm8k", "problem": row["question"].strip(),
+                         "reference_answer": row["answer"].partition("####")[2].strip().replace(",", "")})
+    for subject in math_train_subjects:
+        for row_index, row in enumerate(load_dataset("EleutherAI/hendrycks_math", subject, split="train")):
+            reference = find_last_boxed_content(row["solution"])
+            if reference and "[asy]" not in row["problem"]:
+                problems.append({"problem_id": f"math_train:{subject}:{row_index}", "task": "math",
+                                 "problem": row["problem"].strip(), "reference_answer": reference.strip(),
+                                 "level": row["level"]})
+    return problems
+
+
+def ask_teacher_for_solutions(endpoint: str, problem_text: str, sample_count: int, temperature: float,
+                              maximum_new_tokens: int) -> list[tuple[str, str]]:
+    """`sample_count` independent solutions of one problem in one request: (text, finish reason) each."""
+    request_body = {
+        "model": "teacher", "n": sample_count, "max_tokens": maximum_new_tokens, "temperature": temperature,
+        "top_p": 0.95, "chat_template_kwargs": {"enable_thinking": False},
+        "messages": [{"role": "user", "content": f"{solution_instruction}\n\nProblem:\n{problem_text}"}]}
+    request = urllib.request.Request(f"{endpoint}/v1/chat/completions", json.dumps(request_body).encode("utf-8"),
+                                     {"Content-Type": "application/json"})
+    response = json.load(urllib.request.urlopen(request, timeout=3600))
+    return [((choice["message"].get("content") or "").strip(), choice.get("finish_reason") or "")
+            for choice in response["choices"]]
+
+
+def solve_training_problems(endpoints: list[str], samples_per_problem: int, temperature: float,
+                            maximum_new_tokens: int, requests_in_flight_per_endpoint: int) -> None:
+    """Append one record per solution to synthetic/solutions/solutions.jsonl; a restart skips solved problems."""
+    from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
+
+    problems = load_training_problems()
+    output_path = synthetic_directory("solutions") / "solutions.jsonl"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    finished_ids = {record["problem_id"] for record in read_json_lines(output_path)} if output_path.exists() else set()
+    todo = [problem for problem in problems if problem["problem_id"] not in finished_ids]
+    print(f"{len(problems)} problems, {len(finished_ids)} already solved, {len(todo)} to do on {len(endpoints)} teacher(s)",
+          flush=True)
+    write_lock = threading.Lock()
+    counts = {"problems": 0, "solutions": 0, "correct": 0, "failed_requests": 0}
+    started = time.time()
+
+    def do_one(job_index: int) -> None:
+        problem = todo[job_index]
+        try:
+            solutions = ask_teacher_for_solutions(endpoints[job_index % len(endpoints)], problem["problem"],
+                                                  samples_per_problem, temperature, maximum_new_tokens)
+        except OSError:
+            with write_lock:
+                counts["failed_requests"] += 1
+            return
+        records = []
+        for sample_index, (solution_text, finish_reason) in enumerate(solutions):
+            predicted = find_last_boxed_content(solution_text)
+            is_correct = bool(finish_reason == "stop" and predicted is not None
+                              and is_math_answer_equivalent(predicted, problem["reference_answer"]))
+            records.append({**problem, "sample_index": sample_index, "solution": solution_text,
+                            "finish_reason": finish_reason, "predicted_answer": predicted, "is_correct": is_correct})
+        with write_lock:
+            with output_path.open("a") as output_file:
+                for record in records:
+                    output_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            counts["problems"] += 1
+            counts["solutions"] += len(records)
+            counts["correct"] += sum(record["is_correct"] for record in records)
+            if counts["problems"] % 500 == 0:
+                print(f"{counts['problems']} problems in {(time.time() - started) / 60:.0f} min: {counts['correct']} of "
+                      f"{counts['solutions']} solutions correct, {counts['failed_requests']} failed requests", flush=True)
+
+    with concurrent.futures.ThreadPoolExecutor(requests_in_flight_per_endpoint * len(endpoints)) as request_pool:
+        list(request_pool.map(do_one, range(len(todo))))
+    print(json.dumps(counts), flush=True)
+
+
+def publish_solutions_to_pool(maximum_per_problem: int) -> None:
+    """Correct, finished and distinct solutions, at most `maximum_per_problem` per problem, become the pool source
+    `synthetic_solutions`, as plain text: the problem, then the worked solution."""
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
+    records = read_json_lines(synthetic_directory("solutions") / "solutions.jsonl")
+    kept_by_problem: dict[str, list] = {}
+    seen_texts = set()
+    for record in records:
+        if not record["is_correct"] or record["solution"] in seen_texts:
+            continue
+        kept = kept_by_problem.setdefault(record["problem_id"], [])
+        if len(kept) < maximum_per_problem:
+            kept.append(record)
+            seen_texts.add(record["solution"])
+    kept_records = [record for kept in kept_by_problem.values() for record in kept]
+    texts = [f"Question: {record['problem']}\n\nAnswer: {record['solution']}" for record in kept_records]
+    token_counts = [len(ids) for ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
+    metas = [{"problem_id": record["problem_id"], "task": record["task"], "sample_index": record["sample_index"],
+              "generator": Path(os.environ.get("MIDTRAIN_TEACHER", "teacher")).name} for record in kept_records]
+    write_pool_rows("synthetic_solutions", [document_id_for_text("synthetic_solutions", text) for text in texts], texts,
+                    token_counts, metas)
+    problem_count = len({record["problem_id"] for record in records})
+    summary = {"problems": problem_count, "solutions": len(records),
+               "correct": sum(record["is_correct"] for record in records),
+               "problems_with_a_correct_solution": len(kept_by_problem), "published_solutions": len(kept_records),
+               "published_tokens": int(sum(token_counts)), "maximum_per_problem": maximum_per_problem,
+               "correct_share_by_task": {task: round(sum(r["is_correct"] for r in records if r["task"] == task)
+                                                     / max(1, sum(1 for r in records if r["task"] == task)), 4)
+                                         for task in ("gsm8k", "math")}}
+    (repository_root / "results" / "synthetic_solutions_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(json.dumps(summary, indent=1))
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # check-sample: the diversity gate on a batch's rewrites against the passages they were written from
 # ---------------------------------------------------------------------------------------------------------------
 def check_sample_against_parents(batch_name: str, documents_per_source: int, device: str, seed: int,
@@ -597,6 +728,14 @@ def main() -> None:
     check_styles.add_argument("--results-name", default="rewrites.jsonl")
     check_styles.add_argument("--token-sample-size", type=int, default=100_000)
     check_styles.add_argument("--device", default="cpu")
+    solve = commands.add_parser("solve")
+    solve.add_argument("--endpoint", action="append", required=True)
+    solve.add_argument("--samples-per-problem", type=int, default=8)
+    solve.add_argument("--temperature", type=float, default=1.0)
+    solve.add_argument("--maximum-new-tokens", type=int, default=1024)
+    solve.add_argument("--requests-in-flight-per-endpoint", type=int, default=24)
+    publish_solutions = commands.add_parser("publish-solutions")
+    publish_solutions.add_argument("--maximum-per-problem", type=int, default=4)
     publish = commands.add_parser("publish")
     for command_parser in (select, generate, check_sample, check_styles, publish):
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
@@ -611,6 +750,11 @@ def main() -> None:
         generate_rewrites(arguments.batch, arguments.endpoint, arguments.requests_in_flight_per_endpoint,
                           arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites, arguments.styles,
                           arguments.results_name)
+    elif arguments.command == "solve":
+        solve_training_problems(arguments.endpoint, arguments.samples_per_problem, arguments.temperature,
+                                arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint)
+    elif arguments.command == "publish-solutions":
+        publish_solutions_to_pool(arguments.maximum_per_problem)
     elif arguments.command == "check-styles":
         check_styles_against_parents(arguments.batch, arguments.results_name, arguments.token_sample_size, arguments.device)
     elif arguments.command == "check-sample":
