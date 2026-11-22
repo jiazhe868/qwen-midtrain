@@ -34,7 +34,6 @@ import gc
 import json
 import math
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -56,6 +55,19 @@ few_shot_generation_settings = {
         "humaneval": {"item_count": 164, "maximum_new_tokens": 384},
         "mbpp": {"item_count": 200, "maximum_new_tokens": 384},
         "triviaqa": {"item_count": 1000, "maximum_new_tokens": 24, "sample_count": 1, "temperature": 0.0},
+    },
+}
+# The final evaluation of the dose experiment (README §1.3): every test item once, greedy, with the few-shot prompts
+# of the regression suite. Sampled pass@1 on 200-250 items ranks runs well enough; a claim about the size of a gain
+# wants the whole test set and the decoding that published base-model results use. The answer limits are longer than
+# in the sampled suite, because a model trained on worked solutions writes longer ones; the cut share is recorded.
+final_generation_settings = {
+    "sample_count": 1, "temperature": 0.0, "top_p": 1.0, "item_seed": 20261120, "pass_at_k": [1],
+    "tasks": {
+        "gsm8k": {"item_count": 1319, "maximum_new_tokens": 512},
+        "math500": {"item_count": 500, "maximum_new_tokens": 768},
+        "humaneval": {"item_count": 164, "maximum_new_tokens": 512},
+        "mbpp": {"item_count": 257, "maximum_new_tokens": 512},
     },
 }
 long_document_token_count = 16384          # the long training sequence length (configs/designs/screen18.yaml)
@@ -319,9 +331,22 @@ def add_cloze_scores(checkpoint_path: str, run_name: str, tokens_per_forward: in
     return {name: value for name, value in scores.items() if name.startswith(("cloze/", "knowledge_cloze"))}
 
 
+def run_final_evaluation(checkpoint_path: str, run_name: str) -> dict:
+    """Greedy few-shot accuracy on the full test sets; writes results/final_eval/<run>.json."""
+    generation = sft_probe.evaluate_pass_at_k(checkpoint_path, f"{run_name}_final", sft_probe.port_for_this_process(),
+                                              prompt_style="base",
+                                              evaluation_settings=json.loads(json.dumps(final_generation_settings)))
+    results = {"run_name": run_name, "decoding": "greedy, one answer per item", "tasks": generation["tasks"]}
+    results_directory = repository_root / "results" / "final_eval"
+    results_directory.mkdir(parents=True, exist_ok=True)
+    (results_directory / f"{run_name}.json").write_text(json.dumps(results) + "\n")
+    return {task_name: {"accuracy": task["pass@1"]["value"], "items": len(task["item_ids"]),
+                        "cut": task.get("share_cut_at_token_limit")} for task_name, task in generation["tasks"].items()}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["run", "add-cloze"])
+    parser.add_argument("command", choices=["run", "add-cloze", "final"])
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--tokens-per-forward", type=int, default=16384)
@@ -329,6 +354,10 @@ def main() -> None:
     arguments = parser.parse_args()
     if arguments.command == "add-cloze":
         print(json.dumps(add_cloze_scores(arguments.checkpoint, arguments.run_name, arguments.tokens_per_forward), indent=1))
+        return
+    if arguments.command == "final":
+        (data_root() / "runs" / arguments.run_name).mkdir(parents=True, exist_ok=True)
+        print(json.dumps(run_final_evaluation(arguments.checkpoint, arguments.run_name), indent=1))
         return
     (data_root() / "runs" / arguments.run_name).mkdir(parents=True, exist_ok=True)
     results = run_regression_suite(arguments.checkpoint, arguments.run_name, arguments.tokens_per_forward, arguments.quick_test)
