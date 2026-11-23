@@ -122,7 +122,7 @@ now catch them.
 | Probe | fixed fine-tune on 22,161 conversations (6.18M tokens, 3.49M of them with loss), 2 epochs, then 64 samples per question on GSM8K, MATH-500, HumanEval and MBPP (`results/probe_data_summary.json`) |
 | Regression suite | MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA, CMMLU, TriviaQA, plus few-shot GSM8K, MATH-500, HumanEval, MBPP on the base checkpoint (*planned*, §3.2) |
 | Hardware | 4 x A100 40 GB on a workstation shared with other jobs; A100 nodes (3 GPUs each) of a Slurm cluster through a file-based task queue |
-| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 4.2K in the design runs, 2.2K to 2.8K in the smoke run before the optimizer step on the CPU was rewritten (§5.1). 4B: 2.8K (speed test). The 9B runs over three GPUs; its speed is not measured yet |
+| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 4.2K in the design runs, 2.2K to 2.8K in the smoke run before the optimizer step on the CPU was rewritten (§5.1). 4B: 2.8K (speed test). 9B: about 1.0K on two A100s, layers split between them, master weights on the CPU (smoke run, 11-23); 100M tokens take about 26 hours |
 
 ### 1.2 Results so far
 
@@ -1036,6 +1036,14 @@ submitted on day 1 should start around day 6. Backfill does not help: every job 
 ones included, had a priority above 3,800. So the 2B design runs on the workstation after the 0.8B design, and the
 cluster takes the 9B runs; its queues already hold work that needs no analysis (the 9B and 4B base evaluations and a
 9B replay-only control), because a job that starts and finds nothing to do gives up its place.
+
+**The plan changed with the dose results (11-23).** The design's runs were set aside for the dose experiment, and
+the distillation recipe became the recipe to test at every size. The 9B model now trains on two of the
+workstation's 40 GB GPUs, its layers split between them and its master weights and Adam moments on the CPU (about
+165 GB of host memory): the smoke run reached about 1,000 tokens/s, so 100M tokens take a little over a day. That puts
+the 9B result before the cluster jobs are expected to start (around 11-26). The cluster's queues now hold work that
+replicates and extends: the 9B replay-only control, second and third seeds of the 0.8B and 2B runs, and a
+learning-rate sweep of the distillation recipe at 0.8B (1e-6 to 3e-5).
 
 **One queue for every machine.** A task is a shell script in a folder. A worker claims a task by renaming it,
 which is atomic on a shared file system, runs it and moves it to `done` or `failed` with its output
