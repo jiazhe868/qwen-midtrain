@@ -214,10 +214,84 @@ def draw_design_main_effects(language: str) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# dose experiment: each run minus its base model, before and after the generic probe's fine-tune
+# ---------------------------------------------------------------------------------------------------------------
+# the runs the figure shows, top to bottom, with their own colour and marker; runs without results are skipped
+dose_run_identities = {
+    "dose_reasoning_lr3e-6": {"color": "#2a78d6", "marker": "o", "en": "reasoning mix · 300M · 3e-6",
+                              "zh": "推理配比 · 3 亿 · 3e-6"},
+    "dose_qaheavy_lr3e-6": {"color": "#1baf7a", "marker": "D", "en": "QA-heavy mix · 300M · 3e-6",
+                            "zh": "问答为主 · 3 亿 · 3e-6"},
+    "dose_control100m_lr3e-6": {"color": muted_color, "marker": "v", "en": "replay only · 100M · 3e-6",
+                                "zh": "只做回放 · 1 亿 · 3e-6"},
+    "dose_nosolutions_lr3e-6": {"color": "#6250d6", "marker": "P", "en": "no solutions · 100M · 3e-6",
+                                "zh": "去掉解答 · 1 亿 · 3e-6"},
+    "dose_distill_lr3e-6": {"color": "#eb6834", "marker": "s", "en": "distillation · 100M · 3e-6",
+                            "zh": "蒸馏 · 1 亿 · 3e-6"},
+    "dose_distill_lr1e-5": {"color": "#e34948", "marker": "^", "en": "distillation · 100M · 1e-5",
+                            "zh": "蒸馏 · 1 亿 · 1e-5"},
+    "dose_distill_numina_lr3e-6": {"color": "#e87ba4", "marker": "X", "en": "wider problems · 100M · 3e-6",
+                                   "zh": "更广的题目 · 1 亿 · 3e-6"},
+}
+dose_task_labels = {"gsm8k": "GSM8K", "math500": "MATH-500", "humaneval": "HumanEval", "mbpp": "MBPP",
+                    "svamp": "SVAMP", "asdiv_a": "ASDiv-A"}
+dose_view_labels = {"few_shot_greedy": {"en": "few-shot", "zh": "少样本"},
+                    "generic_probe": {"en": "after fine-tune", "zh": "微调之后"}}
+
+
+def draw_dose_results(language: str, model_size: str = "0.8B") -> bool:
+    """Small multiples: one column per test set, one row per view (the base checkpoint's greedy few-shot accuracy;
+    pass@1 after the generic probe). Each mark is one run minus the base model with its 95% interval, from
+    results/comparisons/dose_vs_base_<size>.json (`mixing_law.py compare-with-base`)."""
+    comparison = read_json(results_directory / "comparisons" / f"dose_vs_base_{model_size}.json")
+    if not comparison:
+        return False
+    shown_runs = [(name, f"{name}_{model_size}") for name in dose_run_identities
+                  if f"{name}_{model_size}" in comparison["runs"]]
+    if not shown_runs:
+        return False
+    task_names = [task for task in dose_task_labels
+                  if any(task in comparison["runs"][run]["few_shot_greedy"] for _, run in shown_runs)]
+    apply_shared_style(language)
+    # one x scale per row, so that a gain of 12 points on GSM8K and a change of 2 on HumanEval look as different
+    # as they are
+    figure, panels = plt.subplots(2, len(task_names), figsize=(1.55 * len(task_names) + 2.2, 0.32 * len(shown_runs) * 2 + 1.4),
+                                  sharey=True, sharex="row", squeeze=False)
+    rows = {name: row for row, (name, _) in enumerate(reversed(shown_runs))}
+    for view_index, view in enumerate(("few_shot_greedy", "generic_probe")):
+        for task_index, task_name in enumerate(task_names):
+            panel = panels[view_index, task_index]
+            panel.axvline(0, color="#52514e", linewidth=0.8)
+            for identity_name, run_name in shown_runs:
+                values = comparison["runs"][run_name][view].get(task_name)
+                if not values:
+                    continue
+                difference = values if view == "few_shot_greedy" else values["pass@1"]
+                identity = dose_run_identities[identity_name]
+                row = rows[identity_name]
+                panel.plot([difference["low"], difference["high"]], [row, row], color=identity["color"], linewidth=1.4,
+                           solid_capstyle="round")
+                panel.plot(difference["difference"], row, marker=identity["marker"], color=identity["color"],
+                           markersize=5, markeredgecolor="white", markeredgewidth=0.6, linestyle="none")
+            panel.grid(axis="y", visible=False)
+            if view_index == 0:
+                panel.set_title(dose_task_labels[task_name], fontsize=8.5, color=ink_color)
+            if view_index == 1:
+                panel.set_xlabel("Δ (points)" if language == "en" else "Δ（个点）")
+            if task_index == 0:
+                panel.set_ylabel(dose_view_labels[view][language])
+    panels[0, 0].set_yticks(list(rows.values()), [dose_run_identities[name][language] for name in rows])
+    for panel in panels.flat:
+        panel.tick_params(axis="y", length=0)
+    save_figure(figure, f"dose_results_{model_size}", language)
+    return True
+
+
 def main() -> None:
     drawn = []
     for language in ("en", "zh"):
-        for draw in (draw_pilot_loss_change, draw_probe_pass_at_k, draw_design_main_effects):
+        for draw in (draw_pilot_loss_change, draw_probe_pass_at_k, draw_design_main_effects, draw_dose_results):
             if draw(language):
                 drawn.append(f"{draw.__name__.removeprefix('draw_')}_{language}")
     print("drew " + ", ".join(drawn) if drawn else "nothing to draw yet")
