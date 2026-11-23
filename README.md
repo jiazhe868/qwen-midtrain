@@ -355,7 +355,7 @@ question-answer text, math pages, code and a small replay share (`configs/recipe
 | − base | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
 | distillation, LR 1e-5 | 49.4 | 22.0 | 22.6 | 35.8 | 34.2 | +0.7% |
 | − base | +6.7 [+3.9, +9.4] | −1.0 [−4.6, +2.4] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.9] | −0.5 | |
-| replay only, LR 3e-6 | 43.0 | 23.4 | 22.0 | 37.4 | 35.3 | |
+| replay only, LR 3e-6 | 43.0 | 23.4 | 22.0 | 37.4 | 35.3 | −0.8% |
 | − base | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | +0.6 [−2.4, +3.7] | 0.0 [−3.1, +3.5] | +0.6 | |
 
 At 3e-6 every number moves up. GSM8K gains 6.8 points with the whole interval above zero, the other three tasks
