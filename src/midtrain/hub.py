@@ -82,8 +82,8 @@ the data of both fine-tuning probes. With it, the code trains and evaluates with
 | `hygiene/decontamination_flagged.parquet` | documents that share a 13-gram with an evaluation item; the sampler never uses them |
 | `synthetic/v1`, `v2`, `v3` | the three batches of teacher rewrites, with their passages; only v3 passed the diversity gate |
 | `synthetic/request_variants/` | the seven request wordings tried on 150 passages |
-| `synthetic/solutions/` | every attempt of the teacher at the GSM8K and MATH training problems, right or wrong, with its graded answer; the right ones are the pool source `synthetic_solutions` |
-| `synthetic/solutions_numina/` | the second problem set (NuminaMath-1.5, through the decontamination gate) and the teacher's attempts; the right ones are `synthetic_solutions_numina` |
+| `synthetic/solutions/` | every teacher attempt at the GSM8K and MATH training problems, graded; the right ones are `synthetic_solutions` |
+| `synthetic/solutions_numina/` | the gated NuminaMath-1.5 problems and the teacher's attempts; the right ones are `synthetic_solutions_numina` |
 | `probe/`, `probe_generic/` | the tokenized conversations of the in-domain and the generic fine-tuning probe |
 
 ## Sources of the pool
@@ -111,7 +111,17 @@ def checkpoint_card_text(run_names: list[str]) -> str:
     """The model card: one row per run, with its base model, tokens, learning rate and mixture."""
     rows = []
     for run_name in sorted(run_names):
-        training = json.loads((repository_root / "results" / "training" / f"{run_name}.json").read_text())
+        training_path = repository_root / "results" / "training" / f"{run_name}.json"
+        merge_path = data_root() / "runs" / run_name / "merge.json"
+        if not training_path.exists() and merge_path.exists():
+            # a weight interpolation (merging.py): no training of its own, so its row says what was averaged
+            merge = json.loads(merge_path.read_text())
+            size = next((size for size in base_model_of_size if f"_{size}" in run_name), "unknown")
+            rows.append(f"| `{run_name}` | {base_model_of_size.get(size, size)} | 0 | | "
+                        f"{100 * (1 - merge['weight_of_second']):.0f}% base + {100 * merge['weight_of_second']:.0f}% "
+                        f"`{merge['second']}` (weight interpolation) |")
+            continue
+        training = json.loads(training_path.read_text())
         settings_path = data_root() / "runs" / run_name / "settings.json"
         settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
         # the size is a part of the run name (pilot names end in the learning rate, e.g. pilot_replay_only_0.8B_lr1e-5)
@@ -182,17 +192,23 @@ def upload_data() -> None:
 
 def upload_checkpoints(run_names: list[str]) -> None:
     from huggingface_hub import HfApi
+    from huggingface_hub.hf_api import RepoFolder
 
     staging = data_root() / "hub_staging" / "checkpoints"
     for run_name in run_names:
         checkpoint = data_root() / "runs" / run_name / "checkpoint_final"
         assert (checkpoint / "model.safetensors").exists(), f"{run_name} has no final checkpoint"
         hard_link_tree(checkpoint, staging / run_name)
-    # the hub client keeps its upload state in a hidden folder of the staging tree (.cache); it is not a run
-    published_runs = sorted(path.name for path in staging.iterdir() if path.is_dir() and not path.name.startswith("."))
-    (staging / "README.md").write_text(checkpoint_card_text(published_runs))
-    print(f"staged {len(published_runs)} runs for {checkpoint_repository}", flush=True)
+    # The card lists every run on the hub, not only the runs still staged here: local weights of a published run may
+    # be deleted (their hard links in the staging tree with them) once the hub copy is checked. The hub client keeps
+    # its upload state in a hidden folder of the staging tree (.cache); it is not a run.
     api = HfApi()
+    staged_runs = {path.name for path in staging.iterdir() if path.is_dir() and not path.name.startswith(".")}
+    # folders at the top of the repository are runs (a run name may contain a dot: screen18_r01_0.8B)
+    hub_runs = {entry.path for entry in api.list_repo_tree(checkpoint_repository) if isinstance(entry, RepoFolder)}
+    published_runs = sorted(staged_runs | hub_runs)
+    (staging / "README.md").write_text(checkpoint_card_text(published_runs))
+    print(f"staged {len(staged_runs)} runs; the card lists {len(published_runs)} for {checkpoint_repository}", flush=True)
     api.create_repo(checkpoint_repository, repo_type="model", private=False, exist_ok=True)
     api.upload_large_folder(repo_id=checkpoint_repository, folder_path=staging, repo_type="model", num_workers=16)
 
