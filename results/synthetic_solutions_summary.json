@@ -1,0 +1,13 @@
+{
+ "problems": 14262,
+ "solutions": 86108,
+ "correct": 72076,
+ "problems_with_a_correct_solution": 11915,
+ "published_solutions": 45177,
+ "published_tokens": 23243228,
+ "maximum_per_problem": 4,
+ "correct_share_by_task": {
+  "gsm8k": 0.944,
+  "math": 0.6048
+ }
+}

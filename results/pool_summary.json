@@ -139,6 +139,20 @@
    "documents_of_at_least_4096_tokens": 0
   }
  },
+ "synthetic_solutions": {
+  "train": {
+   "documents": 44950,
+   "tokens": 23124315,
+   "median_document_tokens": 469,
+   "documents_of_at_least_4096_tokens": 0
+  },
+  "validation": {
+   "documents": 227,
+   "tokens": 118913,
+   "median_document_tokens": 461,
+   "documents_of_at_least_4096_tokens": 0
+  }
+ },
  "textbooks": {
   "train": {
    "documents": 93611,

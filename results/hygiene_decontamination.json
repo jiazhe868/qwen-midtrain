@@ -104,6 +104,10 @@
      "documents": 2,
      "tokens": 2475
     },
+    "synthetic_solutions": {
+     "documents": 482,
+     "tokens": 344685
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -192,6 +196,10 @@
      "math_web_extra": {
       "documents": 11,
       "tokens": 15851
+     },
+     "synthetic_solutions": {
+      "documents": 40,
+      "tokens": 16469
      }
     },
     "hellaswag": {
@@ -240,6 +248,10 @@
      "replay_web_edu": {
       "documents": 63,
       "tokens": 143490
+     },
+     "synthetic_solutions": {
+      "documents": 6,
+      "tokens": 4794
      },
      "textbooks": {
       "documents": 96,
@@ -291,6 +303,10 @@
       "documents": 2,
       "tokens": 2475
      },
+     "synthetic_solutions": {
+      "documents": 402,
+      "tokens": 296115
+     },
      "textbooks": {
       "documents": 50,
       "tokens": 278010
@@ -328,6 +344,10 @@
      "replay_web_edu": {
       "documents": 198,
       "tokens": 640453
+     },
+     "synthetic_solutions": {
+      "documents": 4,
+      "tokens": 3396
      },
      "textbooks": {
       "documents": 89,
@@ -370,6 +390,10 @@
      "replay_web_edu": {
       "documents": 18,
       "tokens": 34566
+     },
+     "synthetic_solutions": {
+      "documents": 34,
+      "tokens": 27307
      },
      "textbooks": {
       "documents": 51,
@@ -466,6 +490,10 @@
      "documents": 2,
      "tokens": 2475
     },
+    "synthetic_solutions": {
+     "documents": 482,
+     "tokens": 344685
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -522,6 +550,10 @@
    "documents": 5257,
    "tokens": 5544665
   },
+  "synthetic_solutions": {
+   "documents": 45177,
+   "tokens": 23243228
+  },
   "textbooks": {
    "documents": 94096,
    "tokens": 226955391
@@ -538,25 +570,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 5865,
-   "words": 3537,
-   "mostly_numbers": 2684,
+   "numbers": 5904,
+   "words": 3928,
+   "mostly_numbers": 2736,
    "alphabet": 872
   },
   "by_task": {
    "mbpp": {
-    "numbers": 3930,
+    "numbers": 3934,
     "alphabet": 872,
     "mostly_numbers": 60,
     "words": 108
    },
    "math500": {
-    "words": 1974,
-    "numbers": 77,
-    "mostly_numbers": 2370
+    "words": 2294,
+    "numbers": 110,
+    "mostly_numbers": 2419
    },
    "humaneval": {
-    "numbers": 5495,
+    "numbers": 5501,
     "mostly_numbers": 340,
     "words": 192,
     "alphabet": 75
@@ -565,8 +597,8 @@
     "words": 722
    },
    "mmlu_pro": {
-    "words": 312,
-    "mostly_numbers": 5
+    "words": 343,
+    "mostly_numbers": 8
    },
    "triviaqa": {
     "words": 148
@@ -575,7 +607,7 @@
     "words": 4
    },
    "gsm8k": {
-    "words": 15
+    "words": 55
    },
    "arc_challenge": {
     "words": 102
