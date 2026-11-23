@@ -82,6 +82,8 @@ the data of both fine-tuning probes. With it, the code trains and evaluates with
 | `hygiene/decontamination_flagged.parquet` | documents that share a 13-gram with an evaluation item; the sampler never uses them |
 | `synthetic/v1`, `v2`, `v3` | the three batches of teacher rewrites, with their passages; only v3 passed the diversity gate |
 | `synthetic/request_variants/` | the seven request wordings tried on 150 passages |
+| `synthetic/solutions/` | every attempt of the teacher at the GSM8K and MATH training problems, right or wrong, with its graded answer; the right ones are the pool source `synthetic_solutions` |
+| `synthetic/solutions_numina/` | the second problem set (NuminaMath-1.5, through the decontamination gate) and the teacher's attempts; the right ones are `synthetic_solutions_numina` |
 | `probe/`, `probe_generic/` | the tokenized conversations of the in-domain and the generic fine-tuning probe |
 
 ## Sources of the pool
@@ -91,7 +93,8 @@ the data of both fine-tuning probes. With it, the code trains and evaluates with
 {chr(10).join(rows)}
 
 Each document keeps the license of its source; documents under share-alike licenses stay under them. The rewritten
-text was written by Qwen3.8-27B (Apache-2.0) from passages of the pool; each record names its parent document.
+text and the worked solutions were written by Qwen3.8-27B (Apache-2.0): each rewrite names its parent document, each
+solution the problem it answers (GSM8K and MATH training problems, MIT; NuminaMath-1.5 problems, Apache-2.0).
 
 ## Use
 
