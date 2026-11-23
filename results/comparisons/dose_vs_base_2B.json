@@ -66,7 +66,64 @@
      "questions": 1218
     }
    },
-   "generic_probe": {},
+   "generic_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 0.72,
+      "low": -1.16,
+      "high": 2.62,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 0.0,
+      "low": -3.0,
+      "high": 3.5,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": -1.77,
+      "low": -3.4,
+      "high": -0.22,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": -1.6,
+      "low": -6.4,
+      "high": 2.8,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": -0.34,
+      "low": -2.25,
+      "high": 1.6,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": -2.44,
+      "low": -7.93,
+      "high": 3.05,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -0.56,
+      "low": -2.25,
+      "high": 1.19,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 1.0,
+      "low": -3.0,
+      "high": 5.5,
+      "questions": 200
+     }
+    }
+   },
    "knowledge_cloze_change": 0.6,
    "loss_change_percent": {
     "code": 2.58,

@@ -390,20 +390,24 @@ Each mark is one 0.8B run minus the base model, with its 95% interval: the top r
 few-shot accuracy, the bottom row pass@1 after the generic probe (which does not test SVAMP and ASDiv-A). Only the
 distillation runs move clearly to the right of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
 
-**One size up, the gentler rate is enough.** The 2B model with the same recipe at 3e-6 and 100M tokens
-(`results/comparisons/dose_vs_base_2B.json`):
+**One size up, the gentler rate is enough.** The 2B model with the same recipe at 3e-6 and 100M tokens, and its
+replay-only control at the same budget and rate (`results/comparisons/dose_vs_base_2B.json`):
 
-| 2B, distillation, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | knowledge |
+| 2B, 100M tokens, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | knowledge |
 |---|---|---|---|---|---|
-| few-shot, greedy: base → run | 61.6 → 66.0 | 37.2 → 35.8 | 34.1 → 31.7 | 49.4 → 47.9 | 41.8 → 41.3 |
-| − base | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | −1.6 [−5.5, +2.3] | −0.5 |
-| generic probe, pass@1: base → run | 65.2 → 70.8 | 38.6 → 46.2 | 29.5 → 30.2 | 44.0 → 44.8 | |
-| − base | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | +0.7 [−1.3, +2.8] | +0.8 [−1.1, +2.6] | |
+| base model, few-shot greedy | 61.6 | 37.2 | 34.1 | 49.4 | 41.8 |
+| distillation − base | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | −1.6 [−5.5, +2.3] | −0.5 |
+| replay only − base | −0.7 [−2.6, +1.1] | −3.8 [−7.8, 0.0] | −1.2 [−5.5, +3.0] | −2.3 [−6.6, +1.9] | +0.6 |
+| base model, generic probe pass@1 | 65.2 | 38.6 | 29.5 | 44.0 | |
+| distillation − base | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | +0.7 [−1.3, +2.8] | +0.8 [−1.1, +2.6] | |
+| replay only − base | +0.7 [−1.2, +2.6] | −1.8 [−3.4, −0.2] | −0.3 [−2.2, +1.6] | −0.6 [−2.2, +1.2] | |
 
 The pattern of the 0.8B model repeats, and at 2B the lower rate already gives what 1e-5 gave at 0.8B: after the
 fine-tune MATH-500 rises by 7.6 points, while the few-shot score of the same checkpoint fell by 1.4 within its noise.
 Knowledge pays half a point (41.8 to 41.3), as at 1e-5 on the 0.8B model, and the held-out loss falls on 9 of 11
-sources. A gain of pass@1 is not a gain of coverage, though. After the probe, pass@16 moves by 1.2 on MATH-500 and
+sources. The control answers where the gain comes from: 100M tokens of replay at the same rate move nothing beyond
+noise except MATH-500 after the probe (−1.8) and knowledge (+0.6), so the gain belongs to the distillation mixture
+and not to continued training as such. A gain of pass@1 is not a gain of coverage, though. After the probe, pass@16 moves by 1.2 on MATH-500 and
 by 1.5 on GSM8K, both within noise. The distilled model is right more often on problems the base model could
 already solve some of the time; it solves few new ones. For a later RL stage this means more right answers within
 each group of samples, and about as many problems with no right answer at all. The 2B run at 1e-5 is running.
