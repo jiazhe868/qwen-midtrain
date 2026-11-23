@@ -514,11 +514,14 @@ def numina_answer_is_checkable(answer_text: str) -> bool:
     return True
 
 
-def select_numina_problems(seed: int) -> dict:
-    """Draw the second problem set and pass it through the decontamination gate.
+def select_numina_problems(seed: int, device: str = "cpu") -> dict:
+    """Draw the second problem set and pass it through the decontamination gate (the embedding half on `device`:
+    on a busy 64-core workstation the CPU managed 3.5 problems per second, 11-23, so the queue task uses its GPU).
 
-    Writes synthetic/solutions_numina/problems.jsonl and results/synthetic_solutions_numina_selection.json. 10% more
-    problems than needed are drawn from each source, so that the gate can remove some and the counts still hold.
+    Writes synthetic/solutions_numina/problems.jsonl and results/synthetic_solutions_numina_selection.json. 30% more
+    problems than needed are drawn from each source, so that the gate can remove some and the counts still hold: on
+    the first 2,048 orca_math problems the embedding half flagged 141 (7%, 11-23), and model-written problems that
+    imitate MATH may resemble MATH-500 more often.
     """
     from huggingface_hub import snapshot_download
     from transformers import AutoTokenizer
@@ -546,7 +549,7 @@ def select_numina_problems(seed: int) -> dict:
     for source_name, wanted_count in numina_problem_count_by_source.items():
         candidates = candidates_by_source[source_name]
         drawn_by_source[source_name] = [candidates[index] for index in
-                                        random_generator.permutation(len(candidates))[:int(wanted_count * 1.1)]]
+                                        random_generator.permutation(len(candidates))[:int(wanted_count * 1.3)]]
     drawn = [problem for problems in drawn_by_source.values() for problem in problems]
 
     # the gate, exactly as for any pool source: the problems as one parquet file, then decontaminate_pool
@@ -561,7 +564,7 @@ def select_numina_problems(seed: int) -> dict:
                    gate_folder / "pool" / "part-00000.parquet")
     data_hygiene.decontaminate_pool([gate_folder / "pool"], data_root() / "eval", gate_folder / "flagged.parquet",
                                     gate_folder / "top_matches.jsonl", report_path=gate_folder / "report.json",
-                                    methods=("ngram", "embedding"), device="cpu", worker_count=8)
+                                    methods=("ngram", "embedding"), device=device, worker_count=8)
     flagged_ids = set(pq.read_table(gate_folder / "flagged.parquet", columns=["doc_id"]).column("doc_id").to_pylist())
 
     kept = []
@@ -837,6 +840,7 @@ def main() -> None:
     check_styles.add_argument("--device", default="cpu")
     select_problems = commands.add_parser("select-problems", help="draw the second problem set and gate it")
     select_problems.add_argument("--seed", type=int, default=20261123)
+    select_problems.add_argument("--device", default="cpu", help="for the embedding half of the gate: cpu or cuda")
     solve = commands.add_parser("solve")
     solve.add_argument("--endpoint", action="append", required=True)
     solve.add_argument("--samples-per-problem", type=int, default=8)
@@ -862,7 +866,7 @@ def main() -> None:
                           arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites, arguments.styles,
                           arguments.results_name)
     elif arguments.command == "select-problems":
-        select_numina_problems(arguments.seed)
+        select_numina_problems(arguments.seed, arguments.device)
     elif arguments.command == "solve":
         solve_training_problems(arguments.endpoint, arguments.samples_per_problem, arguments.temperature,
                                 arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint,
