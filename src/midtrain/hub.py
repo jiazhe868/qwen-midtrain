@@ -185,7 +185,8 @@ def upload_checkpoints(run_names: list[str]) -> None:
         checkpoint = data_root() / "runs" / run_name / "checkpoint_final"
         assert (checkpoint / "model.safetensors").exists(), f"{run_name} has no final checkpoint"
         hard_link_tree(checkpoint, staging / run_name)
-    published_runs = sorted(path.name for path in staging.iterdir() if path.is_dir())
+    # the hub client keeps its upload state in a hidden folder of the staging tree (.cache); it is not a run
+    published_runs = sorted(path.name for path in staging.iterdir() if path.is_dir() and not path.name.startswith("."))
     (staging / "README.md").write_text(checkpoint_card_text(published_runs))
     print(f"staged {len(published_runs)} runs for {checkpoint_repository}", flush=True)
     api = HfApi()
