@@ -132,22 +132,25 @@ the gate that every other source passes.
 
 **Root cause.** A training split is not clean against its own test split. Three GSM8K test problems have a near-copy
 among the GSM8K training problems (16 solutions matched them). MATH problems of one kind share fixed wording across
-splits ("convert the point to polar coordinates; enter your answer in the form"): 377 solutions matched 51 MATH-500
+splits ("convert the point to polar coordinates; enter your answer in the form"): 377 solutions matched 53 MATH-500
 items that way. Another 44 matched MMLU-Pro, HumanEval or MBPP items through runs of numbers or common phrases.
 
-**Fix.** The solutions were gated after the fact (`data_hygiene decontaminate --pool pool/synthetic_solutions`), and
-every claim about them was recomputed without the matched test items. On the 1,316 GSM8K problems that no solution
-matches, the gain of the distillation run is unchanged, +6.8 [+4.3, +9.2] (README §1.2). The flagged solutions stay
+**Fix.** The solutions were gated after the fact (`data_hygiene.py decontaminate --pool pool/synthetic_solutions
+--leave-out-few-shot-files`, `results/hygiene_decontamination_solutions.json`), every test item they touch was
+listed (`data_hygiene.py matched-items`: 3 GSM8K and 53 MATH-500 items), and every claim about them was recomputed
+without those items. On the 1,316 GSM8K problems that no solution matches, the gain of the distillation run is
+unchanged, +6.8 [+4.4, +9.2] (README §1.2; `without_matched_items` in `results/comparisons/dose_vs_base_0.8B.json`). The flagged solutions stay
 in the source, so that the 0.8B, 2B, 4B and 9B runs of the recipe see the same data. The second problem set
 (NuminaMath-1.5) passes the gate, by 13-grams and by embeddings, before the teacher sees a problem
 (`synthetic_rephrase.py select-problems`).
 
 **Permanent regression test.** `select_numina_problems` runs `decontaminate_pool` before it writes the problems and
-records the counts in `results/synthetic_solutions_numina_selection.json`. The first set has no test of its own; its
-gate result is in README §1.2.
+records the counts in `results/synthetic_solutions_numina_selection.json`. `mixing_law.py compare-with-base` reports
+every greedy gain without the items `matched-items` lists, so each new run of the recipe is checked the same way.
 
 **Invalidated artifacts.** None. The GSM8K gain stands on the unmatched problems. The MATH-500 scores of the
-distillation runs include the 51 matched items; their gain is within noise with or without them.
+distillation runs include the 53 matched items; their gain is within noise with or without them (+1.1 [−2.5, +4.7]
+at 3e-6 on the other 447).
 
 **Generalisable lesson.** Gate every source that enters training, the ones made from training splits included: "train
 split" says where a problem came from, not what it overlaps.

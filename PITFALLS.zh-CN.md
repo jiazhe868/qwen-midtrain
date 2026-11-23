@@ -91,13 +91,13 @@
 
 **错误的说法。** "这些解答回答的是训练题，解题这一步从不读取测试集，所以它们不可能包含测试题。"发布这一步就建立在这个想法上，它把解答写进文本池时，没有经过其他每个来源都要经过的门槛。
 
-**根本原因。** 训练集对它自己的测试集并不干净。有三道 GSM8K 测试题，在 GSM8K 训练题中各有一道近乎相同的副本（16 条解答匹配到它们）。同一类 MATH 题目在不同划分之间共用固定措辞（"convert the point to polar coordinates; enter your answer in the form"）：377 条解答因此匹配到 51 道 MATH-500 题。另有 44 条通过一串数字或常见短语，匹配到 MMLU-Pro、HumanEval 或 MBPP 的题目。
+**根本原因。** 训练集对它自己的测试集并不干净。有三道 GSM8K 测试题，在 GSM8K 训练题中各有一道近乎相同的副本（16 条解答匹配到它们）。同一类 MATH 题目在不同划分之间共用固定措辞（"convert the point to polar coordinates; enter your answer in the form"）：377 条解答因此匹配到 53 道 MATH-500 题。另有 44 条通过一串数字或常见短语，匹配到 MMLU-Pro、HumanEval 或 MBPP 的题目。
 
-**修复。** 事后对这些解答做了门槛检查（`data_hygiene decontaminate --pool pool/synthetic_solutions`），并在去掉被匹配的测试题之后，重新计算了关于它们的每一个结论。在没有任何解答匹配的 1,316 道 GSM8K 题上，蒸馏运行的增益不变，是 +6.8 [+4.3, +9.2]（README §1.2）。被标记的解答留在这个来源里，好让这个配方在 0.8B、2B、4B 和 9B 上的运行看到同样的数据。第二个题目集（NuminaMath-1.5）在教师看到任何一道题之前，先按 13-gram 和嵌入向量通过门槛（`synthetic_rephrase.py select-problems`）。
+**修复。** 事后对这些解答做了门槛检查（`data_hygiene.py decontaminate --pool pool/synthetic_solutions --leave-out-few-shot-files`，`results/hygiene_decontamination_solutions.json`），列出了它们触及的每一道测试题（`data_hygiene.py matched-items`：GSM8K 3 道，MATH-500 53 道），并在去掉这些题之后，重新计算了关于它们的每一个结论。在没有任何解答匹配的 1,316 道 GSM8K 题上，蒸馏运行的增益不变，是 +6.8 [+4.4, +9.2]（README §1.2；`results/comparisons/dose_vs_base_0.8B.json` 中的 `without_matched_items`）。被标记的解答留在这个来源里，好让这个配方在 0.8B、2B、4B 和 9B 上的运行看到同样的数据。第二个题目集（NuminaMath-1.5）在教师看到任何一道题之前，先按 13-gram 和嵌入向量通过门槛（`synthetic_rephrase.py select-problems`）。
 
-**永久回归测试。** `select_numina_problems` 在写出题目之前运行 `decontaminate_pool`，并把计数记在 `results/synthetic_solutions_numina_selection.json` 中。第一个题目集没有自己的测试；它的门槛结果写在 README §1.2 中。
+**永久回归测试。** `select_numina_problems` 在写出题目之前运行 `decontaminate_pool`，并把计数记在 `results/synthetic_solutions_numina_selection.json` 中。`mixing_law.py compare-with-base` 报告每一个贪心增益在去掉 `matched-items` 所列题目之后的值，所以这个配方的每一次新运行都按同样的方式检查。
 
-**作废的产出。** 没有。GSM8K 的增益在未被匹配的题目上依然成立。蒸馏运行的 MATH-500 分数包含那 51 道被匹配的题；无论包不包含它们，增益都在噪声范围之内。
+**作废的产出。** 没有。GSM8K 的增益在未被匹配的题目上依然成立。蒸馏运行的 MATH-500 分数包含那 53 道被匹配的题；无论包不包含它们，增益都在噪声范围之内（3e-6 下在其余 447 道题上是 +1.1 [−2.5, +4.7]）。
 
 **可推广的教训。** 每一个进入训练的来源都要过门槛，用训练集做出来的来源也一样："训练集"说的是题目从哪里来，而不是它与什么重叠。
 

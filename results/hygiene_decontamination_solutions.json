@@ -1,0 +1,158 @@
+{
+ "settings": {
+  "methods": [
+   "ngram"
+  ],
+  "ngram_word_count": 13,
+  "min_word_count_for_whole_text_key": 8,
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "similarity_threshold": 0.9,
+  "window_token_count": 256
+ },
+ "evaluation_items_by_task": {
+  "arc_challenge": {
+   "items": 1172,
+   "ngram_keys": 15066,
+   "items_without_ngram_key": 52
+  },
+  "asdiv_a": {
+   "items": 1218,
+   "ngram_keys": 21514,
+   "items_without_ngram_key": 0
+  },
+  "cmmlu": {
+   "items": 1000,
+   "ngram_keys": 26799,
+   "items_without_ngram_key": 10
+  },
+  "commonsenseqa": {
+   "items": 1221,
+   "ngram_keys": 3748,
+   "items_without_ngram_key": 119
+  },
+  "gsm8k": {
+   "items": 1319,
+   "ngram_keys": 162006,
+   "items_without_ngram_key": 0
+  },
+  "hellaswag": {
+   "items": 1000,
+   "ngram_keys": 91683,
+   "items_without_ngram_key": 0
+  },
+  "humaneval": {
+   "items": 164,
+   "ngram_keys": 23408,
+   "items_without_ngram_key": 0
+  },
+  "math500": {
+   "items": 500,
+   "ngram_keys": 106407,
+   "items_without_ngram_key": 0
+  },
+  "mbpp": {
+   "items": 257,
+   "ngram_keys": 10514,
+   "items_without_ngram_key": 0
+  },
+  "mmlu_pro": {
+   "items": 1200,
+   "ngram_keys": 56578,
+   "items_without_ngram_key": 21
+  },
+  "svamp": {
+   "items": 1000,
+   "ngram_keys": 20795,
+   "items_without_ngram_key": 0
+  },
+  "triviaqa": {
+   "items": 1000,
+   "ngram_keys": 3665,
+   "items_without_ngram_key": 80
+  }
+ },
+ "flagged": {
+  "ngram": {
+   "by_source": {
+    "synthetic_solutions": {
+     "documents": 433,
+     "tokens": 320148
+    }
+   },
+   "by_task_and_source": {
+    "gsm8k": {
+     "synthetic_solutions": {
+      "documents": 16,
+      "tokens": 6361
+     }
+    },
+    "humaneval": {
+     "synthetic_solutions": {
+      "documents": 6,
+      "tokens": 4794
+     }
+    },
+    "math500": {
+     "synthetic_solutions": {
+      "documents": 377,
+      "tokens": 281686
+     }
+    },
+    "mbpp": {
+     "synthetic_solutions": {
+      "documents": 4,
+      "tokens": 3396
+     }
+    },
+    "mmlu_pro": {
+     "synthetic_solutions": {
+      "documents": 34,
+      "tokens": 27307
+     }
+    }
+   }
+  },
+  "either": {
+   "by_source": {
+    "synthetic_solutions": {
+     "documents": 433,
+     "tokens": 320148
+    }
+   }
+  }
+ },
+ "scanned_by_source": {
+  "synthetic_solutions": {
+   "documents": 45177,
+   "tokens": 23243228
+  }
+ },
+ "flagged_file_name": "decontamination_flagged.parquet",
+ "ngram_flags_by_kind_of_match": {
+  "all_tasks": {
+   "words": 351,
+   "mostly_numbers": 43,
+   "numbers": 39
+  },
+  "by_task": {
+   "math500": {
+    "words": 304,
+    "mostly_numbers": 40,
+    "numbers": 33
+   },
+   "gsm8k": {
+    "words": 16
+   },
+   "mmlu_pro": {
+    "words": 31,
+    "mostly_numbers": 3
+   },
+   "humaneval": {
+    "numbers": 6
+   },
+   "mbpp": {
+    "numbers": 4
+   }
+  }
+ }
+}

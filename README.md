@@ -395,10 +395,13 @@ Caveats, plainly:
   13-grams occur in 17 of the 4.26M pool documents, all of them math web pages, and in no solution
   (`results/hygiene_decontamination_word_problems.json`). Their scores are being measured for every run.
 - The solutions were checked against the test sets after training. 433 of the 45,177 share a 13-gram with a test
-  item: 377 with a MATH-500 item, mostly the fixed wording of MATH problems ("enter your answer in the form"), and 16
-  with three GSM8K test problems that have a near-copy among the GSM8K training problems. On the 1,316 GSM8K problems
-  that no solution matches, the gain is the same, +6.8 [+4.3, +9.2]. The flagged solutions stay in the source, so that
-  every run of this recipe sees the same data.
+  item: 377 with MATH-500 items, mostly through the fixed wording of MATH problems ("enter your answer in the form";
+  53 of the 500 items are matched), and 16 with three GSM8K test problems that have a near-copy among the GSM8K
+  training problems (`data_hygiene.py decontaminate --leave-out-few-shot-files`,
+  `results/hygiene_decontamination_solutions.json`). On the 1,316 GSM8K problems that no solution matches, the gain is
+  the same, +6.8 [+4.4, +9.2] (`data_hygiene.py matched-items`, then `without_matched_items` in
+  `results/comparisons/dose_vs_base_0.8B.json`). The flagged solutions stay in the source, so that every run of this
+  recipe sees the same data.
 - One seed per run. The intervals cover the questions, not the training run; a second seed is running.
 - The recipe differs from the runs that did not help in two ways: the solutions, and a mixture that is mostly
   question-answer text and code. The same mixture without the solutions and a replay-only control at the same budget

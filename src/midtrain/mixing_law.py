@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from midtrain.data_sources import repository_root
+from midtrain.data_sources import data_root, repository_root
 
 # The L18 orthogonal array (Taguchi), levels counted from 0: column 0 has two levels, columns 1 to 7 have three.
 # check_array_is_orthogonal() runs at import, so a typing mistake in this table cannot go unnoticed.
@@ -503,15 +503,22 @@ def compare_two_runs(first_run_name: str, second_run_name: str) -> dict:
     return comparison
 
 
-def compare_runs_with_their_base(model_size: str) -> dict:
+def compare_runs_with_their_base(model_size: str, without_items_matched_by: str | None = "synthetic_solutions") -> dict:
     """Every run of one model size that has a greedy final evaluation, minus the base model of that size, question
     by question: greedy accuracy on each test set (results/final_eval), pass@1 and pass@16 after the generic probe
     (results/probe_generic), the knowledge guard, and the change of the held-out loss on each source.
 
     The tables of README §1.2 are read from the file this writes, results/comparisons/dose_vs_base_<size>.json, so
     that every number there traces to one command. A run is left out of a block when it or the base lacks that
-    result; a test set is compared only on questions both answered.
+    result; a test set is compared only on questions both answered. Each greedy difference is also given without the
+    test items that `without_items_matched_by` touches (`data_hygiene.py matched-items`; PITFALLS A4), as
+    `without_matched_items`, when that file exists.
     """
+    matched_item_ids: set = set()
+    if without_items_matched_by:
+        matched_path = data_root() / "hygiene" / f"matched_items_{without_items_matched_by}.json"
+        if matched_path.exists():
+            matched_item_ids = {item_id for item_ids in json.loads(matched_path.read_text()).values() for item_id in item_ids}
     from midtrain.eval_tasks import estimate_pass_at_k
 
     base_name = f"base_{model_size}"
@@ -523,7 +530,8 @@ def compare_runs_with_their_base(model_size: str) -> dict:
     # a run of this size ends in the size (dose_distill_lr3e-6_0.8B) or carries it before a suffix (..._0.8B_merge25)
     run_names = sorted(path.stem for path in folders["final_eval"].glob(f"*_{model_size}*.json")
                        if path.stem != base_name and (path.stem.endswith(f"_{model_size}") or f"_{model_size}_" in path.stem))
-    comparison = {"model_size": model_size, "base": base_name, "runs": {}}
+    comparison = {"model_size": model_size, "base": base_name, "matched_items_left_out_by": without_items_matched_by,
+                  "runs": {}}
     for run_name in run_names:
         run_result = {"few_shot_greedy": {}, "generic_probe": {}}
         run_final = read_json_if_present(folders["final_eval"] / f"{run_name}.json")
@@ -535,6 +543,10 @@ def compare_runs_with_their_base(model_size: str) -> dict:
             run_result["few_shot_greedy"][task_name] = {
                 "run": task["pass@1"]["value"], "base": base_task["pass@1"]["value"],
                 **paired_difference_with_interval(task["correct_counts"], base_task["correct_counts"])}
+            kept_positions = [position for position, item_id in enumerate(task["item_ids"]) if item_id not in matched_item_ids]
+            if matched_item_ids and len(kept_positions) < len(task["item_ids"]):
+                run_result["few_shot_greedy"][task_name]["without_matched_items"] = paired_difference_with_interval(
+                    np.asarray(task["correct_counts"])[kept_positions], np.asarray(base_task["correct_counts"])[kept_positions])
         run_probe = read_json_if_present(folders["probe_generic"] / f"{run_name}.json")
         if run_probe and base_probe:
             for task_name, task in run_probe["tasks"].items():

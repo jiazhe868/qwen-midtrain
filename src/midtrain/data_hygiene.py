@@ -41,6 +41,7 @@ Commands (run from the repository root; every command has --help):
     $MIDTRAIN_PYTHON -m midtrain.data_hygiene diversity --source synthetic_batch_07 --device cuda \
         --pool $MIDTRAIN_DATA/synthetic/batch_07
     $MIDTRAIN_PYTHON -m midtrain.data_hygiene gate --source synthetic_batch_07 --baseline wiki_en
+    $MIDTRAIN_PYTHON -m midtrain.data_hygiene matched-items --source synthetic_solutions   # every test item it touches
     $MIDTRAIN_PYTHON -m pytest tests/test_data_hygiene.py -q
 """
 
@@ -88,9 +89,14 @@ default_decontamination_report_path = repository_root / "results" / "hygiene_dec
 solution_words_in_meta_keys = ("solution", "rationale", "explanation")
 
 
-def load_evaluation_items(evaluation_directory) -> list[dict]:
-    """Return every item of every `*.jsonl` file in the evaluation folder, few-shot files included."""
-    evaluation_paths = sorted(Path(evaluation_directory).glob("*.jsonl"))
+def load_evaluation_items(evaluation_directory, include_few_shot_files: bool = True) -> list[dict]:
+    """Return every item of every `*.jsonl` file in the evaluation folder, few-shot files included unless asked.
+
+    A pool source is gated with the shots included (a leaked shot is still a leaked benchmark item). A source made
+    from training splits is also checked without them: its own problems are the shots' neighbours by construction,
+    and the question there is which tested items it touches (PITFALLS A4)."""
+    evaluation_paths = sorted(path for path in Path(evaluation_directory).glob("*.jsonl")
+                              if include_few_shot_files or not path.name.endswith("_fewshot.jsonl"))
     assert evaluation_paths, f"no evaluation file (*.jsonl) in {evaluation_directory}"
     evaluation_items = []
     for evaluation_path in evaluation_paths:
@@ -460,7 +466,8 @@ def decontaminate_pool(pool_paths, evaluation_directory, flagged_path, top_match
                        embedding_model: str = default_embedding_model, device: str = "cpu",
                        similarity_threshold: float = default_embedding_similarity_threshold,
                        window_token_count: int = default_window_token_count,
-                       ngram_word_count: int = default_ngram_word_count, worker_count: int = 1) -> dict:
+                       ngram_word_count: int = default_ngram_word_count, worker_count: int = 1,
+                       include_few_shot_files: bool = True) -> dict:
     """Gate 1: flag every pool document that overlaps an evaluation item, by n-gram, by embedding or both.
 
     Writes three files: the report (numbers and identifiers only; it is committed), the flagged doc_ids as
@@ -469,7 +476,7 @@ def decontaminate_pool(pool_paths, evaluation_directory, flagged_path, top_match
     """
     unknown_methods = set(methods) - {"ngram", "embedding"}
     assert methods and not unknown_methods, f"methods must be ngram and/or embedding, got {list(methods)}"
-    evaluation_items = load_evaluation_items(evaluation_directory)
+    evaluation_items = load_evaluation_items(evaluation_directory, include_few_shot_files)
     tasks = sorted({evaluation_item["task"] for evaluation_item in evaluation_items})
     report = {
         "settings": {
@@ -939,6 +946,40 @@ def explain_flagged_matches(flagged_path: Path, report_path: Path) -> dict:
 # command line
 # ---------------------------------------------------------------------------
 
+def find_evaluation_items_matched_by_source(source_name: str, task_names: list[str]) -> dict[str, list[str]]:
+    """Every evaluated item of the named tasks whose n-gram key occurs anywhere in one pool source.
+
+    `decontaminate` records one matched item per flagged document, which is enough to leave a document out but not to
+    say which test items a source touches: a solution can match several. This looks up every key of every document
+    in a set (45,177 solutions in about 25 seconds, 11-23) and writes the item ids to
+    $MIDTRAIN_DATA/hygiene/matched_items_<source>.json, where `mixing_law.py compare-with-base` reads them to report
+    each gain without the matched items (README §1.2, PITFALLS A4). Few-shot files are not read: a shot is not tested.
+    """
+    evaluation_items = []
+    for task_name in task_names:
+        task_path = get_midtrain_data_directory() / "eval" / f"{task_name}.jsonl"
+        evaluation_items.extend(json.loads(line) for line in task_path.read_text(encoding="utf-8").splitlines() if line.strip())
+    keys = build_evaluation_ngram_keys(evaluation_items)
+    item_ids_of_key: dict[int, set] = {}
+    for key_hash, item_index in zip(keys["key_hashes"].tolist(), keys["key_item_indices"].tolist()):
+        item_ids_of_key.setdefault(key_hash, set()).add(evaluation_items[item_index]["item_id"])
+    matched_item_ids = set()
+    for pool_path in resolve_pool_parquet_paths([get_midtrain_data_directory() / "pool" / source_name]):
+        for text in pq.read_table(pool_path, columns=["text"]).column("text").to_pylist():
+            word_hashes = hash_words(normalise_into_words(text))
+            for words_per_key in keys["sorted_key_hashes_by_length"]:
+                if len(word_hashes) < words_per_key:
+                    continue
+                for key_hash in set(hash_word_ngrams(word_hashes, words_per_key).tolist()):
+                    matched_item_ids |= item_ids_of_key.get(key_hash, set())
+    matched_by_task = {task_name: sorted(item_id for item_id in matched_item_ids if item_id.startswith(f"{task_name}:"))
+                       for task_name in task_names}
+    output_path = get_midtrain_data_directory() / "hygiene" / f"matched_items_{source_name}.json"
+    output_path.write_text(json.dumps(matched_by_task, indent=1) + "\n")
+    print(f"{source_name}: " + ", ".join(f"{task_name} {len(item_ids)} items" for task_name, item_ids in matched_by_task.items()))
+    return matched_by_task
+
+
 def build_argument_parser() -> argparse.ArgumentParser:
     """Return the parser with the commands decontaminate, diversity and gate."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -958,6 +999,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
     decontaminate_parser.add_argument("--embedding-model", default=default_embedding_model)
     decontaminate_parser.add_argument("--device", default=None, help="cuda, cuda:1 or cpu; required for the embedding method")
     decontaminate_parser.add_argument("--worker-count", type=int, default=get_usable_cpu_count())
+    decontaminate_parser.add_argument("--leave-out-few-shot-files", action="store_true",
+                                      help="check against the tested items only (for a source made from training splits)")
 
     explain_parser = subparsers.add_parser("explain-flags", help="count the flagged documents by kind of match")
     explain_parser.add_argument("--flagged-path", type=Path, default=None,
@@ -975,6 +1018,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     diversity_parser.add_argument("--seed", type=int, default=default_diversity_seed)
     diversity_parser.add_argument("--embedding-model", default=default_embedding_model)
     diversity_parser.add_argument("--device", required=True, help="cuda, cuda:1 or cpu")
+
+    matched_parser = subparsers.add_parser("matched-items", help="every test item a pool source touches, by n-grams")
+    matched_parser.add_argument("--source", required=True, help="a pool source, for example synthetic_solutions")
+    matched_parser.add_argument("--tasks", nargs="+", default=["gsm8k", "math500", "svamp", "asdiv_a"])
 
     gate_parser = subparsers.add_parser("gate", help="fail when a batch is clearly less diverse than a baseline")
     gate_parser.add_argument("--source", required=True, help="name of the new batch (a diversity result)")
@@ -995,13 +1042,17 @@ def main(argument_list=None) -> int:
             arguments.pool, arguments.evaluation_dir or get_midtrain_data_directory() / "eval",
             output_directory / "decontamination_flagged.parquet", output_directory / "decontamination_top_matches.jsonl",
             arguments.report_path, tuple(arguments.methods), arguments.embedding_model, arguments.device,
-            arguments.similarity_threshold, arguments.window_token_count, arguments.ngram_word_count, arguments.worker_count)
+            arguments.similarity_threshold, arguments.window_token_count, arguments.ngram_word_count, arguments.worker_count,
+            not arguments.leave_out_few_shot_files)
         if "ngram" in arguments.methods:
             explain_flagged_matches(output_directory / "decontamination_flagged.parquet", arguments.report_path)
         return 0
     if arguments.command == "explain-flags":
         explain_flagged_matches(arguments.flagged_path or get_midtrain_data_directory() / "hygiene" / "decontamination_flagged.parquet",
                                 arguments.report_path)
+        return 0
+    if arguments.command == "matched-items":
+        find_evaluation_items_matched_by_source(arguments.source, arguments.tasks)
         return 0
     if arguments.command == "diversity":
         pool_paths = arguments.pool or [get_midtrain_data_directory() / "pool" / arguments.source]
