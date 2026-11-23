@@ -385,8 +385,8 @@ keeps the few-shot scores and the knowledge of the base model, 1e-5 doubles the 
 <p align="center"><img src="assets/dose_results_0.8B_en.png" width="92%"></p>
 
 Each mark is one 0.8B run minus the base model, with its 95% interval: the top row is the base checkpoint's greedy
-few-shot accuracy, the bottom row pass@1 after the generic probe. Only the distillation runs move to the right of
-zero, and only on math (`figures.py draw_dose_results`).
+few-shot accuracy, the bottom row pass@1 after the generic probe. Only the distillation runs move clearly to the right
+of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
 
 Caveats, plainly:
 - The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution and part

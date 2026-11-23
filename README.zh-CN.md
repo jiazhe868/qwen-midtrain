@@ -226,7 +226,7 @@
 
 <p align="center"><img src="assets/dose_results_0.8B_zh.png" width="92%"></p>
 
-每个标记是一次 0.8B 运行减去基座模型，连同它的 95% 区间：上面一行是基座检查点的贪心少样本准确率，下面一行是通用探针之后的 pass@1。只有蒸馏运行移到了零的右边，而且只在数学上（`figures.py draw_dose_results`）。
+每个标记是一次 0.8B 运行减去基座模型，连同它的 95% 区间：上面一行是基座检查点的贪心少样本准确率，下面一行是通用探针之后的 pass@1。只有蒸馏运行明显移到了零的右边，而且只在 GSM8K 和 MATH-500 上（`figures.py draw_dose_results`）。
 
 坦白地说，有几点要注意：
 - 这些解答回答的是 GSM8K 和 MATH 的训练题，所以 GSM8K 测试集离它们的分布很近，增益中可能有一部分只是在这个分布上的增益。两个来自其他来源的应用题集检验它能否延伸得更远：SVAMP（1,000 道题）和 ASDiv-A（1,218 道题），用同样的八个 GSM8K 示例来作答。它们的 13-gram 出现在文本池 426 万篇文档中的 17 篇里，全是数学网页，没有出现在任何一条解答里（`results/hygiene_decontamination_word_problems.json`）。每次运行都在测它们的分数。
