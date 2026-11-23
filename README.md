@@ -387,8 +387,8 @@ keeps the few-shot scores and the knowledge of the base model, 1e-5 doubles the 
 <p align="center"><img src="assets/dose_results_0.8B_en.png" width="92%"></p>
 
 Each mark is one 0.8B run minus the base model, with its 95% interval: the top row is the base checkpoint's greedy
-few-shot accuracy, the bottom row pass@1 after the generic probe. Only the distillation runs move clearly to the right
-of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
+few-shot accuracy, the bottom row pass@1 after the generic probe (which does not test SVAMP and ASDiv-A). Only the
+distillation runs move clearly to the right of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
 
 **One size up, the gentler rate is enough.** The 2B model with the same recipe at 3e-6 and 100M tokens
 (`results/comparisons/dose_vs_base_2B.json`):
@@ -408,12 +408,30 @@ by 1.5 on GSM8K, both within noise. The distilled model is right more often on p
 already solve some of the time; it solves few new ones. For a later RL stage this means more right answers within
 each group of samples, and about as many problems with no right answer at all. The 2B run at 1e-5 is running.
 
+**The few-shot gain carries only partly to other word problems.** The solutions answer GSM8K and MATH training
+problems, and the GSM8K test comes from the same distribution. SVAMP (1,000 problems) and ASDiv-A (1,218) are word
+problems written elsewhere, answered from the same eight GSM8K examples; no solution shares a 13-gram with them
+(`results/hygiene_decontamination_word_problems.json`). Greedy accuracy, each run minus its base model:
+
+| run | GSM8K | SVAMP | ASDiv-A |
+|---|---|---|---|
+| base 0.8B / base 2B (accuracy) | 42.7 / 61.6 | 61.2 / 71.1 | 90.2 / 95.3 |
+| 0.8B, distillation, 3e-6 | +6.8 [+4.3, +9.3] | +1.6 [−1.2, +4.5] | +1.1 [−0.6, +2.7] |
+| 0.8B, distillation, 1e-5 | +6.7 [+3.9, +9.4] | +0.2 [−2.7, +3.3] | +0.9 [−0.7, +2.6] |
+| 2B, distillation, 3e-6 | +4.3 [+2.0, +6.8] | **+3.4 [+1.0, +5.9]** | −0.4 [−1.6, +0.8] |
+| 2B, replay only, 100M tokens, 3e-6 | −0.7 [−2.6, +1.1] | 0.0 [−1.7, +1.8] | −1.4 [−2.3, −0.6] |
+| 0.8B, QA-heavy mix, 300M, 3e-6 | +1.7 [−0.5, +4.0] | −3.9 [−6.4, −1.3] | −0.7 [−2.0, +0.8] |
+
+SVAMP keeps about half of the GSM8K gain at 2B and less at 0.8B. ASDiv-A, which the base models already solve 90% and
+95% of the time, does not move. The replay-only control at the same budget and rate changes nothing, and every
+mixture of public text lowered SVAMP. **Most of the few-shot gain belongs to the distribution of the solved
+problems; some of it is a skill that travels.** A wider problem set (NuminaMath-1.5, being solved now) tests whether
+more varied problems carry further.
+
 Caveats, plainly:
-- The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution and part
-  of the gain may be a gain on that distribution alone. Two sets of word problems from other sources test whether it
-  carries further: SVAMP (1,000 problems) and ASDiv-A (1,218), answered from the same eight GSM8K examples. Their
-  13-grams occur in 17 of the 4.26M pool documents, all of them math web pages, and in no solution
-  (`results/hygiene_decontamination_word_problems.json`). Their scores are being measured for every run.
+- The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution, and
+  the table above shows that part of the gain stays there. The 13-grams of SVAMP and ASDiv-A occur in 17 of the
+  4.26M pool documents, all of them math web pages, and in no solution.
 - The solutions were checked against the test sets after training. 433 of the 45,177 share a 13-gram with a test
   item: 377 with MATH-500 items, mostly through the fixed wording of MATH problems ("enter your answer in the form";
   53 of the 500 items are matched), and 16 with three GSM8K test problems that have a near-copy among the GSM8K

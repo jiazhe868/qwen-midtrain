@@ -3,6 +3,86 @@
  "base": "base_2B",
  "matched_items_left_out_by": "synthetic_solutions",
  "runs": {
+  "dose_control100m_lr3e-6_2B": {
+   "few_shot_greedy": {
+    "gsm8k": {
+     "run": 60.96,
+     "base": 61.64,
+     "difference": -0.68,
+     "low": -2.65,
+     "high": 1.14,
+     "questions": 1319,
+     "without_matched_items": {
+      "difference": -0.68,
+      "low": -2.51,
+      "high": 1.22,
+      "questions": 1316
+     }
+    },
+    "math500": {
+     "run": 33.4,
+     "base": 37.2,
+     "difference": -3.8,
+     "low": -7.8,
+     "high": 0.0,
+     "questions": 500,
+     "without_matched_items": {
+      "difference": -4.03,
+      "low": -8.05,
+      "high": 0.22,
+      "questions": 447
+     }
+    },
+    "humaneval": {
+     "run": 32.93,
+     "base": 34.15,
+     "difference": -1.22,
+     "low": -5.49,
+     "high": 3.05,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 47.08,
+     "base": 49.42,
+     "difference": -2.33,
+     "low": -6.61,
+     "high": 1.95,
+     "questions": 257
+    },
+    "svamp": {
+     "run": 71.1,
+     "base": 71.1,
+     "difference": 0.0,
+     "low": -1.7,
+     "high": 1.8,
+     "questions": 1000
+    },
+    "asdiv_a": {
+     "run": 93.92,
+     "base": 95.32,
+     "difference": -1.4,
+     "low": -2.3,
+     "high": -0.57,
+     "questions": 1218
+    }
+   },
+   "generic_probe": {},
+   "knowledge_cloze_change": 0.6,
+   "loss_change_percent": {
+    "code": 2.58,
+    "forum_qa": 1.31,
+    "math_web": 1.56,
+    "math_web_extra": 1.4,
+    "papers": 2.56,
+    "reasoning_qa": 6.36,
+    "replay_web": -0.41,
+    "replay_web_edu": -0.64,
+    "textbooks": 0.57,
+    "wiki_en": 0.09,
+    "wiki_zh": -1.77
+   },
+   "tokens_seen": 100007936
+  },
   "dose_distill_lr3e-6_2B": {
    "few_shot_greedy": {
     "gsm8k": {
@@ -48,6 +128,22 @@
      "low": -5.45,
      "high": 2.33,
      "questions": 257
+    },
+    "svamp": {
+     "run": 74.5,
+     "base": 71.1,
+     "difference": 3.4,
+     "low": 1.0,
+     "high": 5.9,
+     "questions": 1000
+    },
+    "asdiv_a": {
+     "run": 94.91,
+     "base": 95.32,
+     "difference": -0.41,
+     "low": -1.64,
+     "high": 0.82,
+     "questions": 1218
     }
    },
    "generic_probe": {

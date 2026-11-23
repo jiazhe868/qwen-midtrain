@@ -262,6 +262,10 @@ def draw_dose_results(language: str, model_size: str = "0.8B") -> bool:
     for view_index, view in enumerate(("few_shot_greedy", "generic_probe")):
         for task_index, task_name in enumerate(task_names):
             panel = panels[view_index, task_index]
+            has_values = any(comparison["runs"][run_name][view].get(task_name) for _, run_name in shown_runs)
+            if not has_values:          # the probe does not test SVAMP and ASDiv-A: leave the cell empty
+                panel.set_axis_off()
+                continue
             panel.axvline(0, color="#52514e", linewidth=0.8)
             for identity_name, run_name in shown_runs:
                 values = comparison["runs"][run_name][view].get(task_name)
@@ -277,7 +281,8 @@ def draw_dose_results(language: str, model_size: str = "0.8B") -> bool:
             panel.grid(axis="y", visible=False)
             if view_index == 0:
                 panel.set_title(dose_task_labels[task_name], fontsize=8.5, color=ink_color)
-            if view_index == 1:
+            if view_index == 1 or not any(comparison["runs"][run_name]["generic_probe"].get(task_name)
+                                          for _, run_name in shown_runs):
                 panel.set_xlabel("Δ (points)" if language == "en" else "Δ（个点）")
             if task_index == 0:
                 panel.set_ylabel(dose_view_labels[view][language])
