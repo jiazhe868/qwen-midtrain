@@ -230,7 +230,7 @@
 
 坦白地说，有几点要注意：
 - 这些解答回答的是 GSM8K 和 MATH 的训练题，所以 GSM8K 测试集离它们的分布很近，增益中可能有一部分只是在这个分布上的增益。两个来自其他来源的应用题集检验它能否延伸得更远：SVAMP（1,000 道题）和 ASDiv-A（1,218 道题），用同样的八个 GSM8K 示例来作答。它们的 13-gram 出现在文本池 426 万篇文档中的 17 篇里，全是数学网页，没有出现在任何一条解答里（`results/hygiene_decontamination_word_problems.json`）。每次运行都在测它们的分数。
-- 这些解答是在训练之后才与测试集比对的。45,177 条中有 433 条与某道测试题共有一个 13-gram：377 条对应 MATH-500 的题，大多是通过 MATH 题目的固定措辞（"enter your answer in the form"；500 道题中有 53 道被匹配到）；16 条对应三道 GSM8K 测试题，这三道题在 GSM8K 训练题中各有一道近乎相同的副本。（`data_hygiene.py decontaminate --leave-out-few-shot-files`，`results/hygiene_decontamination_solutions.json`）。在没有任何解答匹配的 1,316 道 GSM8K 题上，增益一样，是 +6.8 [+4.4, +9.2]（`data_hygiene.py matched-items`，然后见 `results/comparisons/dose_vs_base_0.8B.json` 中的 `without_matched_items`）。被标记的解答仍留在这个来源里，好让这个配方的每次运行看到同样的数据。
+- 这些解答是在训练之后才与测试集比对的。45,177 条中有 433 条与某道测试题共有一个 13-gram：377 条对应 MATH-500 的题，大多是通过 MATH 题目的固定措辞（"enter your answer in the form"；500 道题中有 53 道被匹配到）；16 条对应三道 GSM8K 测试题，这三道题在 GSM8K 训练题中各有一道近乎相同的副本（`data_hygiene.py decontaminate --leave-out-few-shot-files`，`results/hygiene_decontamination_solutions.json`）。在没有任何解答匹配的 1,316 道 GSM8K 题上，增益一样，是 +6.8 [+4.4, +9.2]（`data_hygiene.py matched-items`，然后见 `results/comparisons/dose_vs_base_0.8B.json` 中的 `without_matched_items`）。被标记的解答仍留在这个来源里，好让这个配方的每次运行看到同样的数据。
 - 每次运行只有一个随机种子。区间只涵盖题目的随机性，不涵盖训练过程的随机性；第二个种子正在运行。
 - 这个配方与那些没有帮助的运行有两处不同：一是这些解答，二是一个以问答文本和代码为主的配比。去掉解答的同一配比，以及同样预算和学习率下只做回放的对照组，正在运行。
 
