@@ -15,6 +15,8 @@ What the file does, in the order the stages run:
               under the constraint that the regression suite does not fall; rank agreement between two model sizes
     compare   two runs question by question: both answered the same questions with the same sampling, so their
               difference is known far better than either score alone
+    compare-with-base  every run of one size minus its base model, on the greedy final evaluation, the generic
+              probe, the knowledge guard and the losses (the dose experiment, README §1.2)
 
 The factors are ratios (replay share of all tokens, rewritten share of the non-replay text, ...) because the
 questions are about ratios. The law is fitted on absolute shares, with replay as what remains, so a coefficient
@@ -27,6 +29,7 @@ Commands (after `source scripts/env.sh`):
     $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B
     $MIDTRAIN_PYTHON -m midtrain.mixing_law analyze configs/designs/screen18.yaml --model-size 0.8B --compare-with 2B
     $MIDTRAIN_PYTHON -m midtrain.mixing_law compare pilot_hard_heavy_0.8B_lr1e-5 pilot_replay_only_0.8B_lr1e-5
+    $MIDTRAIN_PYTHON -m midtrain.mixing_law compare-with-base --model-size 0.8B
 """
 from __future__ import annotations
 
@@ -500,6 +503,76 @@ def compare_two_runs(first_run_name: str, second_run_name: str) -> dict:
     return comparison
 
 
+def compare_runs_with_their_base(model_size: str) -> dict:
+    """Every run of one model size that has a greedy final evaluation, minus the base model of that size, question
+    by question: greedy accuracy on each test set (results/final_eval), pass@1 and pass@16 after the generic probe
+    (results/probe_generic), the knowledge guard, and the change of the held-out loss on each source.
+
+    The tables of README §1.2 are read from the file this writes, results/comparisons/dose_vs_base_<size>.json, so
+    that every number there traces to one command. A run is left out of a block when it or the base lacks that
+    result; a test set is compared only on questions both answered.
+    """
+    from midtrain.eval_tasks import estimate_pass_at_k
+
+    base_name = f"base_{model_size}"
+    folders = {block: repository_root / "results" / block for block in ("final_eval", "probe_generic", "regression", "training")}
+    base_final = read_json_if_present(folders["final_eval"] / f"{base_name}.json")
+    base_probe = read_json_if_present(folders["probe_generic"] / f"{base_name}.json")
+    base_regression = read_json_if_present(folders["regression"] / f"{base_name}.json")
+    assert base_final, f"no greedy final evaluation of {base_name}"
+    # a run of this size ends in the size (dose_distill_lr3e-6_0.8B) or carries it before a suffix (..._0.8B_merge25)
+    run_names = sorted(path.stem for path in folders["final_eval"].glob(f"*_{model_size}*.json")
+                       if path.stem != base_name and (path.stem.endswith(f"_{model_size}") or f"_{model_size}_" in path.stem))
+    comparison = {"model_size": model_size, "base": base_name, "runs": {}}
+    for run_name in run_names:
+        run_result = {"few_shot_greedy": {}, "generic_probe": {}}
+        run_final = read_json_if_present(folders["final_eval"] / f"{run_name}.json")
+        for task_name, task in run_final["tasks"].items():
+            if task_name not in base_final["tasks"]:
+                continue
+            base_task = base_final["tasks"][task_name]
+            assert task["item_ids"] == base_task["item_ids"], f"{run_name} {task_name}: different questions"
+            run_result["few_shot_greedy"][task_name] = {
+                "run": task["pass@1"]["value"], "base": base_task["pass@1"]["value"],
+                **paired_difference_with_interval(task["correct_counts"], base_task["correct_counts"])}
+        run_probe = read_json_if_present(folders["probe_generic"] / f"{run_name}.json")
+        if run_probe and base_probe:
+            for task_name, task in run_probe["tasks"].items():
+                base_task = base_probe["tasks"][task_name]
+                assert task["item_ids"] == base_task["item_ids"], f"{run_name} {task_name}: different probe questions"
+                sample_count = task["sample_count"]
+                run_result["generic_probe"][task_name] = {
+                    f"pass@{k}": paired_difference_with_interval(
+                        [estimate_pass_at_k(count, sample_count, k) for count in task["correct_counts"]],
+                        [estimate_pass_at_k(count, sample_count, k) for count in base_task["correct_counts"]])
+                    for k in (1, 16) if k <= sample_count}
+        run_regression = read_json_if_present(folders["regression"] / f"{run_name}.json")
+        if run_regression and base_regression:
+            run_result["knowledge_cloze_change"] = round(run_regression["scores"]["knowledge_cloze_mean"]
+                                                         - base_regression["scores"]["knowledge_cloze_mean"], 2)
+        training = read_json_if_present(folders["training"] / f"{run_name}.json")
+        if training:
+            run_result["loss_change_percent"] = {
+                source: round(100 * (after["bits_per_byte"] - training["validation_before"][source]["bits_per_byte"])
+                              / training["validation_before"][source]["bits_per_byte"], 2)
+                for source, after in training["validation_after"].items()}
+            run_result["tokens_seen"] = training["tokens_seen"]
+        comparison["runs"][run_name] = run_result
+    output_path = repository_root / "results" / "comparisons" / f"dose_vs_base_{model_size}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(comparison, indent=1) + "\n")
+    return comparison
+
+
+def print_dose_comparison(comparison: dict) -> None:
+    for run_name, run_result in comparison["runs"].items():
+        few_shot = "  ".join(f"{task} {value['difference']:+.1f} [{value['low']:+.1f}, {value['high']:+.1f}]"
+                             for task, value in run_result["few_shot_greedy"].items())
+        probe = "  ".join(f"{task} {value['pass@1']['difference']:+.1f}" for task, value in run_result["generic_probe"].items())
+        print(f"{run_name}\n  greedy few-shot: {few_shot}\n  generic probe pass@1: {probe or '-'}"
+              f"\n  knowledge: {run_result.get('knowledge_cloze_change', '-')}")
+
+
 def print_comparison(comparison: dict) -> None:
     print(f"{comparison['first']}  minus  {comparison['second']}  (points, 95% interval over the questions)")
     for task_name, entries in comparison["probe"].items():
@@ -561,9 +634,14 @@ def main() -> None:
     compare_parser = commands.add_parser("compare")
     compare_parser.add_argument("first_run")
     compare_parser.add_argument("second_run")
+    dose_parser = commands.add_parser("compare-with-base", help="every run of a size minus its base: README §1.2")
+    dose_parser.add_argument("--model-size", required=True)
     arguments = parser.parse_args()
     if arguments.command == "compare":
         print_comparison(compare_two_runs(arguments.first_run, arguments.second_run))
+        return
+    if arguments.command == "compare-with-base":
+        print_dose_comparison(compare_runs_with_their_base(arguments.model_size))
         return
     design = load_design(arguments.design)
     if arguments.command == "design":

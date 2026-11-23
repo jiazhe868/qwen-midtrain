@@ -21,7 +21,7 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
 
 > **Status, 2026-11-23.** Continued pretraining on public text, at every dose and learning rate tried, leaves the
 > 0.8B model no better than it was (§1.2). Worked solutions written by a stronger model are the first text that
-> helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.4, +9.2]) and
+> helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.3, +9.3]) and
 > move MATH-500, HumanEval and MBPP up within their noise. After a generic fine-tune, the run at a learning rate of
 > 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. The same recipe now runs at 2B and 9B, with a control, an
 > ablation, a second seed and two held-out sets of word problems. The pool, the rewritten text, the probe data and
@@ -79,7 +79,7 @@ worse at a peak learning rate of 1e-5 and above, the replay-only control include
 where it was. The base model has already learnt what this text holds. What it has not seen is the reasoning of a
 stronger model. Therefore, I let the 27B teacher solve the training problems of GSM8K and MATH and kept the 45,177
 solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
-rises from 42.7 to 49.5, a gain of 6.8 points [+4.4, +9.2]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
+rises from 42.7 to 49.5, a gain of 6.8 points [+4.3, +9.3]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
 within their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5,
 GSM8K pass@1 rises by 11.8 points and MATH-500 by 7.1. **Distillation in mid-training works where more public text
 did not.** The
@@ -319,12 +319,14 @@ teacher for the training problems of GSM8K and MATH.
 
 **At 3e-6 the dose does no harm, and no good.** The second sweep kept the 300M tokens and lowered the peak learning
 rate to 3e-6, the rate that won the design. Each run minus the base model, paired question by question, with 95%
-intervals from resampling the questions (`results/final_eval/`, `results/regression/`, `results/training/`):
+intervals from resampling the questions. This table and the next two come from
+`results/comparisons/dose_vs_base_0.8B.json`, which `mixing_law.py compare-with-base --model-size 0.8B` writes from
+`results/final_eval/`, `results/probe_generic/`, `results/regression/` and `results/training/`:
 
 | run (300M tokens, LR 3e-6) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
 |---|---|---|---|---|---|---|
-| reasoning mix | +0.7 [−1.6, +2.9] | −2.8 [−6.2, +0.8] | 0.0 [−4.3, +4.3] | 0.0 [−4.3, +4.3] | 35.0 | −0.5% |
-| QA-heavy mix (45% WebInstructSub) | +1.7 [−0.5, +3.9] | −0.8 [−4.4, +3.0] | −1.8 [−6.1, +2.4] | +1.9 [−3.1, +6.6] | 34.9 | −0.1% |
+| reasoning mix | +0.7 [−1.5, +2.8] | −2.8 [−6.4, +0.8] | 0.0 [−4.3, +4.3] | 0.0 [−4.7, +4.3] | 35.0 | −0.5% |
+| QA-heavy mix (45% WebInstructSub) | +1.7 [−0.5, +4.0] | −0.8 [−4.6, +2.6] | −1.8 [−6.1, +2.4] | +1.9 [−2.7, +7.0] | 34.9 | −0.1% |
 
 The damage is gone: the held-out FineWeb-Edu loss falls again, and knowledge stays at the base model's 34.7. The
 gain is gone too. After the generic probe both runs are 0.6 to 2.7 points below the base model on every task
@@ -348,9 +350,9 @@ question-answer text, math pages, code and a small replay share (`configs/recipe
 |---|---|---|---|---|---|---|
 | base model | 42.7 | 23.0 | 21.3 | 37.4 | 34.7 | — |
 | distillation, LR 3e-6 | **49.5** | 24.4 | 22.6 | 39.3 | 34.9 | −0.2% |
-| − base | **+6.8 [+4.4, +9.2]** | +1.4 [−2.2, +5.0] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
+| − base | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
 | distillation, LR 1e-5 | 49.4 | 22.0 | 22.6 | 35.8 | 34.2 | +0.7% |
-| − base | +6.7 [+4.0, +9.2] | −1.0 [−4.8, +2.8] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.5] | −0.5 | |
+| − base | +6.7 [+3.9, +9.4] | −1.0 [−4.6, +2.4] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.9] | −0.5 | |
 
 At 3e-6 every number moves up. GSM8K gains 6.8 points with the whole interval above zero, the other three tasks
 gain 1 to 2 points within their noise, knowledge holds, and the held-out loss falls on 8 of 10 sources
@@ -365,10 +367,10 @@ on 6,842 instruction conversations that hold no tested task, then 16 samples per
 
 | run | GSM8K | MATH-500 | HumanEval | MBPP |
 |---|---|---|---|---|
-| distillation, 100M tokens, LR 3e-6 | +5.7 [+3.3, +8.0] | +0.3 [−1.1, +1.7] | −2.0 [−3.7, −0.4] | 0.0 [−1.9, +1.8] |
-| distillation, 100M tokens, LR 1e-5 | **+11.8 [+9.2, +14.4]** | **+7.1 [+5.4, +8.9]** | −0.7 [−2.3, +1.0] | −1.5 [−3.5, +0.4] |
-| reasoning mix, 300M tokens, LR 3e-6 | −1.5 [−3.5, +0.6] | −1.9 [−3.4, −0.5] | −1.6 [−3.1, −0.2] | −0.6 [−2.3, +1.2] |
-| QA-heavy mix, 300M tokens, LR 3e-6 | −2.7 [−4.5, −0.8] | −2.6 [−4.2, −1.2] | −0.8 [−2.4, +0.8] | −0.6 [−2.5, +1.2] |
+| distillation, 100M tokens, LR 3e-6 | +5.7 [+3.3, +8.1] | +0.3 [−1.1, +1.7] | −2.0 [−3.7, −0.3] | 0.0 [−1.8, +1.8] |
+| distillation, 100M tokens, LR 1e-5 | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.7 [−2.3, +1.1] | −1.5 [−3.5, +0.5] |
+| reasoning mix, 300M tokens, LR 3e-6 | −1.5 [−3.4, +0.5] | −1.9 [−3.4, −0.5] | −1.6 [−3.1, −0.1] | −0.6 [−2.3, +1.1] |
+| QA-heavy mix, 300M tokens, LR 3e-6 | −2.7 [−4.5, −0.9] | −2.6 [−4.2, −1.2] | −0.8 [−2.3, +0.8] | −0.6 [−2.4, +1.1] |
 
 The gain survives the fine-tune at both rates, and at 1e-5 it doubles: GSM8K +11.8 and MATH-500 +7.1, for a model
 whose few-shot MATH-500 score was 1.0 below the base. The answers show why the two views disagree. In the few-shot
