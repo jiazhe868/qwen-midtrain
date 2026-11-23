@@ -1,0 +1,21 @@
+# The distillation mixture with a wider problem set (README §1.2), 100M tokens.
+#
+# Why. The first distillation run raised GSM8K by 6.8 points at 0.8B and MATH-500 by 1.4 within its noise. Its
+# solutions answer two distributions only, GSM8K's and MATH's. Here the same 40% of solution tokens is split in half:
+# 20% from the first set and 20% from teacher solutions to 20,000 word problems of NuminaMath-1.5 (orca_math, cn_k12,
+# synthetic_math; `synthetic_rephrase.py select-problems`). Everything else is the distillation recipe, so a
+# difference between the two runs belongs to the wider problem set.
+token_budget: 100007936           # 3,052 steps of 32,768 tokens, as in dose_distill_100m.yaml
+context_length: 4096
+components:
+  synthetic_solutions: 0.20
+  synthetic_solutions_numina: 0.20
+  reasoning_qa: 0.15
+  math_web: 0.10
+  code: 0.10
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.10
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1

@@ -8,6 +8,8 @@ rule that a batch keeps the request wording it was made with.
 
     source scripts/env.sh && $MIDTRAIN_PYTHON -m pytest tests/test_synthetic_rephrase.py -q
 """
+import pytest
+
 from midtrain import synthetic_rephrase
 
 
@@ -38,3 +40,13 @@ def test_each_batch_keeps_the_request_wording_it_was_made_with():
     assert second_batch.startswith("Write for a teacher preparing a lesson, in the voice of a technical writer.")
     assert third_batch.startswith(synthetic_rephrase.own_voice_instruction)
     assert all(request.endswith("Passage:\nText of the passage.") for request in (first_batch, second_batch, third_batch))
+
+
+@pytest.mark.parametrize("answer_text, is_checkable", [
+    ("42", True), ("1,250", True), ("\\frac{3}{4}", True), ("2\\sqrt{3}", True), ("-0.5", True),
+    ("", False), ("3, 4", False), ("x=1 or x=2", False), ("1; 2", False), ("\\pm 2", False),
+    ("The answer is the number of apples left over", False),
+])
+def test_only_single_short_answers_of_the_second_problem_set_are_kept(answer_text, is_checkable):
+    """A list of values or two cases cannot be compared with one boxed answer, so such problems are not drawn."""
+    assert synthetic_rephrase.numina_answer_is_checkable(answer_text) is is_checkable

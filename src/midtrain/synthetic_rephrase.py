@@ -48,6 +48,12 @@ the current batch, v3):
         --maximum-rewrites 600
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase check-sample --documents-per-source 300 --device cpu
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish            # outputs → pool rows of the two sources
+    # worked solutions by the teacher: the training problems of GSM8K and MATH, then a second, wider problem set
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --endpoint http://127.0.0.1:8202 --samples-per-problem 8
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish-solutions --maximum-per-problem 4
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase select-problems      # NuminaMath-1.5, through the gate
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --problem-set numina --endpoint ... --samples-per-problem 2
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish-solutions --problem-set numina --maximum-per-problem 2
 """
 from __future__ import annotations
 
@@ -460,6 +466,19 @@ solution_instruction = (
     "with the sentence 'The final answer is \\boxed{...}.'")
 math_train_subjects = ("algebra", "counting_and_probability", "geometry", "intermediate_algebra", "number_theory",
                        "prealgebra", "precalculus")
+# The second problem set (11-23). The first covers two distributions, GSM8K's and MATH's, and at 0.8B its gain was
+# largest on GSM8K (README §1.2). Word problems from three other sources of NuminaMath-1.5 (Apache-2.0) widen it:
+# orca_math (grade-school word problems written by a model), cn_k12 (Chinese school exercises, in English) and
+# synthetic_math (new competition-style problems). Only problems that NuminaMath marks valid, with a valid solution and
+# a short final answer, are drawn in a seeded order, and each passes the decontamination gate (13-grams and
+# embeddings against every evaluation item) before the teacher sees it. Two attempts per problem and at most two kept
+# solutions per problem: more problems and fewer copies of each than in the first set.
+numina_revision = "1b05109f9e5c1ad06c0663519502416c30b300f8"
+numina_problem_count_by_source = {"orca_math": 7000, "cn_k12": 6000, "synthetic_math": 7000}
+solution_problem_sets = {"training_splits": {"folder": "solutions", "pool_source": "synthetic_solutions",
+                                             "summary": "synthetic_solutions_summary.json"},
+                         "numina": {"folder": "solutions_numina", "pool_source": "synthetic_solutions_numina",
+                                    "summary": "synthetic_solutions_numina_summary.json"}}
 
 
 def load_training_problems() -> list[dict]:
@@ -482,6 +501,89 @@ def load_training_problems() -> list[dict]:
     return problems
 
 
+def numina_answer_is_checkable(answer_text: str) -> bool:
+    """Whether a NuminaMath final answer is one short expression the graders can compare: not a list of values, not
+    two cases joined by "or", not a sentence. Thousands separators (1,250) are allowed."""
+    answer_text = (answer_text or "").strip()
+    if not answer_text or len(answer_text) > 40 or "\n" in answer_text:
+        return False
+    if re.search(r";|\bor\b|\band\b|\\text\{\s*or|\\quad|\\pm", answer_text):
+        return False
+    if "," in answer_text and not re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", answer_text):
+        return False
+    return True
+
+
+def select_numina_problems(seed: int) -> dict:
+    """Draw the second problem set and pass it through the decontamination gate.
+
+    Writes synthetic/solutions_numina/problems.jsonl and results/synthetic_solutions_numina_selection.json. 10% more
+    problems than needed are drawn from each source, so that the gate can remove some and the counts still hold.
+    """
+    from huggingface_hub import snapshot_download
+    from transformers import AutoTokenizer
+
+    from midtrain import data_hygiene
+
+    download_folder = data_root() / "raw" / "numinamath_1_5"
+    snapshot_download("AI-MO/NuminaMath-1.5", repo_type="dataset", revision=numina_revision, local_dir=download_folder,
+                      allow_patterns=["data/*.parquet"])
+    columns = ["problem", "answer", "question_type", "problem_is_valid", "solution_is_valid", "source"]
+    rows = [row for parquet_path in sorted((download_folder / "data").glob("*.parquet"))
+            for row in pq.read_table(parquet_path, columns=columns).to_pylist()]
+    candidates_by_source = {source_name: [] for source_name in numina_problem_count_by_source}
+    for row_index, row in enumerate(rows):
+        is_usable = (row["source"] in candidates_by_source and row["question_type"] == "math-word-problem"
+                     and row["problem_is_valid"] == "Yes" and row["solution_is_valid"] == "Yes"
+                     and numina_answer_is_checkable(row["answer"]) and "[asy]" not in row["problem"]
+                     and len(row["problem"]) <= 1500)
+        if is_usable:
+            candidates_by_source[row["source"]].append({
+                "problem_id": f"numina:{row['source']}:{row_index}", "task": row["source"],
+                "problem": row["problem"].strip(), "reference_answer": row["answer"].strip()})
+    random_generator = np.random.default_rng(seed)
+    drawn_by_source = {}
+    for source_name, wanted_count in numina_problem_count_by_source.items():
+        candidates = candidates_by_source[source_name]
+        drawn_by_source[source_name] = [candidates[index] for index in
+                                        random_generator.permutation(len(candidates))[:int(wanted_count * 1.1)]]
+    drawn = [problem for problems in drawn_by_source.values() for problem in problems]
+
+    # the gate, exactly as for any pool source: the problems as one parquet file, then decontaminate_pool
+    gate_folder = data_root() / "hygiene" / "solutions_numina_gate"
+    (gate_folder / "pool").mkdir(parents=True, exist_ok=True)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
+    texts = [problem["problem"] for problem in drawn]
+    token_counts = [len(token_ids) for token_ids in tokenizer(texts, add_special_tokens=False)["input_ids"]]
+    pq.write_table(pa.table({"doc_id": [problem["problem_id"] for problem in drawn],
+                             "source": ["numina_problems"] * len(drawn), "text": texts, "token_count": token_counts,
+                             "meta_json": ["{}"] * len(drawn)}, schema=pool_schema),
+                   gate_folder / "pool" / "part-00000.parquet")
+    data_hygiene.decontaminate_pool([gate_folder / "pool"], data_root() / "eval", gate_folder / "flagged.parquet",
+                                    gate_folder / "top_matches.jsonl", report_path=gate_folder / "report.json",
+                                    methods=("ngram", "embedding"), device="cpu", worker_count=8)
+    flagged_ids = set(pq.read_table(gate_folder / "flagged.parquet", columns=["doc_id"]).column("doc_id").to_pylist())
+
+    kept = []
+    selection = {"revision": numina_revision, "seed": seed, "sources": {}}
+    for source_name, wanted_count in numina_problem_count_by_source.items():
+        passing = [problem for problem in drawn_by_source[source_name] if problem["problem_id"] not in flagged_ids]
+        assert len(passing) >= wanted_count, f"{source_name}: only {len(passing)} problems passed the gate"
+        kept.extend(passing[:wanted_count])
+        selection["sources"][source_name] = {
+            "usable_candidates": len(candidates_by_source[source_name]), "drawn": len(drawn_by_source[source_name]),
+            "flagged_by_the_gate": len(drawn_by_source[source_name]) - len(passing), "kept": wanted_count}
+    output_folder = synthetic_directory(solution_problem_sets["numina"]["folder"])
+    output_folder.mkdir(parents=True, exist_ok=True)
+    with (output_folder / "problems.jsonl").open("w") as problems_file:
+        for problem in kept:
+            problems_file.write(json.dumps(problem, ensure_ascii=False) + "\n")
+    (repository_root / "results" / "synthetic_solutions_numina_selection.json").write_text(
+        json.dumps(selection, indent=1) + "\n")
+    print(json.dumps(selection, indent=1))
+    return selection
+
+
 def ask_teacher_for_solutions(endpoint: str, problem_text: str, sample_count: int, temperature: float,
                               maximum_new_tokens: int) -> list[tuple[str, str]]:
     """`sample_count` independent solutions of one problem in one request: (text, finish reason) each."""
@@ -497,12 +599,15 @@ def ask_teacher_for_solutions(endpoint: str, problem_text: str, sample_count: in
 
 
 def solve_training_problems(endpoints: list[str], samples_per_problem: int, temperature: float,
-                            maximum_new_tokens: int, requests_in_flight_per_endpoint: int) -> None:
-    """Append one record per solution to synthetic/solutions/solutions.jsonl; a restart skips solved problems."""
+                            maximum_new_tokens: int, requests_in_flight_per_endpoint: int,
+                            problem_set: str = "training_splits") -> None:
+    """Append one record per solution to synthetic/<folder of the set>/solutions.jsonl; a restart skips solved
+    problems. The first set is read from the hub, the second from the problems.jsonl that select-problems wrote."""
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
-    problems = load_training_problems()
-    output_path = synthetic_directory("solutions") / "solutions.jsonl"
+    folder = synthetic_directory(solution_problem_sets[problem_set]["folder"])
+    problems = load_training_problems() if problem_set == "training_splits" else read_json_lines(folder / "problems.jsonl")
+    output_path = folder / "solutions.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     finished_ids = {record["problem_id"] for record in read_json_lines(output_path)} if output_path.exists() else set()
     todo = [problem for problem in problems if problem["problem_id"] not in finished_ids]
@@ -544,13 +649,15 @@ def solve_training_problems(endpoints: list[str], samples_per_problem: int, temp
     print(json.dumps(counts), flush=True)
 
 
-def publish_solutions_to_pool(maximum_per_problem: int) -> None:
-    """Correct, finished and distinct solutions, at most `maximum_per_problem` per problem, become the pool source
-    `synthetic_solutions`, as plain text: the problem, then the worked solution."""
+def publish_solutions_to_pool(maximum_per_problem: int, problem_set: str = "training_splits") -> None:
+    """Correct, finished and distinct solutions, at most `maximum_per_problem` per problem, become the pool source of
+    the set (`synthetic_solutions`, `synthetic_solutions_numina`), as plain text: the problem, then the worked
+    solution."""
     from transformers import AutoTokenizer
 
+    problem_set_settings = solution_problem_sets[problem_set]
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path())
-    records = read_json_lines(synthetic_directory("solutions") / "solutions.jsonl")
+    records = read_json_lines(synthetic_directory(problem_set_settings["folder"]) / "solutions.jsonl")
     kept_by_problem: dict[str, list] = {}
     seen_texts = set()
     for record in records:
@@ -565,8 +672,8 @@ def publish_solutions_to_pool(maximum_per_problem: int) -> None:
     token_counts = [len(ids) for ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
     metas = [{"problem_id": record["problem_id"], "task": record["task"], "sample_index": record["sample_index"],
               "generator": Path(os.environ.get("MIDTRAIN_TEACHER", "teacher")).name} for record in kept_records]
-    write_pool_rows("synthetic_solutions", [document_id_for_text("synthetic_solutions", text) for text in texts], texts,
-                    token_counts, metas)
+    pool_source = problem_set_settings["pool_source"]
+    write_pool_rows(pool_source, [document_id_for_text(pool_source, text) for text in texts], texts, token_counts, metas)
     problem_count = len({record["problem_id"] for record in records})
     summary = {"problems": problem_count, "solutions": len(records),
                "correct": sum(record["is_correct"] for record in records),
@@ -574,8 +681,8 @@ def publish_solutions_to_pool(maximum_per_problem: int) -> None:
                "published_tokens": int(sum(token_counts)), "maximum_per_problem": maximum_per_problem,
                "correct_share_by_task": {task: round(sum(r["is_correct"] for r in records if r["task"] == task)
                                                      / max(1, sum(1 for r in records if r["task"] == task)), 4)
-                                         for task in ("gsm8k", "math")}}
-    (repository_root / "results" / "synthetic_solutions_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+                                         for task in sorted({record["task"] for record in records})}}
+    (repository_root / "results" / problem_set_settings["summary"]).write_text(json.dumps(summary, indent=1) + "\n")
     print(json.dumps(summary, indent=1))
 
 
@@ -728,6 +835,8 @@ def main() -> None:
     check_styles.add_argument("--results-name", default="rewrites.jsonl")
     check_styles.add_argument("--token-sample-size", type=int, default=100_000)
     check_styles.add_argument("--device", default="cpu")
+    select_problems = commands.add_parser("select-problems", help="draw the second problem set and gate it")
+    select_problems.add_argument("--seed", type=int, default=20261123)
     solve = commands.add_parser("solve")
     solve.add_argument("--endpoint", action="append", required=True)
     solve.add_argument("--samples-per-problem", type=int, default=8)
@@ -736,6 +845,8 @@ def main() -> None:
     solve.add_argument("--requests-in-flight-per-endpoint", type=int, default=24)
     publish_solutions = commands.add_parser("publish-solutions")
     publish_solutions.add_argument("--maximum-per-problem", type=int, default=4)
+    for command_parser in (solve, publish_solutions):
+        command_parser.add_argument("--problem-set", choices=list(solution_problem_sets), default="training_splits")
     publish = commands.add_parser("publish")
     for command_parser in (select, generate, check_sample, check_styles, publish):
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
@@ -750,11 +861,14 @@ def main() -> None:
         generate_rewrites(arguments.batch, arguments.endpoint, arguments.requests_in_flight_per_endpoint,
                           arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites, arguments.styles,
                           arguments.results_name)
+    elif arguments.command == "select-problems":
+        select_numina_problems(arguments.seed)
     elif arguments.command == "solve":
         solve_training_problems(arguments.endpoint, arguments.samples_per_problem, arguments.temperature,
-                                arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint)
+                                arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint,
+                                arguments.problem_set)
     elif arguments.command == "publish-solutions":
-        publish_solutions_to_pool(arguments.maximum_per_problem)
+        publish_solutions_to_pool(arguments.maximum_per_problem, arguments.problem_set)
     elif arguments.command == "check-styles":
         check_styles_against_parents(arguments.batch, arguments.results_name, arguments.token_sample_size, arguments.device)
     elif arguments.command == "check-sample":

@@ -22,7 +22,8 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
 > **Status, 2026-11-23.** Continued pretraining on public text, at every dose and learning rate tried, leaves the
 > 0.8B model no better than it was (§1.2). Worked solutions written by a stronger model are the first text that
 > helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.4, +9.2]) and
-> move MATH-500, HumanEval and MBPP up within their noise. The same recipe now runs at 2B and 9B, with a control, an
+> move MATH-500, HumanEval and MBPP up within their noise. After a generic fine-tune, the run at a learning rate of
+> 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. The same recipe now runs at 2B and 9B, with a control, an
 > ablation, a second seed and two held-out sets of word problems. The pool, the rewritten text, the probe data and
 > every checkpoint are on the Hugging Face Hub (§2). Section 13 holds the predictions, written before any probe
 > result existed, with their outcomes so far. This file is updated with every result.
@@ -79,7 +80,9 @@ where it was. The base model has already learnt what this text holds. What it ha
 stronger model. Therefore, I let the 27B teacher solve the training problems of GSM8K and MATH and kept the 45,177
 solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
 rises from 42.7 to 49.5, a gain of 6.8 points [+4.4, +9.2]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
-within their noise, and knowledge holds. **Distillation in mid-training works where more public text did not.** The
+within their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5,
+GSM8K pass@1 rises by 11.8 points and MATH-500 by 7.1. **Distillation in mid-training works where more public text
+did not.** The
 next question is how far the gain carries beyond the problems that were solved. Two sets of word problems from other
 sources, a control, an ablation and the same recipe at 2B and 9B answer it.
 
@@ -354,6 +357,28 @@ gain 1 to 2 points within their noise, knowledge holds, and the held-out loss fa
 (WebInstructSub answers by 13%, code by 2.1%, math pages by 1.4%). At 1e-5 the GSM8K gain is the same, and MATH-500,
 MBPP, knowledge and the losses pay for it. **The first gain of the project came from text the base model could not
 have seen: answers written by a stronger model.**
+
+**After a fine-tune, the higher learning rate pulls ahead.** The few-shot score is the base model's own view. The
+project asks what a checkpoint is worth after post-training (§3.1), and the generic probe answers that: a fine-tune
+on 6,842 instruction conversations that hold no tested task, then 16 samples per question
+(`results/probe_generic/`). Each run minus the base model, pass@1, paired question by question:
+
+| run | GSM8K | MATH-500 | HumanEval | MBPP |
+|---|---|---|---|---|
+| distillation, 100M tokens, LR 3e-6 | +5.7 [+3.3, +8.0] | +0.3 [−1.1, +1.7] | −2.0 [−3.7, −0.4] | 0.0 [−1.9, +1.8] |
+| distillation, 100M tokens, LR 1e-5 | **+11.8 [+9.2, +14.4]** | **+7.1 [+5.4, +8.9]** | −0.7 [−2.3, +1.0] | −1.5 [−3.5, +0.4] |
+| reasoning mix, 300M tokens, LR 3e-6 | −1.5 [−3.5, +0.6] | −1.9 [−3.4, −0.5] | −1.6 [−3.1, −0.2] | −0.6 [−2.3, +1.2] |
+| QA-heavy mix, 300M tokens, LR 3e-6 | −2.7 [−4.5, −0.8] | −2.6 [−4.2, −1.2] | −0.8 [−2.4, +0.8] | −0.6 [−2.5, +1.2] |
+
+The gain survives the fine-tune at both rates, and at 1e-5 it doubles: GSM8K +11.8 and MATH-500 +7.1, for a model
+whose few-shot MATH-500 score was 1.0 below the base. The answers show why the two views disagree. In the few-shot
+prompt every run writes in the format of the eight short examples, which people wrote. After the fine-tune each
+model writes in its own way, and the 1e-5 model writes long worked solutions like its teacher's: its MATH-500
+answers are 64% longer than the base model's (1,850 characters against 1,129), and a third of them reach the probe's
+length limit and count as wrong. It still solves more. What the solutions taught shows when the prompt lets the
+model use it. **The learning rate trades the base model's own scores against what a fine-tune can reach: 3e-6
+keeps the few-shot scores and the knowledge of the base model, 1e-5 doubles the gain after the fine-tune and costs
+0.5 points of knowledge.** The 2B model at 1e-5 tests whether this trade holds one size up.
 
 Caveats, plainly:
 - The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution and part

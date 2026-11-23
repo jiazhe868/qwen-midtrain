@@ -7,9 +7,10 @@ How this pipeline silently fails, how each failure was detected, and what now pr
 Every entry is a mistake actually made here while building the continued-pretraining study, caught by measurement,
 corrected, and where possible given a permanent regression test. Nothing below is a generic best-practice list.
 
-**The organising observation: nine of the eleven incidents produced something plausible that pointed the wrong way (a
-pack set that looked related, a diversity check that passed, a contamination count, a shift of the loss, rewrites
-that read well, a sentence about where data came from), and none of them stopped the pipeline.** The two incidents that stopped it (C1, C2) were the cheapest to fix.
+**The organising observation: ten of the twelve incidents produced something plausible that pointed the wrong way,
+or could have (a pack set that looked related, a diversity check that passed, a contamination count, a shift of the
+loss, rewrites that read well, training data believed clean, a sentence about where data came from), and none of them
+stopped the pipeline.** The two incidents that stopped it (C1, C2) were the cheapest to fix.
 
 Companion document: [README.md](README.md) explains how the pipeline works and what the experiments showed.
 
@@ -22,6 +23,7 @@ Companion document: [README.md](README.md) explains how the pipeline works and w
 | A1 | Semantic packs put editions of one text side by side | data integrity | the long-context comparison would have measured copying, not the use of related text |
 | A2 | The last packs built were leftovers | data integrity | the semantic arm would have carried a tail of random packs |
 | A3 | Rewrites pointed at a passage their reader never sees | data integrity | 12,000 rewrites in a register no real text has, or a diversity gate loosened to let them in |
+| A4 | Solutions to training problems were never checked against the test sets | data integrity | a gain on GSM8K or MATH-500 that came partly from test items |
 | B1 | Density clustering found nothing in 384 dimensions | metric validity | the diversity gate's cluster check could not fail |
 | B2 | Two thirds of the contamination count were runs of numbers | metric validity | a contamination figure more than four times too high, attributed to the wrong benchmarks |
 | B3 | Validation too small for the effects it was meant to show | metric validity | noise of ±0.4% read as an effect of the mixture |
@@ -115,6 +117,40 @@ Vendi ratio rose from 0.73 to 0.86, and the v3 sample passed the gate on both so
 
 **Generalisable lesson.** When generated text fails a diversity check, find the direction the documents share before
 adding variety: one repeated phrase can outweigh every variation added on top of it.
+
+---
+
+## A4 — Solutions to training problems were never checked against the test sets
+
+**Symptom.** None in the scores. When two new test sets were gated on 11-23, the teacher's worked solutions were
+checked against every evaluated item for the first time, after the first runs had trained on them: 433 of the 45,177
+solutions share a 13-gram with a test item.
+
+**The false story.** "The solutions answer training problems, and the solving step never reads a test split, so they
+cannot hold a test item." The publishing step was built on that belief and wrote the solutions into the pool without
+the gate that every other source passes.
+
+**Root cause.** A training split is not clean against its own test split. Three GSM8K test problems have a near-copy
+among the GSM8K training problems (16 solutions matched them). MATH problems of one kind share fixed wording across
+splits ("convert the point to polar coordinates; enter your answer in the form"): 377 solutions matched 51 MATH-500
+items that way. Another 44 matched MMLU-Pro, HumanEval or MBPP items through runs of numbers or common phrases.
+
+**Fix.** The solutions were gated after the fact (`data_hygiene decontaminate --pool pool/synthetic_solutions`), and
+every claim about them was recomputed without the matched test items. On the 1,316 GSM8K problems that no solution
+matches, the gain of the distillation run is unchanged, +6.8 [+4.3, +9.2] (README §1.2). The flagged solutions stay
+in the source, so that the 0.8B, 2B, 4B and 9B runs of the recipe see the same data. The second problem set
+(NuminaMath-1.5) passes the gate, by 13-grams and by embeddings, before the teacher sees a problem
+(`synthetic_rephrase.py select-problems`).
+
+**Permanent regression test.** `select_numina_problems` runs `decontaminate_pool` before it writes the problems and
+records the counts in `results/synthetic_solutions_numina_selection.json`. The first set has no test of its own; its
+gate result is in README §1.2.
+
+**Invalidated artifacts.** None. The GSM8K gain stands on the unmatched problems. The MATH-500 scores of the
+distillation runs include the 51 matched items; their gain is within noise with or without them.
+
+**Generalisable lesson.** Gate every source that enters training, the ones made from training splits included: "train
+split" says where a problem came from, not what it overlaps.
 
 ---
 
