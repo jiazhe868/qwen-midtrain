@@ -19,12 +19,13 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
                     next recipes ◄── optimum under "no forgetting" ◄── mixing law, interference matrix ◄┘
 ```
 
-> **Status, 2026-11-22.** The 18-run screening design on the 0.8B model is analysed (§1.2): at 40M tokens per run
-> the mixture moves the losses and the few-shot scores, and a fine-tune on the tested tasks' own solutions erases the
-> difference. The dose experiment (300M tokens per run, judged by greedy few-shot accuracy and a generic probe) is
-> running. The pool, the rewritten text, the probe data and every checkpoint are on the Hugging Face Hub (§2).
-> Section 13 holds the predictions, written before any probe result existed, with their outcomes so far. This file
-> is updated with every result.
+> **Status, 2026-11-23.** Continued pretraining on public text, at every dose and learning rate tried, leaves the
+> 0.8B model no better than it was (§1.2). Worked solutions written by a stronger model are the first text that
+> helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.4, +9.2]) and
+> move MATH-500, HumanEval and MBPP up within their noise. The same recipe now runs at 2B and 9B, with a control, an
+> ablation, a second seed and two held-out sets of word problems. The pool, the rewritten text, the probe data and
+> every checkpoint are on the Hugging Face Hub (§2). Section 13 holds the predictions, written before any probe
+> result existed, with their outcomes so far. This file is updated with every result.
 
 ## Summary
 
@@ -70,8 +71,17 @@ of the spread of the held-out losses and of the few-shot scores measured before 
 math loss, rewritten text raises few-shot reasoning, and the lower learning rate (3e-6) is better on every loss and
 on few-shot pass@1. After the probe's short fine-tune, none of it is left: the mixture explains less of the probe's
 spread than a law of the same size explains of pure noise, and the order of the runs before and after the fine-tune
-is unrelated. **At 0.8B and 40M tokens, a short fine-tune undoes what continued pretraining changed.** The 2B design,
-running now, tests whether that holds at the next size.
+is unrelated. **At 0.8B and 40M tokens, a short fine-tune undoes what continued pretraining changed.**
+
+A larger dose of public text did not help either (§1.2). With 300M tokens per run, every mixture made the 0.8B model
+worse at a peak learning rate of 1e-5 and above, the replay-only control included, and at 3e-6 every mixture left it
+where it was. The base model has already learnt what this text holds. What it has not seen is the reasoning of a
+stronger model. Therefore, I let the 27B teacher solve the training problems of GSM8K and MATH and kept the 45,177
+solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
+rises from 42.7 to 49.5, a gain of 6.8 points [+4.4, +9.2]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
+within their noise, and knowledge holds. **Distillation in mid-training works where more public text did not.** The
+next question is how far the gain carries beyond the problems that were solved. Two sets of word problems from other
+sources, a control, an ablation and the same recipe at 2B and 9B answer it.
 
 ## Contents
 
@@ -304,6 +314,63 @@ improve: the learning rate has to stay near the end of its own schedule.** The n
 dose, a question-answer-heavy mixture, weight interpolation with the base, and worked solutions written by the
 teacher for the training problems of GSM8K and MATH.
 
+**At 3e-6 the dose does no harm, and no good.** The second sweep kept the 300M tokens and lowered the peak learning
+rate to 3e-6, the rate that won the design. Each run minus the base model, paired question by question, with 95%
+intervals from resampling the questions (`results/final_eval/`, `results/regression/`, `results/training/`):
+
+| run (300M tokens, LR 3e-6) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
+|---|---|---|---|---|---|---|
+| reasoning mix | +0.7 [−1.6, +2.9] | −2.8 [−6.2, +0.8] | 0.0 [−4.3, +4.3] | 0.0 [−4.3, +4.3] | 35.0 | −0.5% |
+| QA-heavy mix (45% WebInstructSub) | +1.7 [−0.5, +3.9] | −0.8 [−4.4, +3.0] | −1.8 [−6.1, +2.4] | +1.9 [−3.1, +6.6] | 34.9 | −0.1% |
+
+The damage is gone: the held-out FineWeb-Edu loss falls again, and knowledge stays at the base model's 34.7. The
+gain is gone too. After the generic probe both runs are 0.6 to 2.7 points below the base model on every task
+(`results/probe_generic/`). Weight interpolation reached the same place by another road: the 1e-5 run averaged with
+the base, with 25% and 50% of the weight on the run, came back to within 2.4 points of the base on all four tasks and
+never above it by more than 0.8 (`merging.py`, runs `dose_reasoning_lr1e-5_0.8B_merge25` and `_merge50`). **Public
+text at a safe learning rate leaves this base model where it was. Whatever these 300M tokens hold, the model has
+already learnt it.**
+
+**Worked solutions from a stronger model give the first gain.** If the model has already learnt the public text,
+the text to add is text it has not seen. The obvious candidate is the reasoning of a stronger model. The 27B teacher
+(Qwen3.8-27B, the model that rewrote the passages of §7) solved the training problems of GSM8K and MATH, eight
+attempts per GSM8K problem and four per MATH problem. An attempt was kept only when its final answer equals the
+reference answer, and at most four distinct ones per problem: 45,177 solutions of 11,915 problems, 23.2M tokens
+(`synthetic_rephrase.py solve`, `results/synthetic_solutions_summary.json`; 94% of the GSM8K attempts and 60% of the
+MATH attempts were right).
+The distillation recipe gives these solutions 40% of 100M tokens, so each is seen 1.7 times. The rest is
+question-answer text, math pages, code and a small replay share (`configs/recipes/dose/dose_distill_100m.yaml`):
+
+| run (100M tokens) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
+|---|---|---|---|---|---|---|
+| base model | 42.7 | 23.0 | 21.3 | 37.4 | 34.7 | — |
+| distillation, LR 3e-6 | **49.5** | 24.4 | 22.6 | 39.3 | 34.9 | −0.2% |
+| − base | **+6.8 [+4.4, +9.2]** | +1.4 [−2.2, +5.0] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
+| distillation, LR 1e-5 | 49.4 | 22.0 | 22.6 | 35.8 | 34.2 | +0.7% |
+| − base | +6.7 [+4.0, +9.2] | −1.0 [−4.8, +2.8] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.5] | −0.5 | |
+
+At 3e-6 every number moves up. GSM8K gains 6.8 points with the whole interval above zero, the other three tasks
+gain 1 to 2 points within their noise, knowledge holds, and the held-out loss falls on 8 of 10 sources
+(WebInstructSub answers by 13%, code by 2.1%, math pages by 1.4%). At 1e-5 the GSM8K gain is the same, and MATH-500,
+MBPP, knowledge and the losses pay for it. **The first gain of the project came from text the base model could not
+have seen: answers written by a stronger model.**
+
+Caveats, plainly:
+- The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution and part
+  of the gain may be a gain on that distribution alone. Two sets of word problems from other sources test whether it
+  carries further: SVAMP (1,000 problems) and ASDiv-A (1,218), answered from the same eight GSM8K examples. Their
+  13-grams occur in 17 of the 4.26M pool documents, all of them math web pages, and in no solution
+  (`results/hygiene_decontamination_word_problems.json`). Their scores are being measured for every run.
+- The solutions were checked against the test sets after training. 433 of the 45,177 share a 13-gram with a test
+  item: 377 with a MATH-500 item, mostly the fixed wording of MATH problems ("enter your answer in the form"), and 16
+  with three GSM8K test problems that have a near-copy among the GSM8K training problems. On the 1,316 GSM8K problems
+  that no solution matches, the gain is the same, +6.8 [+4.3, +9.2]. The flagged solutions stay in the source, so that
+  every run of this recipe sees the same data.
+- One seed per run. The intervals cover the questions, not the training run; a second seed is running.
+- The recipe differs from the runs that did not help in two ways: the solutions, and a mixture that is mostly
+  question-answer text and code. The same mixture without the solutions and a replay-only control at the same budget
+  and rate are running.
+
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
 
@@ -409,7 +476,9 @@ diagnostic and as the fastest warning that a run went wrong.
 
 The regression suite has ten public sets. Their sizes are in `$MIDTRAIN_DATA/eval/manifest.json` after the build:
 MMLU-Pro 1,200 questions (a stratified sample), ARC-Challenge 1,172, HellaSwag 1,000, CommonsenseQA 1,221, CMMLU
-1,000, TriviaQA 1,000, GSM8K 1,319, MATH-500 500, HumanEval 164, MBPP 257.
+1,000, TriviaQA 1,000, GSM8K 1,319, MATH-500 500, HumanEval 164, MBPP 257. Two more sets of word problems, SVAMP
+(1,000) and ASDiv-A (1,218, both in the Calc-X copies), are part of the greedy final evaluation since 11-23. They are
+answered from the GSM8K examples and test whether a gain on GSM8K carries to problems written elsewhere (§1.2).
 
 ### 3.3 The probe
 
@@ -1012,7 +1081,7 @@ src/midtrain/
   data_sources.py         download, normalise, tokenize; the pool
   mixture.py              recipes to exact token sequences; schedules; long-context share
   train_continue.py       the continued-pretraining loop; checkpoints in the base layout
-  eval_tasks.py           ten public evaluation sets, prompts, graders, the sandbox for model-written code
+  eval_tasks.py           twelve public evaluation sets, prompts, graders, the sandbox for model-written code
   sft_probe.py            the fixed fine-tune, sampling, pass@k
   synthetic_rephrase.py   teacher rewriting of real passages, checks on every output
   curation_funnel.py      filter, dedup, semantic dedup, loss scoring, learnability selection

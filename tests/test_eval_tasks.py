@@ -166,6 +166,21 @@ def test_numeric_grader_rejects_wrong_answers(gold_answer_text, completion_text,
     assert not eval_tasks.grade_completion(make_numeric_item(gold_answer_text), completion_text, prompt_style)
 
 
+def test_calc_x_results_lose_the_thousands_separator_and_keep_fractions():
+    """SVAMP writes 68 of its results as 1_414; read as written, the gold answer would match no model answer."""
+    row = {"id": "svamp__chal-9", "question": "Jack had  1000 marbles.\nHe found 414 more. How many now?",
+           "result": "1_414", "equation": "( 1000.0 + 414.0 )"}
+    item = eval_tasks.normalise_calc_x_row(row, "svamp", "test", 9)
+    assert item["answer_text"] == "1414" and item["item_id"] == "svamp:test:9"
+    assert item["question"] == "Jack had 1000 marbles. He found 414 more. How many now?"
+    assert eval_tasks.grade_completion(item, " 1000 + 414 = 1414. The answer is 1414.", "base")
+    assert eval_tasks.grade_completion(item, item["meta"]["reference_solution"], "chat")
+    fraction_row = {"id": "asdiv_a__x", "question": "Share 10 cakes among 3.", "result": "10/3"}
+    fraction_item = eval_tasks.normalise_calc_x_row(fraction_row, "asdiv_a", "test", 0)
+    assert fraction_item["meta"]["reference_solution"] == "The answer is 10/3."
+    assert eval_tasks.grade_completion(fraction_item, "\\boxed{\\frac{10}{3}}", "chat")
+
+
 def test_final_answer_is_read_in_the_documented_order():
     r"""The last \boxed{}, else `#### x`, else `The answer is x`, else the last number."""
     extract = eval_tasks.extract_final_answer_text
@@ -948,7 +963,7 @@ def test_json_lines_round_trip_and_hash(tmp_path):
 
 def test_task_table_is_complete():
     assert list(eval_tasks.evaluation_tasks) == ["gsm8k", "math500", "humaneval", "mbpp", "mmlu_pro", "arc_challenge",
-                                                 "hellaswag", "commonsenseqa", "triviaqa", "cmmlu"]
+                                                 "hellaswag", "commonsenseqa", "triviaqa", "cmmlu", "svamp", "asdiv_a"]
     for task_name, task in eval_tasks.evaluation_tasks.items():
         assert len(task["hub_revision"]) == 40, f"{task_name}: the revision must be a full commit sha"
         assert task["kind"] in ("multiple_choice", "numeric", "code", "short_answer")
@@ -1009,6 +1024,14 @@ def test_built_shots_are_never_evaluated_items_and_every_prompt_renders(task_nam
 
 
 @needs_built_files
+@pytest.mark.parametrize("task_name", ["svamp", "asdiv_a"])
+def test_word_problem_sets_are_answered_from_the_gsm8k_prompt(task_name):
+    """SVAMP and ASDiv-A test whether a GSM8K gain carries to other problems, so only the problems may differ."""
+    gsm8k_shot_ids = [shot["item_id"] for shot in eval_tasks.load_few_shot_items("gsm8k")]
+    assert [shot["item_id"] for shot in eval_tasks.load_few_shot_items(task_name)] == gsm8k_shot_ids
+
+
+@needs_built_files
 def test_built_stratified_samples_cover_every_group():
     category_counts = {}
     for item in eval_tasks.load_evaluation_items("mmlu_pro"):
@@ -1023,7 +1046,7 @@ def test_built_stratified_samples_cover_every_group():
 
 
 @needs_built_files
-@pytest.mark.parametrize("task_name", ["gsm8k", "math500"])
+@pytest.mark.parametrize("task_name", ["gsm8k", "math500", "svamp", "asdiv_a"])
 def test_built_numeric_gold_answers_are_graded_correct_and_changed_ones_wrong(task_name):
     r"""The data set's own solution (its last \boxed{} or `#### x`) must be read back as its own answer."""
     for item in eval_tasks.load_evaluation_items(task_name):

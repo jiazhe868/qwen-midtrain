@@ -1,0 +1,359 @@
+{
+ "batch": "v3",
+ "documents_per_source": 600,
+ "seed": 0,
+ "kept_rewrites": 1692,
+ "rewrites": 2225,
+ "sources": {
+  "synthetic_rephrase": {
+   "documents": 600,
+   "token_sample_size": 487119,
+   "tokens": {
+    "rewrites": 644958,
+    "parents": 512757
+   },
+   "passed": true,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 15.717014225478872,
+     "baseline": 16.027192034605246,
+     "requirement": "at least 15.53",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.0006717818319101922,
+     "baseline": 0.009217315154291156,
+     "requirement": "at most 0.03",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 50.0,
+     "baseline": 33.333333333333336,
+     "requirement": "at least 16.67",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.5749764496691805,
+     "baseline": 3.2249742447611163,
+     "requirement": "at most 4.192",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 21.246596612302046,
+     "baseline": 26.219038260975857,
+     "requirement": "at least 20.98",
+     "passed": true,
+     "missed_by": 0.0
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 600,
+     "token_count": 644958,
+     "seed": 0,
+     "token_sample_size": 487119,
+     "token_sample_document_count": 512,
+     "sampled_token_count": 487119,
+     "unigram_entropy_bits": 10.46426282071093,
+     "bigram_entropy_bits": 15.717014225478872,
+     "distinct_1": 0.05035730488853853,
+     "distinct_2": 0.3960486166048514,
+     "zstd_compression_ratio": 3.5749764496691805,
+     "template_repetition_rate": 0.0006717818319101922,
+     "sentence_count": 27513,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "- $n=<number> \\rightarrow <number>$",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "\"<name>,\" the teacher said.",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "<name> base <number>, it is <number>.",
+       "occurrences": 8
+      },
+      {
+       "skeleton": "\"<name>,\" the student said.",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "<name> student shook their head.",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 600,
+     "mean_nearest_neighbour_cosine_similarity": 0.7389458417892456,
+     "cluster_sample_document_count": 600,
+     "embedding_vendi_score": 21.246596612302046,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 3,
+     "hdbscan_noise_share": 0.5533333333333333,
+     "hdbscan_clusters_per_10k_documents": 50.0
+    },
+    "parents": {
+     "document_count": 600,
+     "token_count": 512757,
+     "seed": 0,
+     "token_sample_size": 487119,
+     "token_sample_document_count": 600,
+     "sampled_token_count": 487119,
+     "unigram_entropy_bits": 10.706929570207459,
+     "bigram_entropy_bits": 16.027192034605246,
+     "distinct_1": 0.06285527766315828,
+     "distinct_2": 0.43395012629765967,
+     "zstd_compression_ratio": 3.2249742447611163,
+     "template_repetition_rate": 0.009217315154291156,
+     "sentence_count": 28813,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> : <name>: <name>",
+       "occurrences": 40
+      },
+      {
+       "skeleton": "<name> by : <name>.",
+       "occurrences": 38
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 26
+      },
+      {
+       "skeleton": "##### <name>: <number> <name>:",
+       "occurrences": 22
+      },
+      {
+       "skeleton": ", at <name>, <number> <name> <number>",
+       "occurrences": 19
+      },
+      {
+       "skeleton": "<number> <name> beat <name>",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<number> establishments in <name>",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "<name> at the <number> <name>",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "<name> <number> \u2013 <name>, <name> international footballer (died <number>)",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "<name> <number>, <number> at <number>",
+       "occurrences": 11
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 600,
+     "mean_nearest_neighbour_cosine_similarity": 0.7109187841415405,
+     "cluster_sample_document_count": 600,
+     "embedding_vendi_score": 26.219038260975857,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 2,
+     "hdbscan_noise_share": 0.435,
+     "hdbscan_clusters_per_10k_documents": 33.333333333333336
+    }
+   }
+  },
+  "synthetic_qa": {
+   "documents": 600,
+   "token_sample_size": 491807,
+   "tokens": {
+    "rewrites": 692909,
+    "parents": 517692
+   },
+   "passed": false,
+   "checks": [
+    {
+     "measurement": "bigram_entropy_bits",
+     "batch": 15.473644235637288,
+     "baseline": 15.97944986435994,
+     "requirement": "at least 15.48",
+     "passed": false,
+     "missed_by": 0.005805628722653111
+    },
+    {
+     "measurement": "template_repetition_rate",
+     "batch": 0.0017902625433685977,
+     "baseline": 0.01491371110205191,
+     "requirement": "at most 0.04474",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "hdbscan_clusters_per_10k_documents",
+     "batch": 50.0,
+     "baseline": 50.0,
+     "requirement": "at least 25",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "zstd_compression_ratio",
+     "batch": 3.7459509719437105,
+     "baseline": 3.2493909659318034,
+     "requirement": "at most 4.224",
+     "passed": true,
+     "missed_by": 0.0
+    },
+    {
+     "measurement": "embedding_vendi_score",
+     "batch": 21.25004403417468,
+     "baseline": 25.22983130473753,
+     "requirement": "at least 20.18",
+     "passed": true,
+     "missed_by": 0.0
+    }
+   ],
+   "diversity": {
+    "rewrites": {
+     "document_count": 600,
+     "token_count": 692909,
+     "seed": 0,
+     "token_sample_size": 491807,
+     "token_sample_document_count": 512,
+     "sampled_token_count": 491807,
+     "unigram_entropy_bits": 10.300257833883917,
+     "bigram_entropy_bits": 15.473644235637288,
+     "distinct_1": 0.04637794907351868,
+     "distinct_2": 0.36898123651756276,
+     "zstd_compression_ratio": 3.7459509719437105,
+     "template_repetition_rate": 0.0017902625433685977,
+     "sentence_count": 24579,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<name> result is consistent.",
+       "occurrences": 15
+      },
+      {
+       "skeleton": "<name> <number>: <name> the result.",
+       "occurrences": 13
+      },
+      {
+       "skeleton": "<name> <number>: <name> of <name>",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "- <name> (<number>\u2013<number>): <number> years.",
+       "occurrences": 11
+      },
+      {
+       "skeleton": "- <number> (<name> only)",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<name> $\\binom{m}{<number>} = <number>$, $m=<number>$.",
+       "occurrences": 9
+      },
+      {
+       "skeleton": "<number> is divisible by <number>.",
+       "occurrences": 7
+      },
+      {
+       "skeleton": "<name> calculation is consistent.",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "<name>: $<name> \\to <name>$.",
+       "occurrences": 6
+      },
+      {
+       "skeleton": "- <name> with $<name>$.",
+       "occurrences": 6
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 600,
+     "mean_nearest_neighbour_cosine_similarity": 0.7415616512298584,
+     "cluster_sample_document_count": 600,
+     "embedding_vendi_score": 21.25004403417468,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 3,
+     "hdbscan_noise_share": 0.5383333333333333,
+     "hdbscan_clusters_per_10k_documents": 50.0
+    },
+    "parents": {
+     "document_count": 600,
+     "token_count": 517692,
+     "seed": 0,
+     "token_sample_size": 491807,
+     "token_sample_document_count": 600,
+     "sampled_token_count": 491807,
+     "unigram_entropy_bits": 10.66676008558274,
+     "bigram_entropy_bits": 15.97944986435994,
+     "distinct_1": 0.06180676566213982,
+     "distinct_2": 0.42120316425032267,
+     "zstd_compression_ratio": 3.2493909659318034,
+     "template_repetition_rate": 0.01491371110205191,
+     "sentence_count": 28738,
+     "most_repeated_sentence_skeletons": [
+      {
+       "skeleton": "<number> x <number> = <number>",
+       "occurrences": 98
+      },
+      {
+       "skeleton": "<name> by : <name>.",
+       "occurrences": 43
+      },
+      {
+       "skeleton": "<name> : <name>: <name>",
+       "occurrences": 43
+      },
+      {
+       "skeleton": "<name> : <name> <number>",
+       "occurrences": 36
+      },
+      {
+       "skeleton": "| <number> | <name> | <name> | <number> |",
+       "occurrences": 35
+      },
+      {
+       "skeleton": "<name> \u2013 <name> (<name>)",
+       "occurrences": 34
+      },
+      {
+       "skeleton": "<name> <number>, <number> at <number>",
+       "occurrences": 28
+      },
+      {
+       "skeleton": "- <name> as <name>",
+       "occurrences": 26
+      },
+      {
+       "skeleton": "<number>: <name> and <name>",
+       "occurrences": 16
+      },
+      {
+       "skeleton": "<name> indicates how strong in your memory this concept is",
+       "occurrences": 15
+      }
+     ],
+     "embedding_model": "BAAI/bge-small-en-v1.5",
+     "nearest_neighbour_sample_document_count": 600,
+     "mean_nearest_neighbour_cosine_similarity": 0.711332380771637,
+     "cluster_sample_document_count": 600,
+     "embedding_vendi_score": 25.22983130473753,
+     "hdbscan_principal_direction_count": 16,
+     "hdbscan_cluster_count": 3,
+     "hdbscan_noise_share": 0.47833333333333333,
+     "hdbscan_clusters_per_10k_documents": 50.0
+    }
+   }
+  }
+ }
+}

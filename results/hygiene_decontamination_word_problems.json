@@ -1,0 +1,128 @@
+{
+ "settings": {
+  "methods": [
+   "ngram"
+  ],
+  "ngram_word_count": 13,
+  "min_word_count_for_whole_text_key": 8,
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "similarity_threshold": 0.9,
+  "window_token_count": 256
+ },
+ "evaluation_items_by_task": {
+  "asdiv_a": {
+   "items": 1218,
+   "ngram_keys": 21514,
+   "items_without_ngram_key": 0
+  },
+  "svamp": {
+   "items": 1000,
+   "ngram_keys": 20795,
+   "items_without_ngram_key": 0
+  }
+ },
+ "flagged": {
+  "ngram": {
+   "by_source": {
+    "math_web": {
+     "documents": 3,
+     "tokens": 3251
+    },
+    "math_web_extra": {
+     "documents": 14,
+     "tokens": 38286
+    }
+   },
+   "by_task_and_source": {
+    "asdiv_a": {
+     "math_web": {
+      "documents": 3,
+      "tokens": 3251
+     },
+     "math_web_extra": {
+      "documents": 14,
+      "tokens": 38286
+     }
+    },
+    "svamp": {
+     "math_web_extra": {
+      "documents": 2,
+      "tokens": 2588
+     }
+    }
+   }
+  },
+  "either": {
+   "by_source": {
+    "math_web": {
+     "documents": 3,
+     "tokens": 3251
+    },
+    "math_web_extra": {
+     "documents": 14,
+     "tokens": 38286
+    }
+   }
+  }
+ },
+ "scanned_by_source": {
+  "code": {
+   "documents": 319596,
+   "tokens": 298867200
+  },
+  "math_web": {
+   "documents": 308181,
+   "tokens": 480211280
+  },
+  "math_web_extra": {
+   "documents": 308036,
+   "tokens": 474484026
+  },
+  "reasoning_qa": {
+   "documents": 2300917,
+   "tokens": 795906149
+  },
+  "replay_web_edu": {
+   "documents": 495539,
+   "tokens": 519317874
+  },
+  "synthetic_qa": {
+   "documents": 5151,
+   "tokens": 5592090
+  },
+  "synthetic_rephrase": {
+   "documents": 5257,
+   "tokens": 5544665
+  },
+  "synthetic_solutions": {
+   "documents": 45177,
+   "tokens": 23243228
+  },
+  "textbooks": {
+   "documents": 94096,
+   "tokens": 226955391
+  },
+  "wiki_en": {
+   "documents": 221959,
+   "tokens": 253681974
+  },
+  "wiki_zh": {
+   "documents": 155877,
+   "tokens": 228747796
+  }
+ },
+ "flagged_file_name": "decontamination_flagged.parquet",
+ "ngram_flags_by_kind_of_match": {
+  "all_tasks": {
+   "words": 17
+  },
+  "by_task": {
+   "asdiv_a": {
+    "words": 17
+   },
+   "svamp": {
+    "words": 2
+   }
+  }
+ }
+}

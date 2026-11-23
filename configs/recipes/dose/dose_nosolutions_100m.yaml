@@ -1,0 +1,19 @@
+# The distillation mixture without its worked solutions (README §1.2), 100M tokens: the ablation of the distillation run.
+#
+# Why. The distillation run raised GSM8K by 6.8 points at 0.8B. Its mixture changed two things at once against the
+# runs that did not help: 40% teacher-written solutions, and a small web share next to question-answer text, math
+# web text and code. Here the 40% of solutions go to web text (replay_web_edu 0.10 → 0.50) and every other share
+# stays as it was, so a gain that survives belongs to the rest of the mixture and a gain that vanishes belongs to the
+# solutions.
+token_budget: 100007936           # 3,052 steps of 32,768 tokens, as in dose_distill_100m.yaml
+context_length: 4096
+components:
+  reasoning_qa: 0.15
+  math_web: 0.10
+  code: 0.10
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.50
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1

@@ -281,6 +281,8 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
     recipe = load_recipe(arguments.recipe)
     if arguments.token_budget:
         recipe["token_budget"] = arguments.token_budget
+    if arguments.seed is not None:
+        recipe["seed"] = arguments.seed
     run_directory = data_root() / "runs" / arguments.run_name
     run_directory.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(recipe["seed"])
@@ -418,6 +420,9 @@ def main() -> None:
     parser.add_argument("--recipe", required=True, help="a recipe YAML (midtrain.mixture)")
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--token-budget", type=int, default=None, help="overrides the recipe's token budget")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="overrides the recipe's seed, which sets the document order of every source; a second "
+                             "seed of one recipe measures how much a result moves with the data order alone")
     parser.add_argument("--peak-learning-rate", type=float, default=1e-5)
     parser.add_argument("--warmup-step-share", type=float, default=0.02,
                         help="2%% of the steps: the Adam moments start empty, so the first steps are damped")

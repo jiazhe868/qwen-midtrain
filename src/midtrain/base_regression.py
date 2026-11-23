@@ -68,6 +68,9 @@ final_generation_settings = {
         "math500": {"item_count": 500, "maximum_new_tokens": 768},
         "humaneval": {"item_count": 164, "maximum_new_tokens": 512},
         "mbpp": {"item_count": 257, "maximum_new_tokens": 512},
+        # word problems from other sources, answered from the GSM8K shots (eval_tasks.py; added 11-23)
+        "svamp": {"item_count": 1000, "maximum_new_tokens": 512},
+        "asdiv_a": {"item_count": 1218, "maximum_new_tokens": 512},
     },
 }
 long_document_token_count = 16384          # the long training sequence length (configs/designs/screen18.yaml)
@@ -332,16 +335,27 @@ def add_cloze_scores(checkpoint_path: str, run_name: str, tokens_per_forward: in
 
 
 def run_final_evaluation(checkpoint_path: str, run_name: str) -> dict:
-    """Greedy few-shot accuracy on the full test sets; writes results/final_eval/<run>.json."""
-    generation = sft_probe.evaluate_pass_at_k(checkpoint_path, f"{run_name}_final", sft_probe.port_for_this_process(),
-                                              prompt_style="base",
-                                              evaluation_settings=json.loads(json.dumps(final_generation_settings)))
-    results = {"run_name": run_name, "decoding": "greedy, one answer per item", "tasks": generation["tasks"]}
+    """Greedy few-shot accuracy on the full test sets; writes results/final_eval/<run>.json.
+
+    Tasks that an existing result file already holds are kept and not run again. A set added to
+    final_generation_settings later (SVAMP and ASDiv-A on 11-23) is then filled in for the earlier runs by running
+    this command once more, and the scores already measured stay exactly as they were.
+    """
     results_directory = repository_root / "results" / "final_eval"
     results_directory.mkdir(parents=True, exist_ok=True)
-    (results_directory / f"{run_name}.json").write_text(json.dumps(results) + "\n")
+    result_path = results_directory / f"{run_name}.json"
+    results = (json.loads(result_path.read_text()) if result_path.exists()
+               else {"run_name": run_name, "decoding": "greedy, one answer per item", "tasks": {}})
+    settings = json.loads(json.dumps(final_generation_settings))
+    settings["tasks"] = {task_name: task_settings for task_name, task_settings in settings["tasks"].items()
+                         if task_name not in results["tasks"]}
+    if settings["tasks"]:
+        generation = sft_probe.evaluate_pass_at_k(checkpoint_path, f"{run_name}_final", sft_probe.port_for_this_process(),
+                                                  prompt_style="base", evaluation_settings=settings)
+        results["tasks"].update(generation["tasks"])
+        result_path.write_text(json.dumps(results) + "\n")
     return {task_name: {"accuracy": task["pass@1"]["value"], "items": len(task["item_ids"]),
-                        "cut": task.get("share_cut_at_token_limit")} for task_name, task in generation["tasks"].items()}
+                        "cut": task.get("share_cut_at_token_limit")} for task_name, task in results["tasks"].items()}
 
 
 def main() -> None:

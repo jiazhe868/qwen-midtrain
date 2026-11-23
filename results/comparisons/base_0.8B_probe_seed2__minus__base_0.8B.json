@@ -1,0 +1,107 @@
+{
+ "first": "base_0.8B_probe_seed2",
+ "second": "base_0.8B",
+ "probe": {
+  "gsm8k": {
+   "pass@1": {
+    "difference": -0.78,
+    "low": -2.05,
+    "high": 0.42,
+    "questions": 200
+   },
+   "pass@16": {
+    "difference": -1.82,
+    "low": -3.93,
+    "high": 0.3,
+    "questions": 200
+   },
+   "pass@64": {
+    "difference": 1.0,
+    "low": -2.0,
+    "high": 4.0,
+    "questions": 200
+   }
+  },
+  "humaneval": {
+   "pass@1": {
+    "difference": 0.06,
+    "low": -0.63,
+    "high": 0.73,
+    "questions": 164
+   },
+   "pass@16": {
+    "difference": 0.09,
+    "low": -3.04,
+    "high": 3.09,
+    "questions": 164
+   },
+   "pass@64": {
+    "difference": -3.05,
+    "low": -9.76,
+    "high": 3.66,
+    "questions": 164
+   }
+  },
+  "math500": {
+   "pass@1": {
+    "difference": 0.13,
+    "low": -0.59,
+    "high": 0.84,
+    "questions": 250
+   },
+   "pass@16": {
+    "difference": -0.33,
+    "low": -2.96,
+    "high": 2.3,
+    "questions": 250
+   },
+   "pass@64": {
+    "difference": -0.8,
+    "low": -5.6,
+    "high": 4.0,
+    "questions": 250
+   }
+  },
+  "mbpp": {
+   "pass@1": {
+    "difference": 0.38,
+    "low": -0.52,
+    "high": 1.29,
+    "questions": 200
+   },
+   "pass@16": {
+    "difference": -1.01,
+    "low": -3.31,
+    "high": 1.46,
+    "questions": 200
+   },
+   "pass@64": {
+    "difference": -3.0,
+    "low": -7.0,
+    "high": 1.5,
+    "questions": 200
+   }
+  },
+  "all_tasks": {
+   "pass@1": {
+    "difference": -0.05,
+    "low": -0.5,
+    "high": 0.43,
+    "questions": 814
+   },
+   "pass@16": {
+    "difference": -0.78,
+    "low": -2.0,
+    "high": 0.52,
+    "questions": 814
+   },
+   "pass@64": {
+    "difference": -1.35,
+    "low": -3.69,
+    "high": 1.11,
+    "questions": 814
+   }
+  }
+ },
+ "regression": {}
+}

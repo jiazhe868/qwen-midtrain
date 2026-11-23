@@ -7,7 +7,7 @@ show them the same questions, the same prompt text and the same definition of "c
 evaluation harness, but a harness changes its prompts and answer extraction between releases, and it runs model-written
 code with the rights of whoever starts it. So this one file owns all of it, in the order the stages run:
 
-  1. build     download ten public sets at pinned revisions, normalise them to the item schema of docs/conventions.md,
+  1. build     download twelve public sets at pinned revisions, normalise them to the item schema of docs/conventions.md,
                write $MIDTRAIN_DATA/eval/<task>.jsonl, <task>_fewshot.jsonl and manifest.json
   2. prompts   render_base_prompt, render_chat_messages, multiple_choice_continuations, base_completion_stop_sequences
   3. graders   grade_completion, estimate_pass_at_k, grade_code_completions_in_parallel
@@ -271,6 +271,49 @@ evaluation_tasks = {
         "licence_note": "the card text says CC BY-NC-SA 4.0 while its licence field says cc-by-nc-4.0; "
                         "non-commercial either way",
     },
+    # Two sets of grade-school word problems from sources other than GSM8K (added 11-23, README §1.2). The
+    # distillation data are worked solutions to the training problems of GSM8K and MATH, so a gain on GSM8K may be a
+    # gain on its own distribution; these two sets ask whether it carries to problems written elsewhere. Both are
+    # answered from the eight GSM8K shots, so the prompt stays the same and only the problems change. The Calc-X
+    # copies (MU-NLPC) hold every item in one split with a numeric result; SVAMP writes thousands as 1_414.
+    "svamp": {
+        "kind": "numeric",
+        "hub_id": "MU-NLPC/Calc-svamp",
+        "hub_config": "default",
+        "hub_revision": "1895931ce53425d46db1ffeb055d74ca1d912f17",
+        "evaluated_split": "test",
+        "evaluated_split_item_count": 1000,
+        "evaluated_item_count": 1000,
+        "stratified_by_meta_key": None,
+        "few_shot_hub_id": "openai/gsm8k",
+        "few_shot_hub_config": "main",
+        "few_shot_hub_revision": "740312add88f781978c0658806c59bc2815b9866",
+        "few_shot_split": "train",
+        "few_shot_item_count": 8,
+        "few_shot_distinct_meta_key": None,
+        "licence": "mit",
+        "licence_on_hub_card": "mit",
+        "licence_note": "",
+    },
+    "asdiv_a": {
+        "kind": "numeric",
+        "hub_id": "MU-NLPC/Calc-asdiv_a",
+        "hub_config": "default",
+        "hub_revision": "520a6910e097ee287ecd2bb9104f7f45805f9df9",
+        "evaluated_split": "test",
+        "evaluated_split_item_count": 1218,
+        "evaluated_item_count": 1218,
+        "stratified_by_meta_key": None,
+        "few_shot_hub_id": "openai/gsm8k",
+        "few_shot_hub_config": "main",
+        "few_shot_hub_revision": "740312add88f781978c0658806c59bc2815b9866",
+        "few_shot_split": "train",
+        "few_shot_item_count": 8,
+        "few_shot_distinct_meta_key": None,
+        "licence": "cc-by-nc-4.0",
+        "licence_on_hub_card": None,
+        "licence_note": "the hub card has no licence field; CC BY-NC 4.0 is the licence of ASDiv, which this set copies",
+    },
 }
 
 
@@ -425,6 +468,21 @@ def normalise_gsm8k_row(row: dict, split_name: str, row_index: int) -> dict:
     assert is_plain_number_text(answer_text), f"gsm8k {split_name} row {row_index}: answer {answer_text!r}"
     meta = {"reference_solution": row["answer"], "worked_solution": clean_gsm8k_solution(solution_text)}
     return assemble_item("gsm8k", split_name, row_index, "numeric", row["question"].strip(),
+                         {"answer_text": answer_text}, meta)
+
+
+def normalise_calc_x_row(row: dict, task_name: str, split_name: str, row_index: int) -> dict:
+    """SVAMP or ASDiv-A in the Calc-X copy: a question and its result, an integer, a decimal or (once) a fraction.
+
+    SVAMP writes 68 of its 1,000 results with Python's thousands separator (1_414); it is removed. The reference
+    solution is the set's own equation, where it has one, followed by the answer sentence of the base prompts.
+    """
+    answer_text = str(row["result"]).replace("_", "").strip()
+    assert re.fullmatch(r"-?\d+(\.\d+)?(/\d+)?", answer_text), f"{task_name} row {row_index}: result {row['result']!r}"
+    equation_text = (row.get("equation") or "").strip()
+    reference_solution = (f"{equation_text} = {answer_text}. " if equation_text else "") + f"The answer is {answer_text}."
+    meta = {"source_id": row["id"], "reference_solution": reference_solution}
+    return assemble_item(task_name, split_name, row_index, "numeric", collapse_whitespace(row["question"]),
                          {"answer_text": answer_text}, meta)
 
 
@@ -620,6 +678,16 @@ def build_items_of_task(task_name: str) -> tuple[list[dict], list[dict]]:
                     few_shot_candidate_items.append(candidate_item)
         print(f"  math500: {unusable_train_row_count:,} MATH train problems cannot be shots (a figure, a long answer "
               f"or not exactly one boxed answer); {len(few_shot_candidate_items):,} can")
+    elif task_name in ("svamp", "asdiv_a"):
+        evaluated_rows = load_hub_rows(task["hub_id"], task["hub_config"], task["evaluated_split"], task["hub_revision"])
+        evaluated_split_items = [normalise_calc_x_row(row, task_name, task["evaluated_split"], row_index)
+                                 for row_index, row in enumerate(evaluated_rows)]
+        # the shot candidates are the GSM8K training problems, ranked by the same seeded hash as for GSM8K itself,
+        # so the prompt carries the same eight worked solutions (check_built_task compares the two shot files)
+        few_shot_rows = load_hub_rows(task["few_shot_hub_id"], task["few_shot_hub_config"], task["few_shot_split"],
+                                      task["few_shot_hub_revision"])
+        few_shot_candidate_items = [normalise_gsm8k_row(row, task["few_shot_split"], row_index)
+                                    for row_index, row in enumerate(few_shot_rows)]
     elif task_name == "humaneval":
         evaluated_rows = load_hub_rows(task["hub_id"], task["hub_config"], "test", task["hub_revision"])
         evaluated_split_items = [normalise_humaneval_row(row, "test", row_index)
@@ -1812,6 +1880,10 @@ def check_built_task(task_name: str, manifest_entry: dict) -> list[str]:
         chat_messages = render_chat_messages(item)
         assert [message["role"] for message in chat_messages] == ["system", "user"]
 
+    if task.get("few_shot_hub_id") == evaluation_tasks["gsm8k"]["hub_id"]:
+        gsm8k_shot_ids = [shot["item_id"] for shot in load_few_shot_items("gsm8k")]
+        if [shot["item_id"] for shot in few_shot_items] != gsm8k_shot_ids:
+            problems.append("the shots differ from the GSM8K shots, so the prompt is not the GSM8K prompt")
     wrongly_graded_item_ids = []
     sandbox_report = ""
     if task["kind"] == "numeric":

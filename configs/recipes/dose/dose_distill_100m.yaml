@@ -3,8 +3,8 @@
 # Why. At 300M tokens every mixture of public text made the 0.8B model worse (README §1.2), and interpolating a run
 # with the base only gave the base back: the text held nothing these tasks need that the base did not already have.
 # Here 40% of the tokens are worked solutions written by the 27B teacher for the training problems of GSM8K and MATH
-# (`synthetic_solutions`, only solutions whose final answer is right, at most four per problem); about 16M tokens,
-# so 100M tokens see each solution about 2.5 times. The rest keeps web text small, as in the QA-heavy recipe.
+# (`synthetic_solutions`, only solutions whose final answer is right, at most four per problem); 45,177 solutions and
+# 23.2M tokens, so 100M tokens see each solution 1.7 times. The rest keeps web text small, as in the QA-heavy recipe.
 token_budget: 100007936           # 3,052 steps of 32,768 tokens
 context_length: 4096
 components:
