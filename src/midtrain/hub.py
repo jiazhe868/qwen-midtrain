@@ -83,7 +83,7 @@ the data of both fine-tuning probes. With it, the code trains and evaluates with
 | `synthetic/v1`, `v2`, `v3` | the three batches of teacher rewrites, with their passages; only v3 passed the diversity gate |
 | `synthetic/request_variants/` | the seven request wordings tried on 150 passages |
 | `synthetic/solutions/` | every teacher attempt at the GSM8K and MATH training problems, graded; the right ones are `synthetic_solutions` |
-| `synthetic/solutions_numina/` | the gated NuminaMath-1.5 problems and the teacher's attempts; the right ones are `synthetic_solutions_numina` |
+| `synthetic/solutions_numina/` | the gated NuminaMath-1.5 problems and the teacher's attempts (right ones: `synthetic_solutions_numina`) |
 | `probe/`, `probe_generic/` | the tokenized conversations of the in-domain and the generic fine-tuning probe |
 
 ## Sources of the pool
