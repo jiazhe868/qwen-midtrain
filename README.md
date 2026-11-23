@@ -355,12 +355,15 @@ question-answer text, math pages, code and a small replay share (`configs/recipe
 | − base | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
 | distillation, LR 1e-5 | 49.4 | 22.0 | 22.6 | 35.8 | 34.2 | +0.7% |
 | − base | +6.7 [+3.9, +9.4] | −1.0 [−4.6, +2.4] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.9] | −0.5 | |
+| replay only, LR 3e-6 | 43.0 | 23.4 | 22.0 | 37.4 | 35.3 | |
+| − base | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | +0.6 [−2.4, +3.7] | 0.0 [−3.1, +3.5] | +0.6 | |
 
 At 3e-6 every number moves up. GSM8K gains 6.8 points with the whole interval above zero, the other three tasks
 gain 1 to 2 points within their noise, knowledge holds, and the held-out loss falls on 8 of 10 sources
 (WebInstructSub answers by 13%, code by 2.1%, math pages by 1.4%). At 1e-5 the GSM8K gain is the same, and MATH-500,
-MBPP, knowledge and the losses pay for it. **The first gain of the project came from text the base model could not
-have seen: answers written by a stronger model.**
+MBPP, knowledge and the losses pay for it. The replay-only control, at the same budget and rate, moves no test set
+beyond its noise. **The first gain of the project came from text the base model could not have seen: answers written
+by a stronger model.**
 
 **After a fine-tune, the higher learning rate pulls ahead.** The few-shot score is the base model's own view. The
 project asks what a checkpoint is worth after post-training (§3.1), and the generic probe answers that: a fine-tune
@@ -371,6 +374,7 @@ on 6,842 instruction conversations that hold no tested task, then 16 samples per
 |---|---|---|---|---|
 | distillation, 100M tokens, LR 3e-6 | +5.7 [+3.3, +8.1] | +0.3 [−1.1, +1.7] | −2.0 [−3.7, −0.3] | 0.0 [−1.8, +1.8] |
 | distillation, 100M tokens, LR 1e-5 | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.7 [−2.3, +1.1] | −1.5 [−3.5, +0.5] |
+| replay only, 100M tokens, LR 3e-6 | +0.1 [−1.8, +2.1] | 0.0 [−1.3, +1.2] | −1.7 [−3.4, −0.2] | +0.2 [−1.6, +1.8] |
 | reasoning mix, 300M tokens, LR 3e-6 | −1.5 [−3.4, +0.5] | −1.9 [−3.4, −0.5] | −1.6 [−3.1, −0.1] | −0.6 [−2.3, +1.1] |
 | QA-heavy mix, 300M tokens, LR 3e-6 | −2.7 [−4.5, −0.9] | −2.6 [−4.2, −1.2] | −0.8 [−2.3, +0.8] | −0.6 [−2.4, +1.1] |
 
@@ -446,8 +450,8 @@ Caveats, plainly:
   recipe sees the same data.
 - One seed per run. The intervals cover the questions, not the training run; a second seed is running.
 - The recipe differs from the runs that did not help in two ways: the solutions, and a mixture that is mostly
-  question-answer text and code. The same mixture without the solutions and a replay-only control at the same budget
-  and rate are running.
+  question-answer text and code. The replay-only controls at the same budget and rate (0.8B and 2B) move nothing, so
+  continued training as such is not the cause; the same mixture without the solutions is running.
 
 **The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
 temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
