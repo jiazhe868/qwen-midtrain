@@ -1,0 +1,128 @@
+{
+ "model_size": "2B",
+ "base": "base_2B",
+ "matched_items_left_out_by": "synthetic_solutions",
+ "runs": {
+  "dose_distill_lr3e-6_2B": {
+   "few_shot_greedy": {
+    "gsm8k": {
+     "run": 65.96,
+     "base": 61.64,
+     "difference": 4.32,
+     "low": 1.97,
+     "high": 6.75,
+     "questions": 1319,
+     "without_matched_items": {
+      "difference": 4.26,
+      "low": 1.82,
+      "high": 6.69,
+      "questions": 1316
+     }
+    },
+    "math500": {
+     "run": 35.8,
+     "base": 37.2,
+     "difference": -1.4,
+     "low": -5.0,
+     "high": 2.0,
+     "questions": 500,
+     "without_matched_items": {
+      "difference": -1.34,
+      "low": -4.92,
+      "high": 2.24,
+      "questions": 447
+     }
+    },
+    "humaneval": {
+     "run": 31.71,
+     "base": 34.15,
+     "difference": -2.44,
+     "low": -7.32,
+     "high": 2.44,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 47.86,
+     "base": 49.42,
+     "difference": -1.56,
+     "low": -5.45,
+     "high": 2.33,
+     "questions": 257
+    }
+   },
+   "generic_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 5.59,
+      "low": 3.25,
+      "high": 7.91,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 1.5,
+      "low": -1.0,
+      "high": 4.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 7.58,
+      "low": 5.83,
+      "high": 9.32,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 1.2,
+      "low": -4.0,
+      "high": 6.0,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.72,
+      "low": -1.33,
+      "high": 2.78,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": -0.61,
+      "low": -5.49,
+      "high": 4.27,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": 0.81,
+      "low": -1.09,
+      "high": 2.62,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -0.5,
+      "low": -5.0,
+      "high": 4.5,
+      "questions": 200
+     }
+    }
+   },
+   "knowledge_cloze_change": -0.46,
+   "loss_change_percent": {
+    "code": -2.07,
+    "forum_qa": 0.77,
+    "math_web": -1.24,
+    "math_web_extra": -2.45,
+    "papers": 0.45,
+    "reasoning_qa": -13.55,
+    "replay_web": -0.09,
+    "replay_web_edu": -0.12,
+    "textbooks": -1.38,
+    "wiki_en": -0.39,
+    "wiki_zh": -1.04
+   },
+   "tokens_seen": 100007936
+  }
+ }
+}

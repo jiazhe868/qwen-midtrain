@@ -23,7 +23,8 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
 > 0.8B model no better than it was (§1.2). Worked solutions written by a stronger model are the first text that
 > helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.3, +9.3]) and
 > move MATH-500, HumanEval and MBPP up within their noise. After a generic fine-tune, the run at a learning rate of
-> 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. The same recipe now runs at 2B and 9B, with a control, an
+> 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. At 2B, already at 3e-6, the gains are +4.3 on GSM8K few-shot
+> and, after the fine-tune, +5.6 on GSM8K and +7.6 on MATH-500. The recipe now runs at 9B, with a control, an
 > ablation, a second seed and two held-out sets of word problems. The pool, the rewritten text, the probe data and
 > every checkpoint are on the Hugging Face Hub (§2). Section 13 holds the predictions, written before any probe
 > result existed, with their outcomes so far. This file is updated with every result.
@@ -81,8 +82,9 @@ stronger model. Therefore, I let the 27B teacher solve the training problems of 
 solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
 rises from 42.7 to 49.5, a gain of 6.8 points [+4.3, +9.3]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
 within their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5,
-GSM8K pass@1 rises by 11.8 points and MATH-500 by 7.1. **Distillation in mid-training works where more public text
-did not.** The
+GSM8K pass@1 rises by 11.8 points and MATH-500 by 7.1. The 2B model shows the same at the lower rate: GSM8K +4.3
+few-shot, and +5.6 on GSM8K and +7.6 on MATH-500 after the fine-tune. **Distillation in mid-training works where more
+public text did not.** The
 next question is how far the gain carries beyond the problems that were solved. Two sets of word problems from other
 sources, a control, an ablation and the same recipe at 2B and 9B answer it.
 
@@ -387,6 +389,24 @@ keeps the few-shot scores and the knowledge of the base model, 1e-5 doubles the 
 Each mark is one 0.8B run minus the base model, with its 95% interval: the top row is the base checkpoint's greedy
 few-shot accuracy, the bottom row pass@1 after the generic probe. Only the distillation runs move clearly to the right
 of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
+
+**One size up, the gentler rate is enough.** The 2B model with the same recipe at 3e-6 and 100M tokens
+(`results/comparisons/dose_vs_base_2B.json`):
+
+| 2B, distillation, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | knowledge |
+|---|---|---|---|---|---|
+| few-shot, greedy: base → run | 61.6 → 66.0 | 37.2 → 35.8 | 34.1 → 31.7 | 49.4 → 47.9 | 41.8 → 41.3 |
+| − base | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | −1.6 [−5.5, +2.3] | −0.5 |
+| generic probe, pass@1: base → run | 65.2 → 70.8 | 38.6 → 46.2 | 29.5 → 30.2 | 44.0 → 44.8 | |
+| − base | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | +0.7 [−1.3, +2.8] | +0.8 [−1.1, +2.6] | |
+
+The pattern of the 0.8B model repeats, and at 2B the lower rate already gives what 1e-5 gave at 0.8B: after the
+fine-tune MATH-500 rises by 7.6 points, while the few-shot score of the same checkpoint fell by 1.4 within its noise.
+Knowledge pays half a point (41.8 to 41.3), as at 1e-5 on the 0.8B model, and the held-out loss falls on 9 of 11
+sources. A gain of pass@1 is not a gain of coverage, though. After the probe, pass@16 moves by 1.2 on MATH-500 and
+by 1.5 on GSM8K, both within noise. The distilled model is right more often on problems the base model could
+already solve some of the time; it solves few new ones. For a later RL stage this means more right answers within
+each group of samples, and about as many problems with no right answer at all. The 2B run at 1e-5 is running.
 
 Caveats, plainly:
 - The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution and part

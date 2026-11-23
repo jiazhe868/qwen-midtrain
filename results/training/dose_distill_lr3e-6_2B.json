@@ -1,0 +1,117 @@
+{
+ "run_name": "dose_distill_lr3e-6_2B",
+ "tokens_seen": 100007936,
+ "hours": 7.12,
+ "tokens_by_stream": {
+  "synthetic_solutions": 40001536,
+  "reasoning_qa": 14999552,
+  "replay_web_edu": 10002432,
+  "math_web": 10002432,
+  "code": 9998336,
+  "wiki_zh": 5001216,
+  "wiki_en": 5001216,
+  "textbooks": 5001216
+ },
+ "passes_over_each_stream": {
+  "synthetic_solutions": 2,
+  "reasoning_qa": 1,
+  "math_web": 1,
+  "code": 1,
+  "textbooks": 1,
+  "wiki_en": 1,
+  "replay_web_edu": 1,
+  "wiki_zh": 1
+ },
+ "validation_before": {
+  "code": {
+   "nats_per_token": 1.8781,
+   "bits_per_byte": 0.7161
+  },
+  "forum_qa": {
+   "nats_per_token": 2.7636,
+   "bits_per_byte": 0.9652
+  },
+  "math_web": {
+   "nats_per_token": 1.4575,
+   "bits_per_byte": 0.6281
+  },
+  "math_web_extra": {
+   "nats_per_token": 1.6141,
+   "bits_per_byte": 0.6868
+  },
+  "papers": {
+   "nats_per_token": 1.3041,
+   "bits_per_byte": 0.6024
+  },
+  "reasoning_qa": {
+   "nats_per_token": 0.6819,
+   "bits_per_byte": 0.3084
+  },
+  "replay_web": {
+   "nats_per_token": 2.7844,
+   "bits_per_byte": 0.896
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.3954,
+   "bits_per_byte": 0.7485
+  },
+  "textbooks": {
+   "nats_per_token": 1.7261,
+   "bits_per_byte": 0.5799
+  },
+  "wiki_en": {
+   "nats_per_token": 2.2672,
+   "bits_per_byte": 0.7957
+  },
+  "wiki_zh": {
+   "nats_per_token": 2.7709,
+   "bits_per_byte": 1.0807
+  }
+ },
+ "validation_after": {
+  "code": {
+   "nats_per_token": 1.8395,
+   "bits_per_byte": 0.7013
+  },
+  "forum_qa": {
+   "nats_per_token": 2.7848,
+   "bits_per_byte": 0.9726
+  },
+  "math_web": {
+   "nats_per_token": 1.4393,
+   "bits_per_byte": 0.6203
+  },
+  "math_web_extra": {
+   "nats_per_token": 1.5746,
+   "bits_per_byte": 0.67
+  },
+  "papers": {
+   "nats_per_token": 1.31,
+   "bits_per_byte": 0.6051
+  },
+  "reasoning_qa": {
+   "nats_per_token": 0.5896,
+   "bits_per_byte": 0.2666
+  },
+  "replay_web": {
+   "nats_per_token": 2.7819,
+   "bits_per_byte": 0.8952
+  },
+  "replay_web_edu": {
+   "nats_per_token": 2.3926,
+   "bits_per_byte": 0.7476
+  },
+  "textbooks": {
+   "nats_per_token": 1.7023,
+   "bits_per_byte": 0.5719
+  },
+  "wiki_en": {
+   "nats_per_token": 2.2583,
+   "bits_per_byte": 0.7926
+  },
+  "wiki_zh": {
+   "nats_per_token": 2.7422,
+   "bits_per_byte": 1.0695
+  }
+ }
+}
