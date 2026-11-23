@@ -378,8 +378,9 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
                    "tokens_per_second": round(arguments.tokens_per_step / (time.time() - step_started))})
         if (step["step_index"] + 1) % arguments.print_every_steps == 0 or step["step_index"] + 1 == step["step_count"]:
             elapsed = time.time() - started
+            tokens_trained_in_this_attempt = tokens_seen - resume_step * arguments.tokens_per_step
             print(f"{arguments.run_name}: step {step['step_index'] + 1}/{step['step_count']} loss {step_loss:.3f} "
-                  f"lr {learning_rate:.2e} grad {gradient_norm:.2f} {tokens_seen / elapsed:,.0f} tokens/s "
+                  f"lr {learning_rate:.2e} grad {gradient_norm:.2f} {tokens_trained_in_this_attempt / elapsed:,.0f} tokens/s "
                   f"({elapsed / 60:.0f} min)", flush=True)
         if not halfway_validation_done and step["progress"] >= 0.5:
             halfway_validation_done = True
