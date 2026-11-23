@@ -22,8 +22,11 @@ Commands (after `source scripts/env.sh`):
     CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.train_continue \
         --base-model $MIDTRAIN_MODELS/qwen35_0.8B_base --recipe configs/recipes/pilot_replay_only.yaml \
         --run-name pilot_replay_only_0.8B --peak-learning-rate 1e-5
-    CUDA_VISIBLE_DEVICES=1,2,3 $MIDTRAIN_PYTHON -m midtrain.train_continue --base-model $MIDTRAIN_MODELS/qwen35_9B_base \
-        --recipe configs/recipes/best_mix.yaml --run-name best_mix_9B --master-weights-on cpu --tokens-per-forward 8192
+    CUDA_VISIBLE_DEVICES=2,3 $MIDTRAIN_PYTHON -m midtrain.train_continue --base-model $MIDTRAIN_MODELS/qwen35_9B_base \
+        --recipe configs/recipes/dose/dose_distill_100m.yaml --run-name dose_distill_lr3e-6_9B --peak-learning-rate 3e-6 \
+        --master-weights-on cpu --tokens-per-forward 8192 --save-every-steps 500
+    # a 9B run takes a day on a shared workstation; if it stops, go on from its last checkpoint (step 1000 here):
+    ... the same command ... --resume-from-step 1000
 """
 from __future__ import annotations
 
@@ -290,7 +293,17 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
 
     device_names = [f"cuda:{index}" for index in range(torch.cuda.device_count())]
     assert device_names, "no GPU visible: set CUDA_VISIBLE_DEVICES"
-    model = load_working_model(arguments.base_model)
+    # A warm restart (--resume-from-step) loads the weights saved after that step; everything else of the run, the
+    # base checkpoint whose other weights each save copies included, stays the same.
+    resume_step = arguments.resume_from_step
+    checkpoint_to_load = arguments.base_model
+    if resume_step:
+        latest_checkpoint = run_directory / "checkpoint_latest"
+        assert (latest_checkpoint / "config.json").exists(), f"no {latest_checkpoint} to resume from"
+        assert arguments.save_every_steps and resume_step % arguments.save_every_steps == 0, (
+            "checkpoint_latest is written every --save-every-steps steps: resume from a multiple of it")
+        checkpoint_to_load = str(latest_checkpoint)
+    model = load_working_model(checkpoint_to_load)
     place_model_on_devices(model, device_names)
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
     master_device = device_names[0] if arguments.master_weights_on == "gpu" else "cpu"
@@ -306,17 +319,24 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
                 "warmup_step_share": arguments.warmup_step_share, "tokens_per_step": arguments.tokens_per_step,
                 "tokens_per_forward": arguments.tokens_per_forward, "weight_decay": arguments.weight_decay,
                 "maximum_gradient_norm": arguments.maximum_gradient_norm, "master_weights_on": arguments.master_weights_on,
-                "device_count": len(device_names)}
+                "device_count": len(device_names), "resumed_from_step": resume_step}
     (run_directory / "settings.json").write_text(json.dumps(settings, indent=1) + "\n")
-    log_file = (run_directory / "training_log.jsonl").open("w")
+    log_path = run_directory / "training_log.jsonl"
+    earlier_records = ([json.loads(line) for line in log_path.read_text().splitlines() if line.strip()]
+                       if resume_step else [])
+    log_file = log_path.open("a" if resume_step else "w")
 
     def write_log(record: dict) -> None:
         log_file.write(json.dumps(record) + "\n")
         log_file.flush()
 
-    validation_record = {"event": "validation", "step": 0, "tokens_seen": 0,
-                         "loss": validation_loss_by_source(model, validation_sources, sequences_per_validation_forward)}
-    write_log(validation_record)
+    if resume_step:
+        validation_record = next(record for record in earlier_records if record["event"] == "validation" and record["step"] == 0)
+        write_log({"event": "resumed", "step": resume_step})
+    else:
+        validation_record = {"event": "validation", "step": 0, "tokens_seen": 0,
+                             "loss": validation_loss_by_source(model, validation_sources, sequences_per_validation_forward)}
+        write_log(validation_record)
     print(f"{arguments.run_name}: {parameter_count / 1e9:.2f}B parameters on {len(device_names)} GPU(s); "
           f"validation before: " + ", ".join(f"{name} {entry['nats_per_token']:.3f}"
                                              for name, entry in validation_record["loss"].items()), flush=True)
@@ -326,6 +346,13 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
     started = time.time()
     halfway_validation_done = False
     for step in iterate_training_steps(recipe, arguments.tokens_per_step):
+        if step["step_index"] < resume_step:
+            # trained before the restart: its batches are drawn and dropped, so that the data order stays the run's
+            tokens_seen += arguments.tokens_per_step
+            for stream_name, tokens in step["tokens_by_stream"].items():
+                tokens_by_stream_total[stream_name] = tokens_by_stream_total.get(stream_name, 0) + tokens
+            halfway_validation_done = halfway_validation_done or step["progress"] >= 0.5
+            continue
         step_started = time.time()
         step_loss_sum = 0.0
         step_token_count = 0
@@ -366,7 +393,9 @@ def run_continued_pretraining(arguments: argparse.Namespace) -> None:
     save_checkpoint(model, arguments.base_model, run_directory / "checkpoint_final")
     if (run_directory / "checkpoint_latest").exists():
         shutil.rmtree(run_directory / "checkpoint_latest")
+    # after a warm restart, `hours` counts the last attempt only; `resumed_from_step` says where it began
     summary = {"run_name": arguments.run_name, "tokens_seen": tokens_seen, "hours": round((time.time() - started) / 3600, 2),
+               "resumed_from_step": resume_step,
                "tokens_by_stream": tokens_by_stream_total, "passes_over_each_stream": step["epochs_started"],
                "validation_before": validation_record["loss"], "validation_after": final_validation}
     (run_directory / "training_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
@@ -435,6 +464,11 @@ def main() -> None:
     parser.add_argument("--master-weights-on", choices=["gpu", "cpu"], default="gpu",
                         help="gpu fits the 0.8B model (12 GB with its moments); from 2B up use cpu")
     parser.add_argument("--save-every-steps", type=int, default=0, help="0: only at the end")
+    parser.add_argument("--resume-from-step", type=int, default=0,
+                        help="warm restart of a run that stopped: load runs/<run>/checkpoint_latest (saved after this "
+                             "step), redraw and drop the batches before it, and go on with the learning-rate schedule. "
+                             "The Adam moments start empty, because they are not saved (72 GB for the 9B model), so "
+                             "the first steps after a restart move differently from an uninterrupted run")
     parser.add_argument("--print-every-steps", type=int, default=25)
     arguments = parser.parse_args()
     torch.set_num_threads(int(os.environ.get("MIDTRAIN_CPU_THREADS", "16")))
