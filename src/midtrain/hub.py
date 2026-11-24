@@ -173,12 +173,18 @@ def hard_link_tree(source: Path, destination: Path) -> int:
     return file_count
 
 
-def upload_data() -> None:
+def upload_data(only_folders: list[str] | None = None) -> None:
+    """Upload the published data folders. `only_folders` (paths under $MIDTRAIN_DATA, e.g. synthetic/solutions_numina
+    or pool/synthetic_solutions_numina) stages just those: the hub client hashes every staged file, 28 GB for the
+    whole set, and a new source needs only its own folders sent. Files already on the hub are kept either way."""
     from huggingface_hub import HfApi
 
     staging = data_root() / "hub_staging" / "data"
     shutil.rmtree(staging, ignore_errors=True)
-    file_count = sum(hard_link_tree(data_root() / folder, staging / folder) for folder in published_data_folders)
+    folders = only_folders or published_data_folders
+    assert all(folder.split("/")[0] in published_data_folders for folder in folders), (
+        f"only parts of {published_data_folders} are published")
+    file_count = sum(hard_link_tree(data_root() / folder, staging / folder) for folder in folders)
     for relative_path in published_data_files:
         (staging / relative_path).parent.mkdir(parents=True, exist_ok=True)
         os.link(data_root() / relative_path, staging / relative_path)
@@ -239,9 +245,11 @@ def main() -> None:
     parser.add_argument("command", choices=["upload-data", "upload-checkpoints", "download-data", "download-checkpoint"])
     parser.add_argument("--runs", nargs="+", default=[], help="run names, for upload-checkpoints")
     parser.add_argument("--run", default=None, help="one run name, for download-checkpoint")
+    parser.add_argument("--folders", nargs="+", default=None,
+                        help="for upload-data: only these folders under $MIDTRAIN_DATA (default: every published folder)")
     arguments = parser.parse_args()
     if arguments.command == "upload-data":
-        upload_data()
+        upload_data(arguments.folders)
     elif arguments.command == "upload-checkpoints":
         upload_checkpoints(arguments.runs)
     elif arguments.command == "download-data":
