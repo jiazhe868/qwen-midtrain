@@ -1,0 +1,21 @@
+# The distillation mixture with the hard problems solved again (README §1.2), 100M tokens.
+#
+# Why. The first pass capped the teacher's answers at 1,024 tokens. That cut off 38% of the MATH attempts and 72% at
+# level 5, so the kept solutions are mostly easy problems, and MATH-500 did not move at 9B. Here 10% of the tokens come
+# from a second pass over the 2,591 problems that got no right solution or, for MATH levels 4 and 5, fewer than two,
+# with 4,096 tokens per answer (`synthetic_solutions_hard`); the first set keeps 30%. Everything else is the
+# distillation recipe, so the solution share stays 40% and a difference belongs to the hard problems.
+token_budget: 100007936           # 3,052 steps of 32,768 tokens, as in dose_distill_100m.yaml
+context_length: 4096
+components:
+  synthetic_solutions: 0.30
+  synthetic_solutions_hard: 0.10
+  reasoning_qa: 0.15
+  math_web: 0.10
+  code: 0.10
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.10
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1

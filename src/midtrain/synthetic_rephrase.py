@@ -54,6 +54,9 @@ the current batch, v3):
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase select-problems      # NuminaMath-1.5, through the gate
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --problem-set numina --endpoint ... --samples-per-problem 2
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish-solutions --problem-set numina --maximum-per-problem 2
+    # the first set's hard problems again, with 4,096 tokens per answer
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --problem-set training_splits_hard --endpoint ... \
+        --samples-per-problem 4 --maximum-new-tokens 4096 --temperature 0.8
 """
 from __future__ import annotations
 
@@ -475,8 +478,15 @@ math_train_subjects = ("algebra", "counting_and_probability", "geometry", "inter
 # solutions per problem: more problems and fewer copies of each than in the first set.
 numina_revision = "1b05109f9e5c1ad06c0663519502416c30b300f8"
 numina_problem_count_by_source = {"orca_math": 7000, "cn_k12": 6000, "synthetic_math": 7000}
+# The third set (11-24): the first set's hard problems again, with room to finish. The first pass capped answers at
+# 1,024 tokens, which cut off 38% of the MATH attempts and 72% at level 5 (27% right there, 97% at level 1), so the
+# kept MATH solutions are mostly easy ones and 2,347 of 14,262 problems got none (README §1.2). Problems that got no
+# right solution, and MATH problems of levels 4 and 5 with fewer than two, are solved again with 4,096 tokens.
+hard_problem_answer_token_limit = 4096
 solution_problem_sets = {"training_splits": {"folder": "solutions", "pool_source": "synthetic_solutions",
                                              "summary": "synthetic_solutions_summary.json"},
+                         "training_splits_hard": {"folder": "solutions_hard", "pool_source": "synthetic_solutions_hard",
+                                                  "summary": "synthetic_solutions_hard_summary.json"},
                          "numina": {"folder": "solutions_numina", "pool_source": "synthetic_solutions_numina",
                                     "summary": "synthetic_solutions_numina_summary.json"}}
 
@@ -499,6 +509,23 @@ def load_training_problems() -> list[dict]:
                                  "problem": row["problem"].strip(), "reference_answer": reference.strip(),
                                  "level": row["level"]})
     return problems
+
+
+def load_hard_training_problems() -> list[dict]:
+    """The first set's problems that need another pass: no right solution yet, or MATH level 4 or 5 with fewer than
+    two. Read from the first pass's own records, so the problem text and reference answer are the ones it used."""
+    records = read_json_lines(synthetic_directory(solution_problem_sets["training_splits"]["folder"]) / "solutions.jsonl")
+    problems: dict[str, dict] = {}
+    right_count: dict[str, int] = {}
+    kept_keys = ("problem_id", "task", "problem", "reference_answer", "level")
+    for record in records:
+        problems.setdefault(record["problem_id"], {key: record[key] for key in kept_keys if key in record})
+        right_count[record["problem_id"]] = right_count.get(record["problem_id"], 0) + int(record["is_correct"])
+    hard = [problem for problem_id, problem in problems.items()
+            if right_count[problem_id] == 0
+            or (problem["task"] == "math" and problem.get("level") in ("Level 4", "Level 5") and right_count[problem_id] < 2)]
+    print(f"{len(hard)} of {len(problems)} first-set problems need another pass", flush=True)
+    return hard
 
 
 def numina_answer_is_checkable(answer_text: str) -> bool:
@@ -609,7 +636,12 @@ def solve_training_problems(endpoints: list[str], samples_per_problem: int, temp
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
     folder = synthetic_directory(solution_problem_sets[problem_set]["folder"])
-    problems = load_training_problems() if problem_set == "training_splits" else read_json_lines(folder / "problems.jsonl")
+    if problem_set == "training_splits":
+        problems = load_training_problems()
+    elif problem_set == "training_splits_hard":
+        problems = load_hard_training_problems()
+    else:
+        problems = read_json_lines(folder / "problems.jsonl")
     output_path = folder / "solutions.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     finished_ids = {record["problem_id"] for record in read_json_lines(output_path)} if output_path.exists() else set()
