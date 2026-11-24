@@ -433,9 +433,10 @@ workstation's GPUs (`results/comparisons/dose_vs_base_9B.json`):
 
 From a base of 87.1, the share of GSM8K problems the model gets wrong falls from 12.9% to 7.6%, by 41%. At this size
 the gain carries in full to SVAMP (+5.1), where it carried half at 2B and less at 0.8B. Knowledge rises a little, and
-the held-out loss falls on 9 of 11 sources. MATH-500 does not move beyond its noise. A teacher that got 60% of the
-MATH training attempts right has little to teach a model that already solves 55% of MATH-500. The generic probe of
-the base 9B model is running.
+the held-out loss falls on 9 of 11 sources. MATH-500 does not move beyond its noise, and the solutions explain why:
+the teacher's answers were capped at 1,024 tokens, which cut off 38% of its MATH attempts and 72% at the hardest
+level (27% right there, against 97% at level 1). The kept MATH solutions are mostly easy ones, and 2,347 of the
+14,262 problems got none. The generic probe of the base 9B model is running.
 
 **The few-shot gain carries only partly to other word problems.** The solutions answer GSM8K and MATH training
 problems, and the GSM8K test comes from the same distribution. SVAMP (1,000 problems) and ASDiv-A (1,218) are word
