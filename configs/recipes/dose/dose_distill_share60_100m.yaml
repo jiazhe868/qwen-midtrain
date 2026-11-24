@@ -1,0 +1,16 @@
+# The distillation mixture with 60% solutions instead of 40% (README §1.2), 100M tokens: a point of
+# the dose-response of the active ingredient. The other components keep their proportions to each other
+# (each scaled by 0.667), so only the solution share changes. Written by the sweep set-up of 11-24.
+token_budget: 100007936
+context_length: 4096
+components:
+  synthetic_solutions: 0.6
+  reasoning_qa: 0.1
+  math_web: 0.0667
+  code: 0.0667
+  textbooks: 0.0333
+  wiki_en: 0.0333
+  replay_web_edu: 0.0667
+  wiki_zh: 0.0333
+schedule: uniform
+seed: 1
