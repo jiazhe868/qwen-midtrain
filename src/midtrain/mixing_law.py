@@ -508,10 +508,10 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
     by question: greedy accuracy on each test set (results/final_eval), pass@1 and pass@16 after the generic probe
     (results/probe_generic), the knowledge guard, and the change of the held-out loss on each source.
 
-    The tables of README §1.2 are read from the file this writes, results/comparisons/dose_vs_base_<size>.json, so
+    The tables of README §5 are read from the file this writes, results/comparisons/dose_vs_base_<size>.json, so
     that every number there traces to one command. A run is left out of a block when it or the base lacks that
     result; a test set is compared only on questions both answered. Each greedy difference is also given without the
-    test items that `without_items_matched_by` touches (`data_hygiene.py matched-items`; README §1.2), as
+    test items that `without_items_matched_by` touches (`data_hygiene.py matched-items`; README §5.7), as
     `without_matched_items`, when that file exists.
     """
     matched_item_ids: set = set()
@@ -558,6 +558,22 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
                         [estimate_pass_at_k(count, sample_count, k) for count in task["correct_counts"]],
                         [estimate_pass_at_k(count, sample_count, k) for count in base_task["correct_counts"]])
                     for k in (1, 16) if k <= sample_count}
+            # The greedy few-shot difference on exactly the probe's questions (a fixed sample of each test set), so the
+            # two views are compared on the same items. At 9B the few-shot gain on these GSM8K items is large and the
+            # probe shows none of it (README §5.5); this block shows the probe erased the gain, not that its sample
+            # missed it.
+            run_result["few_shot_greedy_on_probe_items"] = {}
+            for task_name, probe_task in base_probe["tasks"].items():
+                if task_name not in run_final["tasks"] or task_name not in base_final["tasks"]:
+                    continue
+                run_correct = dict(zip(run_final["tasks"][task_name]["item_ids"], run_final["tasks"][task_name]["correct_counts"]))
+                base_correct = dict(zip(base_final["tasks"][task_name]["item_ids"], base_final["tasks"][task_name]["correct_counts"]))
+                probe_item_ids = [item_id for item_id in probe_task["item_ids"] if item_id in run_correct and item_id in base_correct]
+                run_values = [run_correct[item_id] for item_id in probe_item_ids]
+                base_values = [base_correct[item_id] for item_id in probe_item_ids]
+                run_result["few_shot_greedy_on_probe_items"][task_name] = {
+                    "run": round(100.0 * float(np.mean(run_values)), 2), "base": round(100.0 * float(np.mean(base_values)), 2),
+                    **paired_difference_with_interval(run_values, base_values)}
         run_regression = read_json_if_present(folders["regression"] / f"{run_name}.json")
         if run_regression and base_regression:
             run_result["knowledge_cloze_change"] = round(run_regression["scores"]["knowledge_cloze_mean"]

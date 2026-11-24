@@ -4,304 +4,360 @@
 
 [English](README.md) | [中文](README.zh-CN.md) | [data on Hugging Face](https://huggingface.co/datasets/jiazhe868/qwen-midtrain-data) | [checkpoints on Hugging Face](https://huggingface.co/jiazhe868/qwen-midtrain-checkpoints)
 
-Continued pretraining ("mid-training") of the Qwen3.5 base models on general-purpose text. The question is which
-mixture, curation and packing of that text leaves a base model that fine-tunes better and can solve more problems
-in k tries, without losing what it knew. Small models (0.8B, 2B) run the experiments, the 4B checks them, the 9B is
-the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a Slurm cluster.
+A study of mid-training on the Qwen3.5 base models, from 0.8B to 9B parameters. Public text did not make these
+models better. Worked solutions written by a stronger model did, at every size. Hardware: four A100 40 GB GPUs on a
+workstation and A100 nodes of a Slurm cluster.
 
 </div>
 
-```
- 9 public sources, 3.7B tokens ──┐
- teacher rewrites of real text ──┼──► recipe: shares, schedule, ──► continued pretraining ──┬──► regression suite (forgetting)
- curation funnel, hygiene gates ─┘    long share, packing            (40M tokens per run)   └──► fixed fine-tune ──► pass@1 … pass@64
-                                                                                                        │
-                    next recipes ◄── optimum under "no forgetting" ◄── mixing law, interference matrix ◄┘
-```
+<p align="center"><img src="assets/scaling_gains_en.png" width="88%"></p>
 
-> **Status, 2026-11-23.** Continued pretraining on public text, at every dose and learning rate tried, leaves the
-> 0.8B model no better than it was (§1.2). Worked solutions written by a stronger model are the first text that
-> helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.3, +9.3]) and
-> move MATH-500, HumanEval and MBPP up within their noise. After a generic fine-tune, the run at a learning rate of
-> 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. At 2B, already at 3e-6, the gains are +4.3 on GSM8K few-shot
-> and, after the fine-tune, +5.6 on GSM8K and +7.6 on MATH-500. At 9B, the target, GSM8K rises from 87.1 to 92.4
-> (+5.3) and SVAMP by 5.1, with knowledge intact. Replay-only controls and the mixture without its solutions gain
-> nothing, so the solutions carry the gain. The pool, the rewritten text, the probe data and
-> every checkpoint are on the Hugging Face Hub (§2). Section 13 holds the predictions, written before any probe
-> result existed, with their outcomes so far. This file is updated with every result.
+The figure shows the main result. Each mark is one model size. Its height is how much the model improved after
+mid-training on distilled solutions, measured against the same model before training (the "base"). The bar through
+each mark is a 95% interval: a mark whose bar stays above zero improved by more than chance. The left panel tests the
+model directly, with a few solved examples in the prompt. The right panel tests it after a short, fixed fine-tune
+(§2.2). At 0.8B and 2B the gain holds in both panels. At 9B it holds only in the left panel (§5.5).
 
-## Summary
+## Abstract
 
-A base model is usually judged by its loss: lower loss on held-out text means a better model. For a model that
-will be fine-tuned and then trained with reinforcement learning, that is the wrong yardstick. What matters after
-post-training is how well the model takes a fine-tune and how many problems it can solve at all when it may try k
-times (pass@k), because RL can only reinforce an answer that the model sometimes produces. Loss says little about
-either: in a study of 50 models, perplexity ordered pairs of models correctly after fine-tuning 33-38% of the time
-(arXiv 2504.12491). Therefore, I judge every checkpoint with a fixed short fine-tune followed by 64 sampled answers
-per question, and with a regression suite that catches forgetting (§3).
+Large language models are usually built in three stages. Pretraining teaches a model language and knowledge from
+trillions of tokens of text. Post-training then turns the model into an assistant and sharpens its reasoning. Between
+the two, many teams add a short middle stage called **mid-training**, in which the model reads a chosen mixture of
+high-quality text.
 
-The main lever is the mixture of the training text. Dense text (math, code, textbooks, rewritten explanations) is
-expected to raise the skills that post-training needs, and replay of ordinary web text is expected to protect the
-rest. The shares sum to one and they interact, so tuning one share at a time does not find the best mixture.
-Therefore, I treat the mixture as an experiment: 18 runs in an orthogonal design vary seven factors at once, a
-regression turns the runs into a mixing law (how each measurement moves with each share), and the law gives the best
-mixture under the constraint that the regression suite does not fall (§6).
+The aim of mid-training is to give post-training a better starting point. For a strong open model such as Qwen3.5,
+that is harder than it sounds. The model has already read most of the good text that is publicly available. Its
+pretraining has also ended in a settled state, and new training can disturb that state before it adds anything.
 
-Experiments on a 9B model are slow: one run takes about half a day on three GPUs. Small models are 5 to 10 times
-faster, but a decision made on a small model is only useful if the large model ranks the mixtures the same way.
-Therefore, every design runs on two sizes (0.8B and 2B), their rank agreement is measured, and only mixtures on
-which both sizes agree go to the 4B and the 9B (§6.5).
+This project tested two kinds of data on the Qwen3.5 base models. The first kind was **public text**: math web pages,
+question-answer pairs, Wikipedia, textbooks, code and general web text. No mixture of public text made the 0.8B model
+better. With a larger learning rate the mixtures made it worse, and with a small one they changed nothing.
 
-Three more levers change the text itself. A stronger teacher rewrites real passages into explanations, notes and
-worked questions, which adds reasoning without inventing facts (§7). A funnel removes duplicates and keeps the
-documents that the student cannot predict yet and a stronger model can (§8). Long sequences are filled with related
-documents, so that distant context is worth reading (§9). Two gates guard all of it: no benchmark text may enter
-the training data, and no generated batch may be less diverse than real text (§11).
+The second kind was **distilled data**. A larger model with 27B parameters, the "teacher", wrote step-by-step
+solutions to the training problems of two math benchmarks, GSM8K and MATH. Only solutions with the right final answer
+were kept. This data helped at every model size. GSM8K accuracy rose by 6.8 points for the 0.8B model, 4.3 for the 2B
+model and 5.3 for the 9B model. The gain also appeared on word problems from a different source (SVAMP, +5.1 at 9B),
+and the models kept their general knowledge.
 
-The first measurements are about the learning rate and about replay (§1.2). At a peak learning rate of 3e-5 the
-0.8B model gets worse on every source, including the one it trains on. At 1e-5, training on web text alone makes
-the model about 2% worse on code, papers and math and 0.7% better on web text. **Web replay is not a neutral
-anchor for this model: it pulls the model toward the web.** That changes what "replay" should mean here, and it is
-the reason for prediction P1 in §13.
+A second test asks what a model can do after a short, fixed fine-tune, which is closer to how a model is used.
+Here the picture splits by size. The 0.8B and 2B models kept their gain. The 9B model did not: after the fine-tune,
+the base 9B model did as well as the distilled one.
 
-Rewritten text failed the diversity gate twice before it passed. The obvious explanation, too little variety, was
-wrong: the topics survived the rewriting, and what the rewrites shared was the teacher's habit of pointing at its
-source ("the passage", "the text"), in 58% of them. Asking the teacher to write as the author, and dropping the
-rewrites that still point at a hidden source, brought both rewritten sources over the gate's limits (§7.3).
-
-The 18 runs of the 0.8B design answer the main question in an unexpected way (§1.2). The mixture explains 92 to 98%
-of the spread of the held-out losses and of the few-shot scores measured before any fine-tune: math text lowers the
-math loss, rewritten text raises few-shot reasoning, and the lower learning rate (3e-6) is better on every loss and
-on few-shot pass@1. After the probe's short fine-tune, none of it is left: the mixture explains less of the probe's
-spread than a law of the same size explains of pure noise, and the order of the runs before and after the fine-tune
-is unrelated. **At 0.8B and 40M tokens, a short fine-tune undoes what continued pretraining changed.**
-
-A larger dose of public text did not help either (§1.2). With 300M tokens per run, every mixture made the 0.8B model
-worse at a peak learning rate of 1e-5 and above, the replay-only control included, and at 3e-6 every mixture left it
-where it was. The base model has already learnt what this text holds. What it has not seen is the reasoning of a
-stronger model. Therefore, I let the 27B teacher solve the training problems of GSM8K and MATH and kept the 45,177
-solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
-rises from 42.7 to 49.5, a gain of 6.8 points [+4.3, +9.3]; MATH-500, HumanEval and MBPP rise by 1 to 2 points within
-their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5, GSM8K
-pass@1 rises by 11.8 points and MATH-500 by 7.1. The 2B model shows the same at the lower rate: GSM8K +4.3 few-shot,
-and +5.6 on GSM8K and +7.6 on MATH-500 after the fine-tune. The 9B model, the target, gains 5.3 points on GSM8K and
-5.1 on SVAMP, a set of word problems written elsewhere, with knowledge intact. Replay-only controls at the same budget
-and rate, and the same mixture without its solutions, gain nothing: the solutions carry the gain. **Distillation in
-mid-training works where more public text did not.** The gain carries only partly beyond the problems that were
-solved: SVAMP keeps about half of the GSM8K gain at 2B and all of it at 9B, and MATH-500 moves only after a fine-tune.
+Two control runs show where the gain comes from. Training on general text alone changed nothing. Training on the same
+mixture with the solutions removed changed nothing either. The main lesson is simple: **mid-training a strong model
+works when the data teaches something the model does not already know.** In this project, that something was the
+reasoning of a stronger model, checked against known answers. The 9B result fits the same lesson. The teacher is
+only three times larger than the 9B model, and the 9B model already knew most of what these solutions show. The
+next 9B runs therefore keep only the solutions of problems that the 9B model cannot solve by itself.
 
 ## Contents
 
-1. [Where the project stands](#1-where-the-project-stands)
-2. [Quick start](#2-quick-start)
-3. [Define success before training](#3-define-success-before-training)
-4. [The text pool](#4-the-text-pool)
-5. [The continued-pretraining loop](#5-the-continued-pretraining-loop)
-6. [The mixture as an experiment](#6-the-mixture-as-an-experiment)
-7. [Teacher rewriting of real text](#7-teacher-rewriting-of-real-text)
-8. [Curation for learnability](#8-curation-for-learnability)
-9. [Long-context packing](#9-long-context-packing)
-10. [Priming for exploration](#10-priming-for-exploration)
-11. [Guardrails](#11-guardrails)
-12. [Compute plan](#12-compute-plan)
-13. [Predictions, written before the results](#13-predictions-written-before-the-results)
-14. [Repository layout](#14-repository-layout)
-15. [References](#15-references)
-16. [Data and licensing](#16-data-and-licensing)
+1. [Introduction](#1-introduction)
+2. [How a mid-trained model is measured](#2-how-a-mid-trained-model-is-measured)
+3. [Public text: what did not work](#3-public-text-what-did-not-work)
+4. [Distillation: the options and our pipeline](#4-distillation-the-options-and-our-pipeline)
+5. [Results](#5-results)
+6. [Conclusions](#6-conclusions)
+7. [Reproducing the study](#7-reproducing-the-study)
+8. [Appendices](#8-appendices): the text pool, the training loop, the screening design, teacher rewriting,
+   components built for later, guardrails, compute, predictions, repository layout
+9. [References](#9-references)
+10. [Data and licensing](#10-data-and-licensing)
 
-[PITFALLS.md](PITFALLS.md) collects the failure modes met while building this pipeline and the checks that
-now catch them.
+[PITFALLS.md](PITFALLS.md) collects the failure modes met while building this pipeline and the checks that now
+catch them.
 
 ---
 
-## 1. Where the project stands
+## 1. Introduction
 
-### 1.1 Model, data and compute
+### 1.1 What mid-training is
+
+A language model learns in stages. Each stage uses different data and has a different goal:
+
+```
+pretraining     trillions of tokens of broad text; the model learns language and knowledge
+mid-training    a smaller, chosen mixture at the end of pretraining; the model strengthens skills that matter later
+post-training   a fine-tune on conversations, then reinforcement learning (RL) on problems with checkable answers
+```
+
+During pretraining, the **learning rate** controls how large each update to the model's weights is. It rises at the
+start of training and then falls slowly toward zero. Near the end, the updates are tiny, and the model settles into a
+stable state. This slow cooling is called **annealing**, and a model released after it is said to be annealed.
+
+Mid-training is usually done as a final phase of pretraining on a narrower mixture. The reports of several open models
+describe it. OLMo 2 trains its final stage, 50B tokens and more, on a curated mix of web text, math and synthetic data.
+Llama 3 anneals on small sets of high-quality math and code. The Qwen reports describe a last stage weighted toward
+science, code and reasoning. The usual recipe has three parts:
+
+1. more text from the domains that matter, such as math and code;
+2. some **replay** of general text, so that the model does not forget what it knew;
+3. a learning rate that decays to zero over the stage.
+
+Two outcomes decide whether mid-training worked. The first is what post-training can reach from the new starting
+point. A good mid-training stage gives a model that solves more problems after a fine-tune, and that finds more right
+answers for reinforcement learning to reward. The second outcome is what the model keeps. Its general knowledge and
+its skills outside the targeted domains should not get worse.
+
+### 1.2 Why a strong base model is hard to improve
+
+The common view is that more good text makes a model better. For a released base model like Qwen3.5, three facts
+make this less certain.
+
+**First, the model has probably read this text already.** Qwen3.5 was trained on tens of trillions of tokens. The
+best public datasets that a mid-training mixture would use, such as FineWeb-Edu, Wikipedia, FineMath and StackExchange,
+are of the same kind as the data in its own final stage. A model that has seen a book once may learn little from
+reading it a second time.
+
+**Second, the model has already settled.** Its weights were annealed into a stable state on its own data mixture.
+Continued training has to raise the learning rate again, and larger updates can push the model out of that state.
+When that happens, the model loses some ability before it can gain any. Studies of continued pretraining that recover
+from this effect use tens to hundreds of billions of tokens. This project could afford a few hundred million.
+
+**Third, small gains are easy to measure wrongly.** Every training run changes the model's loss on held-out text, so
+loss always shows some movement. That movement says little about what post-training can reach (§2.1). A test that
+fine-tunes on the tested tasks' own solutions can also hide the differences between models (§2.3). And with one
+training run per setting, the noise between repeated runs is unknown.
+
+### 1.3 What this study asked, and what it found
+
+The project set out to answer three questions:
+
+1. Can a carefully chosen mixture of public text still improve Qwen3.5 at a small dose?
+2. If not, what kind of data can?
+3. If some data helps, does the gain survive a fine-tune, carry over to problems from other sources, and hold from the
+   0.8B model to the 9B model?
+
+The answers, in the order the sections present them:
+
+- **Public text did not help (§3).** The 0.8B model was trained on many mixtures of public text, for 40M and 300M
+  tokens. With a peak learning rate of 1e-5 or more, every mixture made it worse, including a mixture of general text
+  alone. With 3e-6, every mixture left it where it was.
+- **Distilled solutions helped (§5.1).** A 27B teacher model wrote worked solutions, and only the correct ones were
+  kept. Training on them raised GSM8K accuracy at every size: by 6.8 points at 0.8B, 4.3 at 2B and 5.3 at 9B. General
+  knowledge stayed the same.
+- **The solutions are what helped (§5.2).** A run on general text alone gained nothing. A run on the same mixture
+  without the solutions gained nothing either.
+- **The gain carried partly to new problems (§5.3).** On SVAMP, a set of word problems written by other people, the
+  gain was 1.6, 3.4 and 5.1 points from the smallest model to the largest. The MATH-500 test did not move when the
+  model was asked directly, and code did not move at all.
+- **At 0.8B and 2B, a fine-tune revealed more of the gain (§5.4).** After a short generic fine-tune, GSM8K rose by
+  up to 11.8 points and MATH-500 by up to 7.6. Most of this extra gain is reliability: the model got the right answer
+  more often on problems it could already sometimes solve (§5.6).
+- **At 9B, the fine-tune erased the gain (§5.5).** After the same fine-tune, the distilled 9B model was no better
+  than the fine-tuned base model. The fine-tune alone gave the base model the same skill. The solutions had taught
+  the 9B model mostly what it already knew.
+- **The first set of solutions had a hole (§4.4).** The teacher's answers were limited to 1,024 tokens. That limit cut
+  off 72% of its attempts on the hardest MATH problems, so those problems are nearly missing from the data. A second
+  pass, with room for 4,096 tokens, starts today.
+
+> **Status, 2026-11-24.** The 0.8B, 2B and 9B results are in, including the fine-tuned test of the 9B models.
+> Running now: the 4B runs and the second pass over the hard problems. Next: two more 9B runs (§6.4). Repeated runs
+> and a sweep of design choices wait for the cluster. This file is updated with every result.
+
+### 1.4 Models, data and compute
 
 | | |
 |---|---|
-| Models | Qwen3.5 base checkpoints of 0.8B, 2B, 4B and 9B parameters (Apache-2.0). The text part is loaded alone; vision and other weights are copied back unchanged when a checkpoint is saved |
-| Pool | 9 public sources, 2.67M documents, **3.71B training tokens**; 0.5% of each source is held out for validation (`results/pool_summary.json`) |
-| One run | 40M tokens of continued pretraining (pilot: 20M), 4,096-token sequences, 32,768 tokens per step, linear warm-up then linear decay to zero |
-| Probe | fixed fine-tune on 22,161 conversations (6.18M tokens, 3.49M of them with loss), 2 epochs, then 64 samples per question on GSM8K, MATH-500, HumanEval and MBPP (`results/probe_data_summary.json`) |
-| Regression suite | MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA, CMMLU, TriviaQA, plus few-shot GSM8K, MATH-500, HumanEval, MBPP on the base checkpoint (*planned*, §3.2) |
-| Hardware | 4 x A100 40 GB on a workstation shared with other jobs; A100 nodes (3 GPUs each) of a Slurm cluster through a file-based task queue |
-| Measured speed | 0.8B: 7.7K tokens/s in the pilot runs (one A100, includes validation). 2B: 4.2K in the design runs, 2.2K to 2.8K in the smoke run before the optimizer step on the CPU was rewritten (§5.1). 4B: 2.8K (speed test). 9B: about 1.0K on two A100s, layers split between them, master weights on the CPU (smoke run, 11-23); 100M tokens take about 26 hours |
+| Models | Qwen3.5 base checkpoints of 0.8B, 2B, 4B and 9B parameters (Apache-2.0). Only the text part is trained; vision and other weights are copied back unchanged at every save |
+| Public text | 11 sources and 4.97B training tokens: web text, Wikipedia, textbooks, papers, forum answers, two slices of FineMath, educational code, and 2.29M question-answer pairs from WebInstructSub (Appendix A) |
+| Teacher | Qwen3.8-27B (Apache-2.0) with 4-bit weights, one copy per 40 GB GPU |
+| Teacher-written text | 45,177 checked solutions to GSM8K and MATH training problems (23.2M tokens); 21,445 to NuminaMath-1.5 problems (12.9M); 10,349 rewrites of real passages (11.1M) |
+| One run | usually 100M tokens (40M in the screening design, 300M in the first dose runs); sequences of 4,096 tokens; 32,768 tokens per step; the learning rate warms up over the first 2% of steps and then decays linearly to zero |
+| Evaluation | accuracy on the full test sets of GSM8K, MATH-500, HumanEval, MBPP, SVAMP and ASDiv-A; a fixed fine-tuning test; knowledge on five multiple-choice sets and TriviaQA (§2.2) |
+| Hardware | 4 × A100 40 GB on a workstation shared with other jobs; A100 nodes of a Slurm cluster, fed by a file-based task queue (Appendix G) |
+| Speed | 0.8B: 7.7K tokens/s on one GPU. 2B: 4.0K. 4B: 1.9K. 9B: 1.1K on two GPUs, so 100M tokens take about 26 hours |
 
-### 1.2 Results so far
+---
 
-**Pilot, validation loss.** The 0.8B model, 20M tokens per run. The table gives the change of bits per byte on the
-held-out documents of each source, in percent of the starting value. A negative number is an improvement.
-(`results/training/pilot_*.json`)
+## 2. How a mid-trained model is measured
 
-| trained on | peak LR | web | web-edu | wiki zh | wiki en | textbooks | papers | forum | math | code |
-|---|---|---|---|---|---|---|---|---|---|---|
-| web 85%, wiki zh 15% (replay only) | 1e-5 | -0.70 | -0.11 | -0.66 | +0.71 | +1.24 | +2.30 | +1.80 | +1.87 | +2.59 |
-| replay 50%, math 30%, code 20% | 1e-5 | -0.38 | -0.10 | -0.41 | +0.78 | +0.46 | +0.90 | +0.86 | **-2.77** | **-1.33** |
-| replay 50%, curated 50% (wiki en, textbooks, papers, forum) | 1e-5 | -0.33 | +0.00 | -0.44 | +0.38 | **-2.30** | -0.42 | **-1.22** | +1.01 | +1.37 |
-| web 85%, wiki zh 15% (replay only) | 3e-5 | +0.43 | +1.87 | +1.46 | +3.20 | +4.54 | **+11.21** | +4.09 | +7.00 | +8.29 |
+Every later number depends on how a model is judged. So the measurement comes before the experiments.
 
-<p align="center"><img src="assets/pilot_loss_change_en.png" width="80%"></p>
+### 2.1 Why loss is not enough
 
-Each marker is one run; left of the vertical line the run improved the loss on that source.
+**Loss** measures how well a model predicts the next word of a text. A lower loss on held-out text means the model
+finds that text less surprising. In pretraining it is natural to watch the loss and keep the model with the lowest one.
 
-Four things can be read from it.
+For mid-training, loss is a weak guide. Loss shows which kind of text a run moved the model toward. It does not show
+whether the model became a better starting point for post-training. Two results of this study make the point. In the
+18-run screening design (§3.2), the choice of mixture explained almost all of the differences in loss between runs,
+and almost none of the differences after a fine-tune. And in §5.2, a run with the teacher's solutions and a run without
+them changed the losses by the same amounts, yet only the first run got better on the tests.
 
-- **3e-5 is too high.** Every source gets worse, even the web text the run trained on: a step of that size moves
-  the weights further than 20M tokens of new text can pay back. The later designs use 3e-6 and 1e-5.
-- **Replay on web text alone costs the other domains about 2%.** The base model was pretrained on something much
-  broader than a web crawl. Training it on a web crawl moves it toward the web and away from code, papers and math.
-- **The hard mixture halves that cost and gains on its own domains.** With 30% math and 20% code the loss on math
-  falls by 2.8% and on code by 1.3%, and the loss on papers and textbooks rises less than under replay alone.
-- **Curated text does the same for its own domains.** With 50% curated text the loss on textbooks falls by 2.3% and
-  on forum answers by 1.2%, and math and code pay about 1%. Each component lowers the loss where it comes from and
-  raises it a little elsewhere: the interference matrix of §6.3 in miniature.
+Loss is still useful. It is the fastest warning that a run went wrong, so every run records it.
 
-Caveats, plainly: one seed per run; 24,576 validation tokens per source, so differences below about 0.5% are noise
-(English Wikipedia at +0.4% after a run that was 15% Wikipedia is one of them; the design runs use 131,072 tokens);
-loss only, and §3 explains why loss is not the yardstick here. The 3e-6 pilot was set aside, because half of the
-design runs test 3e-6 at the full budget (§6.2).
+### 2.2 Four ways to look at a model
 
-**Pilot, probe and knowledge.** The same three runs at 1e-5 against the base model, paired question by question
-(`results/comparisons/pilot_*__minus__base_0.8B.json`, `mixing_law.py compare`):
+This project judges each model in four ways. Each one answers a different question.
 
-| trained on (20M tokens, LR 1e-5) | probe pass@1, pooled | pass@16 | pass@64 | CommonsenseQA, cloze |
-|---|---|---|---|---|
-| replay only | +0.03 [−0.42, +0.47] | −0.27 [−1.46, +0.92] | −1.23 [−3.69, +1.11] | +2.38 [+0.82, +3.85] |
-| replay 50%, math 30%, code 20% | −0.17 [−0.60, +0.27] | +0.92 [−0.25, +2.11] | +1.47 [−0.74, +3.69] | +3.19 [+1.64, +4.75] |
-| replay 50%, curated 50% | −0.24 [−0.64, +0.16] | −0.05 [−1.27, +1.19] | −1.72 [−4.05, +0.49] | +3.36 [+1.72, +4.91] |
+**1. Few-shot accuracy.** The model sees a few solved examples in its prompt, then a new problem, and writes an
+answer. This tests the base model directly, before any post-training, and it is the standard yardstick of
+mid-training. Every item of each test set is used once, with greedy decoding, which means the model always picks its
+most likely next word. The sets are GSM8K (1,319 grade-school word problems), MATH-500 (500 competition problems),
+HumanEval (164 programming tasks) and MBPP (257 programming tasks).
 
-No pilot moves pooled pass@1 beyond its noise. The hard mixture leans the right way on the larger k, with MATH-500
-pass@16 at +2.48 [+0.24, +4.85], and the curated mixture leans the wrong way on pass@64. Each run makes 16 probe
-comparisons (four tasks, four values of k), so about one interval in twenty excludes zero by chance; single values
-like MATH-500's are hints. One effect appears in every run so far, the pilots and design runs 1 and 4 alike: the
-cloze accuracy on CommonsenseQA rises by 2.0 to 3.4 points, each time with the interval above zero. ARC rises a
-little in all five runs (+0.7 to +1.4, two intervals above zero), and the other three cloze sets stay within about
-one point. **At this size and budget a single run is too weak a signal for the probe**,
-which is why the design fits one model to 18 runs (§6.3) and does not read runs one at a time.
+**2. Word problems from other sources.** SVAMP (1,000 problems) and ASDiv-A (1,218 problems) are grade-school word
+problems written by other people. They are asked with the same eight GSM8K examples in the prompt. They show whether a
+gain on GSM8K carries over to problems that were written elsewhere.
 
-**The regression suite on the base model.** It takes 12 minutes on one A100 for the 0.8B checkpoint
-(`results/regression/base_0.8B.json`):
+**3. A fixed fine-tuning test, the "generic probe".** Every model gets the same short fine-tune: two passes over 6,842
+instruction conversations, at a peak learning rate of 2e-5. The conversations are general instructions: Python
+functions, tasks with constraints, summaries, rewrites and everyday chat. None of them comes from a tested task, and
+none is a math problem. After the fine-tune, the model answers a fixed sample of test questions: 200 from GSM8K, 250
+from MATH-500, all 164 of HumanEval and 200 from MBPP. It answers each question 16 times at temperature 1, which means
+it samples a different answer each time. This shows what post-training can reach from the model. Two numbers come
+out of it. **pass@1** is the chance that one sampled answer is right. **pass@16** is the share of questions the model
+solves at least once in 16 tries.
 
-| measurement | with 5 examples | without examples |
+**4. Knowledge and loss.** Five multiple-choice sets (MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA and CMMLU)
+and TriviaQA test what the model knows. The multiple-choice sets are scored by **cloze**: the model's likelihood of
+each answer's own text, with no answer letters. Small models prefer some letters over others, and cloze removes that
+bias (PITFALLS B4). The loss on held-out text from every source is recorded too. It is given in **bits per byte**:
+the average number of bits the model needs to encode one byte of the text. Lower is better.
+
+| view | what it asks | code |
 |---|---|---|
-| MMLU-Pro (1,200 questions, 10 options) | 18.1 | 25.0 |
-| ARC-Challenge (1,172) | 68.2 | 71.7 |
-| HellaSwag (1,000) | 46.6 | 50.2 |
-| CommonsenseQA (1,221) | 52.3 | 56.9 |
-| CMMLU (1,000, Chinese) | 53.1 | 51.8 |
+| few-shot accuracy | what the base model can do right now | `base_regression.py final` |
+| word problems from other sources | does a gain carry to problems written elsewhere | same command |
+| generic probe | what post-training can reach from this model | `sft_probe.py --variant generic` |
+| knowledge and loss | did the model forget anything | `base_regression.py run` |
 
-| measurement | value |
-|---|---|
-| TriviaQA exact match (1,000, greedy) | 21.0 |
-| few-shot pass@1 / pass@16, 16 samples at temperature 1: GSM8K, MATH-500, HumanEval, MBPP | 18.1 / 62.5, 8.7 / 47.6, 8.1 / 30.5, 13.4 / 49.5 |
-| loss on the last 2K tokens of long papers: 2K of context, 14K of context | 1.885, 1.682 bits per token |
+The gap between pass@1 and pass@16 matters for the stage after this one. Reinforcement learning can only reward an
+answer that the model sometimes gives. A problem the model never solves in 16 tries gives RL nothing to work with.
 
-Two readings matter for the design. **Examples lower the multiple-choice accuracy of this model** on four of five
-sets. Counting the letters it picks explained it: with five examples the model picks "B" more often (33 of 80 ARC
-questions against 27 without), and on MMLU-Pro it picks "A" or "B" for 72 of 80 questions. The examples' own answers
-are balanced, so this is a preference for early letters that examples strengthen, a known weakness of small models
-with lettered options. The guard of the mixture search therefore averages each set with and without examples (§6.4),
-a choice made before any design run had a result. **Distant context is worth 0.20 bits per token** to the base
-model, a clear signal against which the long-context arms of the design can be compared.
+```python
+# src/midtrain/eval_tasks.py: the standard unbiased estimate of pass@k from n samples, of which c are correct
+def estimate_pass_at_k(correct_sample_count: int, sample_count: int, k: int) -> float:
+    return 1.0 - math.comb(sample_count - correct_sample_count, k) / math.comb(sample_count, k)
+```
 
-**The first design run.** Run 1 of the screening design (55% replay, 34% curated text, 11% math and code, peak
-learning rate 3e-6, 40M tokens) against the base model, paired question by question (`results/training/`,
-`results/regression/` and `results/probe/screen18_r01_0.8B.json`; `mixing_law.py compare`):
+### 2.3 A probe that taught the test
 
-| measurement | run 1 − base [95%] |
-|---|---|
-| bits per byte, every source | −0.3% to −1.8% (better on all nine) |
-| cloze multiple choice, ARC / CommonsenseQA | +1.2 [+0.1, +2.4] / +2.9 [+1.3, +4.3]; the other three within noise |
-| probe pass@1, four tasks pooled | −0.06 [−0.48, +0.37] |
-| probe pass@16 / pass@64, pooled | −0.53 [−1.86, +0.73] / +0.12 [−2.46, +2.70] |
+The first version of the fine-tuning test did not use instruction conversations. It fine-tuned each model on about
+15,000 training solutions of GSM8K, MATH and MBPP, and then tested on those same tasks. This looked like the most
+direct way to measure what post-training can reach.
 
-At 3e-6 a broad mixture moves every source a little in the right direction, where web-heavy replay at 1e-5 cost
-papers, math and code about 2%. The probe did not move. What the run settles is the resolution of the design: a
-paired difference of pooled pass@1 is known to ±0.4 points, so effects of half a point are visible.
+It turned out to measure something else. On the 0.8B base model, this "in-domain" probe scored lower than the generic
+probe on every task, and lower than the model's own few-shot accuracy:
 
-**The 0.8B screening design, all 18 runs.** The question of the project is which mixture of continued-pretraining
-text helps most. The design answers it with one law fitted to all 18 runs (§6.3): each measurement is a linear
-function of the token shares, the schedule and the learning rate. The fit says how much of the spread over the runs
-the mixture explains, and how large the noise of one run is (`results/designs/screen18_0.8B_analysis.json`,
-`mixing_law.py analyze`):
-
-| measurement | share of the spread explained | spread over the runs (sd) | noise of one run |
-|---|---|---|---|
-| math loss / code loss (bits per byte) | 0.98 / 0.94 | 0.0063 / 0.0031 | 0.0013 / 0.0011 |
-| few-shot pass@1, four tasks, before any fine-tune | 0.92 | 0.58 | 0.24 |
-| few-shot GSM8K pass@16 | 0.96 | 2.11 | 0.65 |
-| knowledge guard (cloze) | 0.63 | 0.14 | 0.13 |
-| probe pass@1, four tasks, after the fine-tune | 0.12 | 0.20 | 0.28 |
-| probe pass@16 / pass@64 | 0.31 / 0.29 | 0.52 / 0.61 | 0.63 / 0.75 |
-
-A law with nine terms explains about 0.53 of the spread of pure noise over 18 runs (9 of 17), on average. So
-the losses and the few-shot scores are almost entirely explained by the mixture, and the knowledge guard and the
-probe are not explained at all.
-
-<p align="center"><img src="assets/design_main_effects_en.png" width="92%"></p>
-
-Each point is the mean over the runs at one level of a factor (six runs; nine for the learning rate), minus the
-mean of all runs. The grey band is the range of the empty column, the size of an effect of nothing.
-
-What moved, per +10% of all tokens taken from replay, with t-statistics on 8 degrees of freedom:
-
-- **Losses follow their own domain.** Math text lowers the math loss by 0.011 bits per byte (t = 13), code
-  text the code loss by 0.010 (t = 7), and curated text the losses on forum answers, papers, textbooks and
-  English Wikipedia. Each source that gives up tokens gets slightly worse.
-- **Rewritten text raises few-shot reasoning.** GSM8K pass@16 rises by 1.7 points (t ≥ 3), MATH-500 pass@1 by
-  0.4 and pass@16 by 1.6, and the four-task pass@1 by 0.25 (t ≥ 2). All four point the same way.
-- **The lower learning rate wins.** Against 3e-6, a peak of 1e-5 makes every held-out loss worse and costs
-  0.9 points of few-shot pass@1 (t ≥ 3).
-- **After the fine-tune none of this is left.** No term of the probe's pooled pass@1, pass@16 or pass@64 reaches 1.5
-  standard errors. The spread of few-shot pass@1 over the runs is 2.9 times its spread after the probe, and the
-  two orders of the runs are unrelated (Spearman 0.00).
-
-The probe was chosen because loss does not show what post-training can reach (§3.1). At this size and budget it sees
-nothing: two epochs over 6.2M tokens of conversations make 18 models that differ by 40M tokens of mid-training nearly
-alike. The few-shot scores do see the mixture, but they are measured before any post-training. **At 0.8B and 40M
-tokens, a short fine-tune undoes what continued pretraining changed.** The 2B design tests whether that holds one
-size up, and it is the replication for every effect above.
-
-Caveats, plainly:
-- About 400 tests (45 measurements, 9 terms each). At |t| ≥ 3 with 8 degrees of freedom about 7 would pass by
-  chance, so only patterns that agree across measurements are reported as effects.
-- The constrained optimum that `analyze` prints for probe pass@16 is fitted to noise (60.6 predicted against a
-  mean of 60.0, within one run's noise); it is not a proposal.
-- One seed per run, 40M tokens per run, one model size so far.
-
-**A probe that teaches the test.** The first probe fine-tunes on about 15,000 training solutions of GSM8K, MATH
-and MBPP before it tests those tasks. A second probe (`configs/probe_generic.yaml`) fine-tunes on 6,842
-instruction conversations alone: general Python tasks, constraints, summaries, rewrites and everyday conversation,
-none of them from a tested task. On the 0.8B base model the generic probe scores higher on every task, so the
-training solutions did more than flatten the mixtures: their terse style (GSM8K's calculator notes, MATH's short
-solutions) is worse than the model's own. From here on the generic probe is the check after post-training, and the
-main measure is the base model's few-shot accuracy, the standard yardstick of mid-training, on the full test sets
-with greedy decoding (`base_regression.py final`):
-
-| task | first probe, pass@1 | generic probe, pass@1 | 0.8B base, greedy few-shot | 2B base, greedy few-shot |
+| task | probe trained on the tasks' own solutions, pass@1 | generic probe, pass@1 | 0.8B base, few-shot | 2B base, few-shot |
 |---|---|---|---|---|
 | GSM8K | 37.2 | 39.8 | 42.7 | 61.6 |
 | MATH-500 | 13.6 | 22.8 | 23.0 | 37.2 |
 | HumanEval | 9.6 | 15.4 | 21.3 | 34.1 |
 | MBPP | 22.8 | 29.0 | 37.4 | 49.4 |
 
-(`results/probe/base_0.8B.json`, `results/probe_generic/base_0.8B.json`, `results/final_eval/base_*.json`.) Greedy
-answers that hit the length limit (MATH-500: 22.8% for the 0.8B, 14.4% for the 2B) are mostly loops that repeat an
-equation; they count as wrong, for every model alike.
+The reason is the style of those training solutions. GSM8K solutions are short notes with calculator marks, and MATH
+solutions skip steps. The fine-tune taught the model to answer in that terse style, which is worse than the model's
+own. The same probe also made different models look alike. After it, the choice of mixture explained only 12% of the
+differences between the 18 design runs. That is less than a model of the same size explains of pure noise.
 
-**The dose experiment.** The design gave each run 40M tokens at a peak learning rate of at most 1e-5, and the
-losses moved by about 1%. Published mid-training gains come from hundreds of millions of tokens and more. The next
-runs therefore give the 0.8B model 300M tokens, 7.5 times the dose, of a reasoning-dense mixture: FineMath pages
-(25%), questions with worked answers mined from the web (WebInstructSub, 25%), the teacher's rewrites (5%), code
-(7%) and textbooks (3%), with 35% replay of educational web text and Chinese Wikipedia
-(`configs/recipes/dose/`). It runs at peak learning rates of 1e-5, 3e-5 and 1e-4, against a replay-only control at
-3e-5. WebInstructSub's 2.3M question-answer pairs (Apache-2.0) passed the decontamination gate with 3,822 flagged
-and left out.
+Therefore, I replaced it with the generic probe, whose conversations contain no tested task, and made few-shot
+accuracy on the full test sets the main measure (`results/probe/`, `results/probe_generic/`, `results/final_eval/`).
 
-**The first dose runs made the model worse.** Every run of 300M tokens ends below the base model, the replay-only
-control included, and the higher the learning rate the larger the loss (greedy accuracy on the full test sets;
-`results/final_eval/`, `results/regression/`, `results/training/`):
+**A probe that trains on the tested tasks' own solutions measures the probe more than the model.**
+
+### 2.4 Noise, and what one run cannot tell
+
+Small differences need a careful comparison. Every model answers the same questions with the same prompts. So two
+models can be compared question by question: on each question, one model may be right and the other wrong, or both
+may score the same. The average of these per-question differences is the gain.
+
+To know whether a gain is real, the comparison is repeated 2,000 times on random resamples of the questions. The
+middle 95% of the results is the **95% interval** shown in every table. If the interval does not include zero, the
+difference is larger than the luck of which questions happen to be in the test (`mixing_law.py compare-with-base`,
+which writes `results/comparisons/dose_vs_base_<size>.json`).
+
+This interval has a limit. It covers the choice of questions, not the randomness of training. A second training run
+with a different data order could give a somewhat different model. Repeated runs with other seeds wait for the
+cluster (§6.4).
+
+### 2.5 What is kept out of training
+
+A test only measures skill if its questions were never in the training data. If a test question appears in the
+training text, the model can answer it from memory. This leak is called **contamination**.
+
+Every document in the training pool is checked against every test question, including the few-shot examples. A
+document that shares any sequence of 13 words with a test text is flagged, and the sampler never uses it. The current
+scan flags about 13,500 documents, a quarter of a percent of the pool (`results/hygiene_decontamination.json`).
+Problems for the teacher come only from training splits. Problem sets written by other models are also checked by
+meaning, with text embeddings, before the teacher sees them. Appendix F describes the checks and what they can miss.
+
+---
+
+## 3. Public text: what did not work
+
+### 3.1 The pool and the mixtures
+
+The experiments draw on a pool of public text. It holds 11 sources and 4.97B training tokens (Appendix A). Each source
+has a role:
+
+- **replay**: general web text (FineWeb and FineWeb-Edu) and Chinese Wikipedia, which stand in for the model's
+  original training data;
+- **curated text**: English Wikipedia, open textbooks, research papers and StackExchange answers;
+- **hard text**: two slices of FineMath (web pages with mathematics) and educational code;
+- **question-answer text**: 2.29M questions with worked answers from WebInstructSub.
+
+A **recipe** sets the share of each source, for example "30% math, 20% code, 50% replay". The sampler then fills every
+training sequence from the source that is furthest behind its target. So the shares a run actually sees match the
+recipe almost exactly (Appendix B).
+
+All the public-text experiments used the 0.8B model. They went from small doses to large ones.
+
+### 3.2 Forty million tokens: a screening design
+
+The common way to tune a mixture is to change one share at a time. For mixtures this does not work well. The shares
+must add up to one, so raising one share lowers others. The shares also interact: the best amount of math text may
+depend on the learning rate.
+
+Therefore, I varied seven factors at once in an **orthogonal design**, a classical plan from experimental statistics.
+In such a plan, every level of every factor appears with every level of every other factor equally often. Eighteen
+runs were enough to estimate the effect of each factor. The factors were the learning rate, the share of replay, the
+share of teacher rewrites, the share of math and code, the share of math within that, long-context packing, and when
+in the run the non-replay text is shown (Appendix C). Each run trained the 0.8B model on 40M tokens.
+
+A simple linear model fitted to the 18 runs shows how much of each measurement the mixture explains
+(`results/designs/screen18_0.8B_analysis.json`):
+
+| measurement | share explained by the mixture | spread across the runs | noise of one run |
+|---|---|---|---|
+| math loss / code loss (bits per byte) | 0.98 / 0.94 | 0.0063 / 0.0031 | 0.0013 / 0.0011 |
+| few-shot pass@1, average of four tasks | 0.92 | 0.58 | 0.24 |
+| few-shot GSM8K pass@16 | 0.96 | 2.11 | 0.65 |
+| knowledge (cloze) | 0.63 | 0.14 | 0.13 |
+| probe pass@1 after the in-domain fine-tune | 0.12 | 0.20 | 0.28 |
+
+How to read the table. The second column is the share of the differences between runs that the mixture explains.
+Even pure noise would reach a share of about 0.53 here, because a linear model with ten terms can fit part of any 18
+numbers. So only a share well above 0.53 means that a measurement truly follows the mixture. The third column is the
+standard deviation across the 18 runs. The fourth is the noise of one run, the part the linear model cannot explain.
+The losses and the few-shot scores clearly follow the mixture. The knowledge score and the probe do not.
+
+<p align="center"><img src="assets/design_main_effects_en.png" width="92%"></p>
+
+Each point is the average over the runs at one level of a factor, minus the average of all runs. The grey band is the
+range of an empty factor, which shows how large an "effect of nothing" can be.
+
+The effects are real, and they are small. Math text lowered the math loss by 0.011 bits per byte for each 10% of
+tokens it took from replay. Teacher rewrites raised few-shot GSM8K pass@16 by 1.7 points per 10% of tokens. The lower
+learning rate, 3e-6, beat 1e-5 on every loss. The in-domain probe then erased all of these differences. The obvious
+next step was a larger dose.
+
+### 3.3 Three hundred million tokens: the learning-rate wall
+
+Published mid-training stages use hundreds of millions of tokens or more. So the next experiment gave the 0.8B model
+300M tokens, 7.5 times as much as before. The mixture was rich in reasoning: FineMath (25%), WebInstructSub (25%),
+teacher rewrites (5%), code (7%), textbooks (3%) and replay (35%) (`configs/recipes/dose/`). It first ran at three
+peak learning rates, 1e-5, 3e-5 and 1e-4, next to a control run on replay text alone at 3e-5.
+
+<p align="center"><img src="assets/public_text_learning_rate_en.png" width="80%"></p>
+
+The left panel shows the change in few-shot accuracy against the base model, for each learning rate. The right panel
+shows the change in knowledge. Lower is worse.
+
+The picture is clear. Every run at a learning rate of 1e-5 or higher ended below the base model. The higher the
+learning rate, the larger the damage:
 
 | run (300M tokens) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
 |---|---|---|---|---|---|---|
@@ -311,915 +367,817 @@ control included, and the higher the learning rate the larger the loss (greedy a
 | reasoning mix, 1e-4 | 18.4 | 11.2 | 3.7 | 7.4 | 26.8 | +9.7% |
 | replay only, 3e-5 | 28.2 | 8.6 | 7.3 | 18.3 | 32.9 | +0.9% |
 
-The control trained on FineWeb-Edu, and its loss on held-out FineWeb-Edu rose. Training on a distribution should
-not make held-out text of that distribution worse, so this is not a mixture effect: a re-warmed learning rate
-pushes the model out of the optimum its own training annealed it into, and 300M tokens of decay do not bring it
-back. At 3e-6 and 40M tokens (design run 1) every held-out loss had improved, by 0.3% to 1.8%; at 300M tokens,
-1e-5 is already too much. The reasoning text does what it was chosen for in loss (its own validation loss falls by
-20% at 1e-5) and still costs accuracy everywhere. **A strong, annealed base model is easier to damage than to
-improve: the learning rate has to stay near the end of its own schedule.** The next runs test 3e-6 at the same
-dose, a question-answer-heavy mixture, weight interpolation with the base, and worked solutions written by the
-teacher for the training problems of GSM8K and MATH.
-
-**At 3e-6 the dose does no harm, and no good.** The second sweep kept the 300M tokens and lowered the peak learning
-rate to 3e-6, the rate that won the design. Each run minus the base model, paired question by question, with 95%
-intervals from resampling the questions. This table and the next two come from
-`results/comparisons/dose_vs_base_0.8B.json`, which `mixing_law.py compare-with-base --model-size 0.8B` writes from
-`results/final_eval/`, `results/probe_generic/`, `results/regression/` and `results/training/`:
+Then I lowered the learning rate to 3e-6, the rate that had done best in the screening design. The damage
+disappeared. So did any gain. The table shows each run minus the base, with 95% intervals
+(`results/comparisons/dose_vs_base_0.8B.json`):
 
 | run (300M tokens, LR 3e-6) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
 |---|---|---|---|---|---|---|
 | reasoning mix | +0.7 [−1.5, +2.8] | −2.8 [−6.4, +0.8] | 0.0 [−4.3, +4.3] | 0.0 [−4.7, +4.3] | 35.0 | −0.5% |
 | QA-heavy mix (45% WebInstructSub) | +1.7 [−0.5, +4.0] | −0.8 [−4.6, +2.6] | −1.8 [−6.1, +2.4] | +1.9 [−2.7, +7.0] | 34.9 | −0.1% |
 
-The damage is gone: the held-out FineWeb-Edu loss falls again, and knowledge stays at the base model's 34.7. The
-gain is gone too. After the generic probe both runs are 0.6 to 2.7 points below the base model on every task
-(`results/probe_generic/`). Weight interpolation reached the same place by another road: the 1e-5 run averaged with
-the base, with 25% and 50% of the weight on the run, came back to within 2.4 points of the base on all four tasks and
-never above it by more than 0.8 (`merging.py`, runs `dose_reasoning_lr1e-5_0.8B_merge25` and `_merge50`). **Public
-text at a safe learning rate leaves this base model where it was. Whatever these 300M tokens hold, the model has
-already learnt it.**
+All intervals include zero. After the generic probe, both runs were 0.6 to 2.7 points below the base model on every
+task.
 
-**Worked solutions from a stronger model give the first gain.** If the model has already learnt the public text,
-the text to add is text it has not seen. The obvious candidate is the reasoning of a stronger model. The 27B teacher
-(Qwen3.8-27B, the model that rewrote the passages of §7) solved the training problems of GSM8K and MATH, eight
-attempts per GSM8K problem and four per MATH problem. An attempt was kept only when its final answer equals the
-reference answer, and at most four distinct ones per problem: 45,177 solutions of 11,915 problems, 23.2M tokens
-(`synthetic_rephrase.py solve`, `results/synthetic_solutions_summary.json`; 94% of the GSM8K attempts and 60% of the
-MATH attempts were right).
-The distillation recipe gives these solutions 40% of 100M tokens, so each is seen 1.7 times. The rest is
-question-answer text, math pages, code and a small replay share (`configs/recipes/dose/dose_distill_100m.yaml`):
+One more idea was tested. Averaging the weights of a damaged run with the weights of the base model is a known way to
+recover from forgetting. I averaged the 1e-5 run with the base, at 25% and at 50% weight on the run (`merging.py`).
+This brought the accuracy back to within 2.4 points of the base. It never rose above the base by more than 0.8 points.
+Averaging repairs damage. It does not add skill.
 
-| run (100M tokens) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
+### 3.4 Why public text fails here
+
+Four observations point to one explanation.
+
+**The damage comes from the training itself.** The replay-only control trained on FineWeb-Edu. At a learning rate of
+3e-5, its loss on held-out FineWeb-Edu text went up by 0.9%. Training on a kind of text should not make the model
+worse at that same kind of text. A plausible reading: the raised learning rate pushed the model out of the settled
+state its own training had reached, and 300M tokens were too few to bring it back.
+
+**At a safe learning rate, the model has little left to learn.** At 3e-6, the loss on held-out public text fell by
+only 0.1 to 2%. The model already predicts this text well.
+
+**What it does learn is style.** The largest drop in loss was 13%, on held-out WebInstructSub answers. That same drop
+appears whether or not the teacher's solutions are in the mixture (§5.2). Yet only the run with the solutions improved
+on the tests. So the model learnt how those answers are written, and that is not the skill the tests ask for.
+
+**The missing ingredient is rare in public text.** The tests reward correct, step-by-step solutions. Math web pages
+mostly hold finished answers and discussions. Complete, correct working is much rarer.
+
+**A strong, annealed base model is easier to damage than to improve. At a safe learning rate, public text adds almost
+nothing it has not already learnt.**
+
+---
+
+## 4. Distillation: the options and our pipeline
+
+If the model has already learnt the public text, the text to add is text it has not seen. The most direct source of
+such text is a stronger model. A stronger model can solve problems the smaller one cannot, and it can write out the
+steps. This section explains the main ways a stronger model can teach a weaker one, the choices involved, and exactly
+what this study did.
+
+### 4.1 The ways a stronger model can teach
+
+**Distillation** means training a smaller model, the **student**, to behave like a larger one, the **teacher**. The
+methods differ in what the student learns from.
+
+**Soft-label distillation.** In the original form (Hinton et al., 2015), the student learns to match the teacher's
+full probability for every possible next token. A probability distribution carries more information than a single
+right answer. It shows, for example, which wrong answers are almost right. The cost is high: the teacher must run on
+every training token, and both models must use exactly the same vocabulary. Gemma 2 used this method to pretrain its
+small models.
+
+**Sequence-level distillation.** Here the teacher writes text, and the student trains on that text with the ordinary
+next-token loss (Kim and Rush, 2016). The teacher runs only once, to write the data. Training stays unchanged. This is
+what "distillation" usually means for language models today. It is the same as training on synthetic data written by
+a stronger model.
+
+**Synthetic data in general.** Any text a model writes is synthetic data. Examples are rewrites of real passages,
+synthetic textbooks and question-answer pairs. Synthetic data is only as useful as what it adds. A rewrite restates
+facts that the student already knows. A solution written by a stronger model can carry reasoning that the student
+cannot yet do. This study tried both kinds with the same teacher, and only the solutions helped (§5.3).
+
+**Verification.** A teacher makes mistakes too. One remedy is to let the teacher write several attempts and keep only
+the attempts that pass a check against outside information. The check can be a known reference answer, a set of unit
+tests or a judge model. This turns generation into selection. Methods such as STaR and rejection-sampling fine-tuning
+use the same idea to train a model on its own correct outputs.
+
+**On-policy distillation.** In the methods above, the student learns from text the teacher wrote. In on-policy
+distillation, the student writes, and the teacher scores or corrects the student's own text (Agarwal et al., 2024;
+Gu et al., 2024). The student then learns on the kind of text it actually produces. The teacher has to run inside
+the training loop, which makes this method close to reinforcement learning.
+
+The four ideas can be summarised by what the student learns from:
+
+```
+soft-label distillation   the teacher's probability for every next token              needs the teacher during training
+sequence-level            text the teacher wrote, with the usual next-token loss      the teacher only writes data
+  + verification          only text whose answer passes a check                       needs problems with known answers
+on-policy                 the student's own text, scored or corrected by the teacher  needs the teacher in the loop
+```
+
+This study used **sequence-level distillation with verification**. It is the cheapest of the four. It fits into
+ordinary mid-training without any change to the training code. And verification removes most of the teacher's
+errors.
+
+### 4.2 The choices behind distillation data
+
+Building distillation data means making a series of choices. Each choice changes what the student learns. The table
+lists the main choices, what this study picked, and whether the pick was tested.
+
+| choice | options | this study | status |
+|---|---|---|---|
+| teacher | model, size, weight precision, thinking mode, sampling | Qwen3.8-27B with 4-bit weights, thinking mode off, temperature 1.0 | the strongest model that fits on one 40 GB GPU; other teachers untested |
+| what the teacher writes | rewrites of real text, solutions to existing problems, new problems | solutions to existing problems with known answers; rewrites were tested separately (Appendix D) | tested: solutions help, rewrites do not |
+| verification | none, final answer, unit tests, a judge | the final answer must match the reference, checked by the same grader the tests use | cheap and exact for math; a wrong argument that ends at the right number still passes |
+| problems | where they come from, how hard, how many | the training splits of GSM8K and MATH (14,262 problems); later NuminaMath-1.5 (20,000) and the hard problems again (2,591) | §4.4 |
+| answer length | how many tokens the teacher may write | 1,024; then 4,096 for the hard problems | 1,024 was too short (§4.4) |
+| copies per problem | how many different solutions of one problem to keep | up to 4 (2 for NuminaMath) | one copy per problem is in the cluster sweep |
+| format | chat format or plain text; whether the question counts in the loss | plain "Question: … Answer: …" text; every token counts | chat tokens in mid-training data can break base-model tests (OLMo 3); other formats untested |
+| how it is used | a fine-tune or part of mid-training; share; amount; learning rate | 40% of a 100M-token mid-training mixture; peak learning rate 3e-6 | share, amount and rate are in the cluster sweep |
+| learning signal | sampled text or probabilities; teacher's text or student's text | sampled text from the teacher, written once | probabilities and on-policy methods untried (§4.5) |
+
+Three of these choices turned out to matter most. Verification decides whether the data is right. The problems decide
+what the student practises. The answer length decides which problems can be solved at all, as §4.4 shows.
+
+### 4.3 Our pipeline, step by step
+
+The pipeline turns problems with known answers into training text. Here is the whole path for the first solution set:
+
+```
+problems with known answers: the training splits of GSM8K (7,473) and MATH (6,789 usable)
+   │  the teacher writes 8 attempts per GSM8K problem and 4 per MATH problem, at most 1,024 tokens each
+   ▼
+86,108 attempts
+   │  check: the attempt finished, and its final boxed answer equals the reference answer
+   ▼
+72,076 right attempts ── keep at most 4 different ones per problem ──► 45,177 solutions of 11,915 problems
+   │  contamination check against every test question and few-shot example: 482 solutions left out
+   ▼
+the pool source synthetic_solutions (23.2M tokens) ── 40% of a 100M-token mixture
+   │  continued pretraining at a peak learning rate of 3e-6
+   ▼
+student model
+```
+
+The steps in detail:
+
+**Step 1: ask the teacher.** The teacher receives one instruction and the problem. Its thinking mode is switched off,
+so it answers directly:
+
+```python
+# src/midtrain/synthetic_rephrase.py
+solution_instruction = (
+    "Solve the problem step by step. Write each step as a short sentence or an equation, check the result, and end "
+    "with the sentence 'The final answer is \\boxed{...}.'")
+```
+
+Here is what a solution looks like. This example was written for this README, in the same format as the teacher's
+solutions:
+
+```
+Question: A bakery makes 48 muffins in the morning and 36 in the afternoon. It sells three quarters of them.
+How many muffins are left?
+
+Answer: The bakery makes 48 + 36 = 84 muffins in total.
+It sells three quarters of them: 84 × 3/4 = 63 muffins.
+So 84 − 63 = 21 muffins are left.
+Check: 63 + 21 = 84, which matches the total.
+The final answer is \boxed{21}.
+```
+
+**Step 2: check every attempt.** An attempt is kept only if it finished within the token limit and its last boxed
+answer matches the reference answer. The match uses the same function that grades the tests. It compares numbers by
+value, so 0.5 and 1/2 count as equal, and it compares other answers as normalised LaTeX:
+
+```python
+# src/midtrain/synthetic_rephrase.py (solve_training_problems)
+predicted = find_last_boxed_content(solution_text)
+is_correct = bool(finish_reason == "stop" and predicted is not None
+                  and is_math_answer_equivalent(predicted, problem["reference_answer"]))
+```
+
+The teacher got 94% of its GSM8K attempts right and 60% of its MATH attempts
+(`results/synthetic_solutions_summary.json`). For 2,347 problems, no attempt was right.
+
+**Step 3: select and format.** Identical attempts are merged, and at most four solutions are kept per problem. Each
+solution becomes one plain-text document: the question, then the answer. The text has no chat tokens. The student
+reads it like any other text, and the loss counts every token.
+
+**Step 4: check for contamination.** The new source goes through the same 13-word check as every other source (§2.5).
+It flagged 482 solutions. Most matched the fixed wording of MATH problems, such as "enter your answer in the form".
+Sixteen were solutions of three GSM8K training problems that are near-copies of GSM8K test problems. The sampler
+never uses any of the 482.
+
+**Step 5: mix and train.** The solutions take 40% of the training tokens. With 23.2M tokens of solutions and 100M
+tokens of training, each solution is seen about 1.7 times. The other 60% keeps the question-answer text, math pages
+and code of the earlier mixtures, plus a small share of replay:
+
+```yaml
+# configs/recipes/dose/dose_distill_100m.yaml
+token_budget: 100007936           # 3,052 steps of 32,768 tokens
+components:
+  synthetic_solutions: 0.40
+  reasoning_qa: 0.15
+  math_web: 0.10
+  code: 0.10
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.10
+  wiki_zh: 0.05
+```
+
+Training uses the same loop as every other run (Appendix B), at a peak learning rate of 3e-6. That is the rate that
+did no harm in §3.3.
+
+### 4.4 Three solution sets, and what limited them
+
+<p align="center"><img src="assets/teacher_attempts_en.png" width="84%"></p>
+
+The blue bars show the share of the teacher's attempts that were right. The grey bars show the share that ran past the
+1,024-token limit before finishing. The groups are GSM8K, the five difficulty levels of MATH (L1 easiest, L5 hardest)
+and three sources of NuminaMath (`results/synthetic_attempts_*.json`).
+
+**The first set has a hole at the top.** The 1,024-token limit was chosen with GSM8K in mind, and GSM8K solutions are
+short. MATH solutions are longer, and the harder the problem, the longer the solution. At level 1, only 3% of the
+attempts were cut off. At level 4 it was 42%, and at level 5 it was 72%, where only 27% of the attempts were right.
+The teacher did not fail these problems. It ran out of room. As a result, the kept MATH solutions are mostly easy
+ones, and the hardest problems are nearly missing. This is the likeliest reason why MATH-500 did not move at 9B
+(§5.1).
+
+**The second set widens the problems.** GSM8K and MATH cover only two kinds of problems. The second set draws 20,000
+problems from three other sources in NuminaMath-1.5 (Apache-2.0):
+
+- orca_math: grade-school word problems written by a model;
+- cn_k12: Chinese school exercises, translated into English;
+- synthetic_math: new problems in the style of competitions.
+
+Only problems that NuminaMath marks as valid, with a short final answer that can be checked, were drawn. Before the
+teacher saw them, the contamination check removed 960 of the 26,000 drawn problems. About 350 of those shared a
+13-word sequence with a SVAMP or ASDiv-A question, and 83 with a MATH-500 question. Most came from orca_math
+(`results/synthetic_solutions_numina_selection.json`). The teacher wrote two attempts per problem, which gave 21,445
+right solutions of 11,367 problems (12.9M tokens). The same 1,024-token limit cut off 37% of these attempts overall,
+and about half of the attempts on cn_k12 and synthetic_math.
+
+**A third pass fills the hole.** 2,591 problems of the first set will be solved again. They are the 2,347 problems
+with no right attempt, plus the MATH problems of levels 4 and 5 with only one right attempt. Of the 2,591, 1,442 are
+level 5 and 602 are level 4. This time the teacher may write 4,096 tokens, four attempts each, at temperature 0.8.
+The new solutions become their own source, `synthetic_solutions_hard`. Two check runs (0.8B and 2B) then train on the
+recipe with 10% of the tokens taken from them (`configs/recipes/dose/dose_distill_hard_100m.yaml`).
+
+### 4.5 What we did not try, and why
+
+- **Soft-label distillation.** It needs the teacher's probabilities on every training token. For 100M tokens, that is
+  a forward pass of the 27B model per token, which costs more than training the 9B model itself. The two vocabularies
+  would also have to match exactly.
+- **On-policy distillation.** It puts the teacher inside the training loop. That turns mid-training into something
+  close to reinforcement learning, which is the next stage of training.
+- **Code solutions checked by unit tests.** HumanEval and MBPP never moved, and the recipe has no code solutions. The
+  teacher could write programs, and a sandbox could run their tests. It did not fit into the time available.
+- **Checking each step of a solution.** A judge model could reject a solution whose reasoning is wrong even when its
+  final number is right. The final-answer check lets such solutions through.
+- **A thinking-mode teacher, or a stronger teacher.** Thinking traces are long and use a different format. A teacher
+  stronger than the 27B model does not fit on the workstation's GPUs at a useful speed.
+
+---
+
+## 5. Results
+
+### 5.1 The gain at every size
+
+The first question is simple: does the distillation recipe help, and does it help at every size? The table shows each
+run minus the base model of the same size. All runs used a peak learning rate of 3e-6 and 100M tokens
+(`results/comparisons/dose_vs_base_<size>.json`).
+
+How to read it. The first block of columns is few-shot accuracy. The "probe" columns are pass@1 after the generic
+fine-tune. Knowledge is the cloze score, in points. A bold value has an interval that excludes zero.
+
+| size | base GSM8K | GSM8K | SVAMP | MATH-500 | HumanEval | MBPP | knowledge | probe GSM8K | probe MATH-500 |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.8B | 42.7 | **+6.8 [+4.3, +9.3]** | +1.6 [−1.2, +4.5] | +1.4 [−2.0, +4.8] | +1.2 | +1.9 | +0.2 | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] |
+| 2B | 61.6 | **+4.3 [+2.0, +6.8]** | **+3.4 [+1.0, +5.9]** | −1.4 [−5.0, +2.0] | −2.4 | −1.6 | −0.5 | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** |
+| 4B | 82.8 | running | | | | | | | |
+| 9B | 87.1 | **+5.3 [+3.7, +6.9]** | **+5.1 [+3.3, +6.9]** | +1.0 [−2.8, +4.6] | 0.0 | −0.4 | +0.4 | −0.1 [−1.3, +1.0] | 0.0 [−1.3, +1.4] |
+
+What to notice:
+
+- **GSM8K rises at every size**, by 4 to 7 points. For the 9B model, which already solves 87.1% of GSM8K, this means
+  the share of problems it gets wrong falls from 12.9% to 7.6%. That is 41% fewer mistakes.
+- **Knowledge stays the same.** It moves by at most half a point at any size. The held-out loss also falls on 9 of 11
+  public sources at 0.8B, 2B and 9B.
+- **MATH-500 and code do not move in the few-shot test.** Their changes stay within the noise.
+- **After the fine-tune, MATH-500 rises too**, by 7.6 points at 2B. Section 5.4 explains why the two tests differ.
+- **At 9B, the fine-tune removes the gain.** After it, the distilled 9B model scores the same as the fine-tuned base
+  model on GSM8K and MATH-500. Section 5.5 looks at why.
+
+**Mid-training on checked solutions from a stronger model improves the base model at every size tested, at no cost
+in knowledge.** After a fine-tune, the gain remains at 0.8B and 2B, and it disappears at 9B.
+
+### 5.2 Where the gain comes from
+
+The distillation recipe differs from the public-text runs of §3 in two ways. It adds the solutions. It also changes
+the rest of the mixture: the other 60% is mostly question-answer text, math pages and code, with little replay. Either
+change could be the cause.
+
+Two control runs separate the two. Both use the same budget and the same learning rate. The **replay-only control**
+trains on general text alone: FineWeb-Edu and Chinese Wikipedia. The **ablation** keeps the recipe but gives the
+solutions' 40% to general web text (`configs/recipes/dose/dose_nosolutions_100m.yaml`).
+
+| run, minus base (100M tokens, LR 3e-6) | GSM8K | MATH-500 | HumanEval | probe GSM8K | probe MATH-500 | knowledge |
 |---|---|---|---|---|---|---|
-| base model | 42.7 | 23.0 | 21.3 | 37.4 | 34.7 | — |
-| distillation, LR 3e-6 | **49.5** | 24.4 | 22.6 | 39.3 | 34.9 | −0.2% |
-| − base | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.2 [−2.4, +4.9] | +1.9 [−2.7, +6.6] | +0.2 | |
-| distillation, LR 1e-5 | 49.4 | 22.0 | 22.6 | 35.8 | 34.2 | +0.7% |
-| − base | +6.7 [+3.9, +9.4] | −1.0 [−4.6, +2.4] | +1.2 [−3.0, +5.5] | −1.6 [−7.0, +3.9] | −0.5 | |
-| replay only, LR 3e-6 | 43.0 | 23.4 | 22.0 | 37.4 | 35.3 | −0.8% |
-| − base | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | +0.6 [−2.4, +3.7] | 0.0 [−3.1, +3.5] | +0.6 | |
-| same mixture without the solutions, LR 3e-6 | 42.2 | 18.6 | 20.7 | 36.6 | 35.2 | −0.6% |
-| − base | −0.5 [−2.6, +1.4] | **−4.4 [−7.8, −1.0]** | −0.6 [−4.3, +3.0] | −0.8 [−5.1, +3.1] | +0.5 | |
+| 0.8B distillation | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.2 [−2.4, +4.9] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 |
+| 0.8B without the solutions | −0.5 [−2.6, +1.4] | **−4.4 [−7.8, −1.0]** | −0.6 [−4.3, +3.0] | −1.0 [−3.0, +0.9] | **−3.5 [−4.8, −2.2]** | +0.5 |
+| 0.8B replay only | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | +0.6 [−2.4, +3.7] | +0.1 [−1.8, +2.1] | 0.0 [−1.3, +1.2] | +0.6 |
+| 2B distillation | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | −0.5 |
+| 2B replay only | −0.7 [−2.6, +1.1] | −3.8 [−7.8, 0.0] | −1.2 [−5.5, +3.0] | +0.7 [−1.2, +2.6] | **−1.8 [−3.4, −0.2]** | +0.6 |
 
-At 3e-6 every number moves up. GSM8K gains 6.8 points with the whole interval above zero, the other three tasks
-gain 1 to 2 points within their noise, knowledge holds, and the held-out loss falls on 8 of 10 sources
-(WebInstructSub answers by 13%, code by 2.1%, math pages by 1.4%). At 1e-5 the GSM8K gain is the same, and MATH-500,
-MBPP, knowledge and the losses pay for it. Two runs at the same budget and rate say where the gain comes from. The
-replay-only control moves no test set beyond its noise. The same mixture with the solutions' 40% given to web text
-(`configs/recipes/dose/dose_nosolutions_100m.yaml`) gains nothing either, and loses 4.4 points on MATH-500: the
-question-answer text, math pages and code around the solutions do not help by themselves. **The first gain of the
-project came from text the base model could not have seen: answers written by a stronger model.**
-
-**After a fine-tune, the higher learning rate pulls ahead.** The few-shot score is the base model's own view. The
-project asks what a checkpoint is worth after post-training (§3.1), and the generic probe answers that: a fine-tune
-on 6,842 instruction conversations that hold no tested task, then 16 samples per question
-(`results/probe_generic/`). Each run minus the base model, pass@1, paired question by question:
-
-| run | GSM8K | MATH-500 | HumanEval | MBPP |
-|---|---|---|---|---|
-| distillation, 100M tokens, LR 3e-6 | +5.7 [+3.3, +8.1] | +0.3 [−1.1, +1.7] | −2.0 [−3.7, −0.3] | 0.0 [−1.8, +1.8] |
-| distillation, 100M tokens, LR 1e-5 | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.7 [−2.3, +1.1] | −1.5 [−3.5, +0.5] |
-| replay only, 100M tokens, LR 3e-6 | +0.1 [−1.8, +2.1] | 0.0 [−1.3, +1.2] | −1.7 [−3.4, −0.2] | +0.2 [−1.6, +1.8] |
-| without the solutions, 100M tokens, LR 3e-6 | −1.0 [−3.0, +0.9] | −3.5 [−4.8, −2.2] | −3.2 [−4.9, −1.6] | −0.1 [−1.9, +1.6] |
-| reasoning mix, 300M tokens, LR 3e-6 | −1.5 [−3.4, +0.5] | −1.9 [−3.4, −0.5] | −1.6 [−3.1, −0.1] | −0.6 [−2.3, +1.1] |
-| QA-heavy mix, 300M tokens, LR 3e-6 | −2.7 [−4.5, −0.9] | −2.6 [−4.2, −1.2] | −0.8 [−2.3, +0.8] | −0.6 [−2.4, +1.1] |
-
-The gain survives the fine-tune at both rates, and at 1e-5 it doubles: GSM8K +11.8 and MATH-500 +7.1, for a model
-whose few-shot MATH-500 score was 1.0 below the base. The answers show why the two views disagree. In the few-shot
-prompt every run writes in the format of the eight short examples, which people wrote. After the fine-tune each
-model writes in its own way, and the 1e-5 model writes long worked solutions like its teacher's: its MATH-500
-answers are 64% longer than the base model's (1,850 characters against 1,129), and a third of them reach the probe's
-length limit and count as wrong. It still solves more. What the solutions taught shows when the prompt lets the
-model use it. **The learning rate trades the base model's own scores against what a fine-tune can reach: 3e-6
-keeps the few-shot scores and the knowledge of the base model, 1e-5 doubles the gain after the fine-tune and costs
-0.5 points of knowledge.** The 2B model at 1e-5 tests whether this trade holds one size up.
+The answer is clear. Continued training by itself does nothing: the replay-only controls stay level at both sizes.
+The rest of the mixture does nothing either: without the solutions, the same mixture gains nothing and even loses 4.4
+points on MATH-500. **The solutions carry the gain.**
 
 <p align="center"><img src="assets/dose_results_0.8B_en.png" width="92%"></p>
 
-Each mark is one 0.8B run minus the base model, with its 95% interval: the top row is the base checkpoint's greedy
-few-shot accuracy, the bottom row pass@1 after the generic probe (which does not test SVAMP and ASDiv-A). Only the
-distillation runs move clearly to the right of zero, and only on GSM8K and MATH-500 (`figures.py draw_dose_results`).
+This figure puts every 0.8B run of the study side by side. The top row is few-shot accuracy, and the bottom row is
+pass@1 after the generic probe. Each mark is one run minus the base model. Only the distillation runs move clearly to
+the right of zero, and only on GSM8K and MATH-500.
 
-**One size up, the gentler rate is enough.** The 2B model with the same recipe at 3e-6 and 100M tokens, and its
-replay-only control at the same budget and rate (`results/comparisons/dose_vs_base_2B.json`):
+The held-out losses show the same thing from another side:
 
-| 2B, 100M tokens, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | knowledge |
-|---|---|---|---|---|---|
-| base model, few-shot greedy | 61.6 | 37.2 | 34.1 | 49.4 | 41.8 |
-| distillation − base | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | −1.6 [−5.5, +2.3] | −0.5 |
-| replay only − base | −0.7 [−2.6, +1.1] | −3.8 [−7.8, 0.0] | −1.2 [−5.5, +3.0] | −2.3 [−6.6, +1.9] | +0.6 |
-| base model, generic probe pass@1 | 65.2 | 38.6 | 29.5 | 44.0 | |
-| distillation − base | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | +0.7 [−1.3, +2.8] | +0.8 [−1.1, +2.6] | |
-| replay only − base | +0.7 [−1.2, +2.6] | −1.8 [−3.4, −0.2] | −0.3 [−2.2, +1.6] | −0.6 [−2.2, +1.2] | |
+<p align="center"><img src="assets/loss_by_source_en.png" width="72%"></p>
 
-The pattern of the 0.8B model repeats, and at 2B the lower rate already gives what 1e-5 gave at 0.8B: after the
-fine-tune MATH-500 rises by 7.6 points, while the few-shot score of the same checkpoint fell by 1.4 within its noise.
-Knowledge pays half a point (41.8 to 41.3), as at 1e-5 on the 0.8B model, and the held-out loss falls on 9 of 11
-sources. The control answers where the gain comes from: 100M tokens of replay at the same rate move nothing beyond
-noise except MATH-500 after the probe (−1.8) and knowledge (+0.6), so the gain belongs to the distillation mixture
-and not to continued training as such. A gain of pass@1 is not a gain of coverage, though. After the probe, pass@16 moves by 1.2 on MATH-500 and
-by 1.5 on GSM8K, both within noise. The distilled model is right more often on problems the base model could
-already solve some of the time; it solves few new ones. For a later RL stage this means more right answers within
-each group of samples, and about as many problems with no right answer at all. The 2B run at 1e-5 is running.
+Each bar is the change in held-out loss on one public source, for three 0.8B runs. The distillation run (orange) and
+the run without the solutions (purple) change every loss by about the same amount. Both lower the loss on the
+WebInstructSub answers (reasoning_qa) by about 13%. Yet only the first run improves on the tests. The skill the
+solutions add does not show up in any of these losses. The replay-only control (grey) shows a third pattern: it
+raises the loss on most specialised sources, such as papers, code and math pages, because it reads only general text.
 
-**The 9B model, the target, keeps the gain.** The same recipe at 3e-6 and 100M tokens took 25 hours on two of the
-workstation's GPUs (`results/comparisons/dose_vs_base_9B.json`):
+### 5.3 How far the gain carries
 
-| 9B, distillation, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | SVAMP | ASDiv-A | knowledge |
-|---|---|---|---|---|---|---|---|
-| base model, few-shot greedy | 87.1 | 55.2 | 58.5 | 73.2 | 87.5 | 97.6 | 54.6 |
-| run − base | **+5.3 [+3.7, +6.9]** | +1.0 [−2.8, +4.6] | 0.0 [−6.1, +6.1] | −0.4 [−4.3, +3.5] | **+5.1 [+3.3, +6.9]** | −0.2 [−1.1, +0.7] | +0.4 |
+The solutions answer GSM8K and MATH training problems. The GSM8K test questions come from the same distribution. So
+part of the GSM8K gain could simply be a gain on that one kind of problem.
 
-From a base of 87.1, the share of GSM8K problems the model gets wrong falls from 12.9% to 7.6%, by 41%. At this size
-the gain carries in full to SVAMP (+5.1), where it carried half at 2B and less at 0.8B. Knowledge rises a little, and
-the held-out loss falls on 9 of 11 sources. MATH-500 does not move beyond its noise, and the solutions explain why:
-the teacher's answers were capped at 1,024 tokens, which cut off 38% of its MATH attempts and 72% at the hardest
-level (27% right there, against 97% at level 1). The kept MATH solutions are mostly easy ones, and 2,347 of the
-14,262 problems got none. The generic probe of the base 9B model is running.
+SVAMP and ASDiv-A test this. They are grade-school word problems written by other people, and no solution shares a
+13-word sequence with them (`results/hygiene_decontamination_word_problems.json`). Both use the same eight GSM8K
+examples in the prompt, so only the problems change.
 
-**The few-shot gain carries only partly to other word problems.** The solutions answer GSM8K and MATH training
-problems, and the GSM8K test comes from the same distribution. SVAMP (1,000 problems) and ASDiv-A (1,218) are word
-problems written elsewhere, answered from the same eight GSM8K examples; no solution shares a 13-gram with them
-(`results/hygiene_decontamination_word_problems.json`). Greedy accuracy, each run minus its base model:
-
-| run | GSM8K | SVAMP | ASDiv-A |
+| run, minus base | GSM8K | SVAMP | ASDiv-A |
 |---|---|---|---|
-| base 0.8B / base 2B (accuracy) | 42.7 / 61.6 | 61.2 / 71.1 | 90.2 / 95.3 |
-| 0.8B, distillation, 3e-6 | +6.8 [+4.3, +9.3] | +1.6 [−1.2, +4.5] | +1.1 [−0.6, +2.7] |
-| 0.8B, distillation, 1e-5 | +6.7 [+3.9, +9.4] | +0.2 [−2.7, +3.3] | +0.9 [−0.7, +2.6] |
-| 2B, distillation, 3e-6 | +4.3 [+2.0, +6.8] | **+3.4 [+1.0, +5.9]** | −0.4 [−1.6, +0.8] |
-| 2B, replay only, 100M tokens, 3e-6 | −0.7 [−2.6, +1.1] | 0.0 [−1.7, +1.8] | −1.4 [−2.3, −0.6] |
-| 0.8B, QA-heavy mix, 300M, 3e-6 | +1.7 [−0.5, +4.0] | −3.9 [−6.4, −1.3] | −0.7 [−2.0, +0.8] |
+| base accuracy, 0.8B / 2B / 9B | 42.7 / 61.6 / 87.1 | 61.2 / 71.1 / 87.5 | 90.2 / 95.3 / 97.6 |
+| 0.8B distillation | +6.8 [+4.3, +9.3] | +1.6 [−1.2, +4.5] | +1.1 [−0.6, +2.7] |
+| 2B distillation | +4.3 [+2.0, +6.8] | **+3.4 [+1.0, +5.9]** | −0.4 [−1.6, +0.8] |
+| 9B distillation | +5.3 [+3.7, +6.9] | **+5.1 [+3.3, +6.9]** | −0.2 [−1.1, +0.7] |
+| 0.8B replay only | +0.3 [−1.7, +2.2] | −1.4 [−3.3, +0.6] | +0.2 [−1.0, +1.5] |
 
-SVAMP keeps about half of the GSM8K gain at 2B and less at 0.8B. ASDiv-A, which the base models already solve 90% and
-95% of the time, does not move. The replay-only control at the same budget and rate changes nothing, and every
-mixture of public text lowered SVAMP. **Most of the few-shot gain belongs to the distribution of the solved
-problems; some of it is a skill that travels.** A wider problem set (NuminaMath-1.5, being solved now) tests whether
-more varied problems carry further.
+What to notice:
 
-**A wider problem set moves the gain; it does not grow it.** The first solution set covers two distributions. The
-second keeps 20% of it and gives the other 20% of tokens to teacher solutions of 20,000 NuminaMath-1.5 problems from
-three other sources: orca_math (grade-school word problems written by a model), cn_k12 (Chinese school exercises in
-English) and synthetic_math (new competition-style problems) (`synthetic_rephrase.py select-problems`,
-`configs/recipes/dose/dose_distill_numina_100m.yaml`). The gate removed 960 of the 26,000 drawn problems before the
-teacher saw them: about 350 share a 13-gram with a SVAMP or ASDiv-A item and 83 with a MATH-500 item, most of them in
-orca_math (`results/synthetic_solutions_numina_selection.json`). Two attempts per problem gave 21,445 right
-solutions of 11,367 problems, 12.9M tokens; the teacher got 74%, 47% and 38% of the attempts right on the three
-sources (`results/synthetic_solutions_numina_summary.json`). 0.8B, 100M tokens, LR 3e-6, each run minus the base:
+- **The larger the model, the more of the gain carries over.** On SVAMP, the 0.8B model keeps little of its GSM8K
+  gain, the 2B model about half, and the 9B model all of it.
+- **ASDiv-A does not move.** The base models already solve 90 to 98% of it, so there is little room.
+- **Public text hurts here.** Every public-text mixture lowered SVAMP.
+- **Few-shot MATH-500 moves at no size.** The hole in the first solution set (§4.4) is the likeliest reason.
+- **Code never moves.** The recipe contains no code solutions.
 
-| solutions in the mixture | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 |
+**A wider problem set moves the gain to other problems. It does not make the gain larger.** The second solution set
+(§4.4) replaced half of the first set, keeping the solutions at 40% of the tokens:
+
+| solutions in the mixture (0.8B) | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 |
 |---|---|---|---|---|---|
 | first set, 40% | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.6 [−1.2, +4.5] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] |
 | first set 20% + NuminaMath 20% | **+4.4 [+2.0, +6.8]** | −0.4 [−4.0, +3.0] | **+3.6 [+1.0, +6.2]** | **+5.4 [+3.0, +7.8]** | +0.1 [−1.4, +1.5] |
 
-Half of the GSM8K training solutions buy back about two points of SVAMP, and nothing else moves. MATH-500 does not
-gain from the competition-style problems either. Two cautions come with the SVAMP column: orca_math writes problems
-of the SVAMP kind, so a gate that removes only near-copies (one shared 13-gram, or cosine 0.9) leaves problems close
-enough to help without being copies; and 37% of the teacher's attempts ran past its 1,024-token limit (half of them
-on cn_k12 and synthetic_math), so the kept solutions of the harder sources are the shorter ones. The second set stays
-in the pool; the 9B runs use the first.
+Halving the GSM8K training solutions cost about two points on GSM8K and gained about two points on SVAMP. Nothing else
+changed. The SVAMP gain needs a caution. orca_math writes problems of the same kind as SVAMP. The contamination check
+removes only near-copies, so problems that are close but not copies can still help on SVAMP. The 1,024-token limit
+also means that the kept solutions of the harder sources are the shorter ones.
 
-Caveats, plainly:
-- The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution, and
-  the table above shows that part of the gain stays there. The 13-grams of SVAMP and ASDiv-A occur in 17 of the
-  4.26M pool documents, all of them math web pages, and in no solution.
-- The solutions passed the decontamination gate when they were published (11-22, `results/hygiene_decontamination.json`):
-  482 of the 45,177 share a 13-gram with a test item or a few-shot example (433 with a tested item alone,
-  `results/hygiene_decontamination_solutions.json`), and the sampler leaves them out of every run. Most matches are the fixed wording of MATH problems ("enter your answer in the form"); 16 answer three GSM8K
-  training problems that are near-copies of GSM8K test problems. As a second check, every test item that any solution
-  touches was listed (`data_hygiene.py matched-items`: 3 GSM8K and 53 MATH-500 items). On the 1,316 GSM8K problems that
-  no solution touches, the gain is the same, +6.8 [+4.4, +9.2] (`without_matched_items` in
-  `results/comparisons/dose_vs_base_0.8B.json`).
-- One seed per run. The intervals cover the questions, not the training run; second and third seeds, and a
-  learning-rate sweep of the distillation recipe at 0.8B (1e-6 to 3e-5), wait for the cluster.
+The teacher's rewrites of real passages are a useful counter-example (Appendix D). They are synthetic text from the
+same teacher, and they did not help. They had a small few-shot effect at 40M tokens, which the in-domain probe erased,
+and no effect at 300M. **What mattered was the content of the text: checked reasoning on problems like the tests. The
+fact that a model wrote it did not matter.**
 
-**The probe on the base model.** The 0.8B base checkpoint after the fixed fine-tune, 64 samples per question at
-temperature 1 (`results/probe/base_0.8B.json`; 95% intervals from resampling the questions):
+### 5.4 Two views of one model: few-shot and fine-tuned
 
-| task | questions | pass@1 | pass@16 | pass@64 | answers cut at the token limit |
+The few-shot test asks the base model directly. The generic probe first teaches it to answer conversations, and then
+asks. At 0.8B, the two views disagree about the best learning rate:
+
+| 0.8B distillation, minus base | GSM8K few-shot | MATH-500 few-shot | probe GSM8K | probe MATH-500 | knowledge |
 |---|---|---|---|---|---|
-| GSM8K | 200 | 37.2 [33.1, 41.2] | 85.8 | **95.5** | 0.2% |
-| MATH-500 | 250 | 13.6 [11.1, 16.2] | 52.4 | 71.2 | 5.0% |
-| HumanEval | 164 | 9.6 [7.0, 12.3] | 37.2 | 57.3 | 0.6% |
-| MBPP | 200 | 22.8 [19.2, 26.6] | 65.0 | 78.5 | 0.2% |
+| LR 3e-6 | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 |
+| LR 1e-5 | **+6.7 [+3.9, +9.4]** | −1.0 [−4.6, +2.4] | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.5 |
 
-After the fine-tune, one sampled GSM8K answer is right 37% of the time, twice the base model's own few-shot rate
-(18.1%), and 64 samples solve 95.5% of the questions at least once. The gap between pass@1 and pass@64 is the room a
-later RL stage has, and it is large on all four tasks. One probe takes about 45 minutes on one A100: 29 to fine-tune,
-15 to sample and grade.
+In the few-shot test, both learning rates gain the same on GSM8K, and neither gains on MATH-500. After the fine-tune,
+the 1e-5 run gains twice as much on GSM8K, and it gains 7.1 points on MATH-500.
 
-Two corrections came before these numbers. The first probe was withdrawn: the server did not stop at the end of the
-assistant's turn, the answers ran on into turns the model made up, and the grader read the last answer it found there
-(PITFALLS E1). The answers were 7 times longer than the base model's few-shot answers, and pass@1 after the fine-tune
-came out below the base model's few-shot pass@1, which is how the bug showed. Then MATH-500 got 1,024 new tokens
-instead of 512, which had cut 17.4% of its answers (now 5.0%). The fine-tune is deterministic: rerun, it gave the same
-loss curve to four decimals. Sampling the same fine-tuned checkpoint twice gave pass@1 within 0.2 points and pass@64
-within 2.5 points on the three tasks whose settings did not change, so differences of pass@64 smaller than that are
-sampling noise.
+The answers themselves explain the difference:
 
-**The 2B base model, measured the same way.** It is the reference of the 2B design (`results/regression/base_2B.json`,
-`results/probe/base_2B.json`; the 0.8B column repeats the tables above):
+<p align="center"><img src="assets/answer_length_after_probe_en.png" width="78%"></p>
 
-| measurement | 0.8B | 2B |
-|---|---|---|
-| knowledge guard: cloze on five sets, and trivia | 34.7 | 41.8 |
-| TriviaQA exact match | 21.0 | 35.5 |
-| ARC-Challenge, lettered, with / without five examples | 68.2 / 71.7 | 75.5 / 83.5 |
-| gain from distant context (bits per token) | 0.20 | 0.18 |
-| probe pass@1: GSM8K, MATH-500, HumanEval, MBPP | 37.2, 13.6, 9.6, 22.8 | 53.2, 22.9, 21.5, 35.5 |
-| probe pass@64, same order | 95.5, 71.2, 57.3, 78.5 | 99.0, 81.2, 79.9, 82.5 |
-| time: regression suite, probe fine-tune | 12 min, 29 min | 19 min, 81 min |
+The left panel shows the average answer length after the generic fine-tune. The right panel shows the share of
+answers that reach the probe's length limit. Each panel compares the 0.8B base model with the two distillation runs.
 
-The 2B model knows more and solves more, and it has the same preference as the 0.8B: five examples lower its
-lettered accuracy (ARC 75.5 against 83.5), so the cloze guard serves both sizes. GSM8K pass@64 is at 99.0, so for the
-2B model only pass@1 and pass@16 of GSM8K can show a change; the other tasks keep room at every k. With about 20
-minutes of sampling, the evaluations of one 2B design run take about two hours on one A100, on top of its training.
+In the few-shot test, every model copies the format of the eight short examples in the prompt, which people wrote.
+After the fine-tune, each model answers in its own way. The 1e-5 model writes long worked solutions, like its
+teacher's. On MATH-500 its answers are 64% longer than the base model's, and a third of them reach the length limit
+and count as wrong. Even so, it solves more problems. The skill the solutions taught shows up only when the prompt
+lets the model use it.
+
+At 2B, the lower learning rate already achieves what 1e-5 achieved at 0.8B: after the fine-tune, MATH-500 rises by 7.6
+points. One possible reading is that the larger model absorbs the solutions more easily.
+
+**The learning rate trades the base model's own scores against what a fine-tune can reach. 3e-6 keeps the few-shot
+scores and the knowledge. 1e-5 doubles the gain after the fine-tune and costs half a point of knowledge.**
+
+### 5.5 At 9B, a fine-tune gives the same gain
+
+The fine-tuned test of the 9B models finished last, and it does not follow the smaller sizes. After the generic
+fine-tune, the distilled 9B model is no better than the fine-tuned base model. GSM8K pass@1 changes by −0.1
+[−1.3, +1.0], and MATH-500 by 0.0 [−1.3, +1.4]. The one clear change is on HumanEval, +2.5 [+0.6, +4.5], which is
+small and on a task the solutions do not cover.
+
+The first thing to rule out is the sample. The probe asks only 200 GSM8K questions and 250 MATH-500 questions, so it
+could miss a gain that the full sets show. So I compared the few-shot answers on exactly those questions. There, the
+distilled 9B model is clearly ahead. It solves 94.5% of the 200 GSM8K questions, and the base model solves 86.5%, a
+gain of 8.0 [+4.5, +12.0]. The gain is present in the sample. The fine-tune removes it.
+
+The table follows both 9B models through the fine-tune, on the same questions. Few-shot accuracy is greedy, and the
+probe's pass@1 is an average over 16 sampled answers, so the columns are not directly comparable. What matters is the
+gap between the two rows in each column (`few_shot_greedy_on_probe_items` in
+`results/comparisons/dose_vs_base_9B.json`, and `results/probe_generic/`):
+
+| 9B, same questions | GSM8K few-shot | GSM8K after the fine-tune | MATH-500 few-shot | MATH-500 after the fine-tune |
+|---|---|---|---|---|
+| base model | 86.5 | 89.9 | 51.2 | 65.2 |
+| distillation run | 94.5 | 89.8 | 54.4 | 65.2 |
+
+Two things stand out. First, the fine-tune lifts the base model a lot: by 14 points on MATH-500, although the
+fine-tune contains no math at all. So the 9B base model already had this skill. The few-shot prompt did not bring it
+out, and a short fine-tune did. Second, after the fine-tune both models end at the same level.
+
+The answers show how the solutions helped in the few-shot test. The distilled 9B model writes GSM8K answers that are
+51% longer than its base model's (394 against 261 characters): it writes out its working, like the teacher. At 0.8B
+and 2B, the few-shot answers grew by only 7 to 8%. After the fine-tune, the 9B base model also writes out its working
+(604 characters), and it catches up (`mean_completion_characters` in `results/final_eval/` and
+`results/probe_generic/`).
+
+The 2B model behaves differently. The same fine-tune lifts its base model by only 1.4 points on MATH-500 (from 37.2
+to 38.6 on the probe's questions). It lifts the distilled 2B model by 12.6 points (from 33.6 to 46.2). On GSM8K, the
+distilled 2B model keeps most of its lead through the fine-tune: 7.0 points before it and 5.6 after. At 2B, the
+solutions added a skill that the fine-tune alone does not reach.
+
+**At 9B, the teacher's solutions taught mostly what the model already knew, and a short fine-tune brings that out
+just as well.** The teacher has 27B parameters, three times as many as the 9B model. It has about 13 times as many as
+the 2B model and 34 times as many as the 0.8B model, and its solutions carry more that is new to them.
+
+This result sets the next experiments at 9B (§6.4). The solutions that can still teach the 9B model are those of
+problems it cannot solve by itself, and the hard problems of §4.4 are among them. A larger learning rate is the
+other lever: at 0.8B it doubled the gain that survives the fine-tune (§5.4).
+
+### 5.6 Reliability, not reach
+
+A gain in pass@1 can mean two different things. The model may solve new problems it could never solve before. Or it
+may solve the same problems more often. For a later stage of reinforcement learning, the difference matters.
+
+<p align="center"><img src="assets/reliability_vs_reach_en.png" width="52%"></p>
+
+Each point is one test (colour) for one distillation run (marker), after the generic probe. The horizontal position
+is the change in pass@1, and the vertical position is the change in pass@16. A point on the dashed diagonal gained
+equally in both. A point below it gained more in pass@1 than in pass@16.
+
+Where the points sit depends on the size. At 2B, the gains are almost all reliability. MATH-500 pass@1 rises by 7.6
+points, and its pass@16 by only 1.2, which is within the noise. GSM8K pass@1 rises by 5.6 and pass@16 by 1.5. So the
+distilled 2B model is right more often on problems the base model could already solve some of the time, and it
+solves few new ones. At 0.8B, GSM8K also gains in reach: pass@16 rises by 6.5 points [+1.0, +11.5] at 3e-6, and by
+the same amount at 1e-5. The smallest model solves new problems too. At 9B, the points sit near zero (§5.5).
+
+For reinforcement learning, the two kinds of gain mean different things. More reliability gives each group of samples
+more right answers to reward. More reach gives RL problems it could not learn from before, because no sample was
+right. The 2B model gains the first kind. The 0.8B model gains both kinds on GSM8K.
+
+### 5.7 Is any of it contamination?
+
+Three checks say no.
+
+1. The solutions went through the contamination check when they were made. The 482 flagged solutions never entered a
+   run (§4.3).
+2. Every test question that any solution touches was listed (`data_hygiene.py matched-items`): 3 GSM8K questions and
+   53 MATH-500 questions. Without them, the 0.8B gain on the other 1,316 GSM8K questions is the same, +6.8
+   [+4.4, +9.2], and MATH-500 stays within the noise (`without_matched_items` in
+   `results/comparisons/dose_vs_base_0.8B.json`).
+3. The gain carries over to SVAMP, which no solution touches.
 
 ---
 
-## 2. Quick start
+## 6. Conclusions
+
+### 6.1 What this study concludes
+
+1. For a strong, annealed base model such as Qwen3.5, mixtures of public text, at up to 300M tokens, do not improve
+   math, code or knowledge. Learning rates of 1e-5 and above damage the model. A rate of 3e-6 leaves it unchanged.
+2. Worked solutions from a stronger model, checked against reference answers, improve the base model at every size
+   from 0.8B to 9B. GSM8K rises by 4 to 7 points in the few-shot test, and knowledge stays the same.
+3. The gain belongs to the solutions. Continued training on general text gains nothing, and so does the rest of the
+   mixture without the solutions.
+4. The gain carries partly beyond the problems that were solved, and larger models carry more of it (SVAMP +5.1 at
+   9B). It does not reach code, which the solutions do not cover.
+5. At 0.8B and 2B, a fine-tune shows more of the gain than a few-shot test, especially at the higher learning rate
+   (MATH-500 +7.1 at 0.8B with 1e-5, and +7.6 at 2B with 3e-6). This extra gain is mostly reliability.
+6. At 9B, the gain does not survive the fine-tune. The fine-tuned base model reaches the same level, because the 9B
+   model already knew most of what the solutions teach.
+
+### 6.2 Lessons that carry beyond this project
+
+- **Measure what post-training will see, with a test that does not teach the test.** A fine-tune on the tested
+  tasks' own solutions hid every difference between models. A few-shot test hid half the gain of the 1e-5 run.
+- **Check the gain after a fine-tune, at the size you care about.** The few-shot gain at 9B was as large as at 0.8B
+  and 2B, and a short fine-tune erased it. A few-shot test alone would have called the 9B run a success.
+- **Loss cannot tell useful data from useless data here.** The distillation run and the run without its solutions
+  changed every held-out loss in the same way. Only one of them got better.
+- **Get the learning rate right first.** On an annealed model, the step from a rate that does nothing to a rate that
+  does damage is only a factor of three.
+- **"Synthetic" is not what makes data useful.** The same teacher's rewrites did nothing, and its checked solutions
+  helped. New information, a correctness check and closeness to the target are what count.
+- **Look at what the generator could not write.** A token limit chosen for easy problems removed most of the hardest
+  ones. The solution set looked complete until its failures were counted by difficulty.
+
+### 6.3 Limitations, plainly
+
+- Each setting was trained once. The intervals cover the choice of test questions, not the randomness of training.
+- The gain is largest on GSM8K, whose training problems the teacher solved. SVAMP and the fine-tuned MATH-500 show
+  transfer; code shows none.
+- The 4B result is still running.
+- The generic probe is one light fine-tune. A full post-training run with reinforcement learning may keep more of the
+  gain, or less of it.
+- The teacher ran with 4-bit weights and a 1,024-token limit, so the solution sets lack the hardest problems.
+- Public text was tested only at 0.8B and at most 300M tokens. Much larger amounts, with a full warm-up and decay, or
+  domains where Qwen is weak, may behave differently.
+
+### 6.4 What comes next
+
+Running on the workstation:
+
+- the 4B distillation run and its replay-only control;
+- the second pass over the hard problems with 4,096-token answers, followed by 0.8B and 2B check runs.
+
+Next come two 9B runs. Each changes one thing from the first 9B run (§5.5):
+
+- **targeted solutions**: the 9B base model first tries every problem the teacher solved, from all three solution
+  sets. Only the solutions of problems it gets wrong are kept;
+- **a larger learning rate**: the same recipe as the first 9B run, at 1e-5.
+
+Waiting for the cluster (jobs expected from 11-26):
+
+- the 9B replay-only control;
+- second and third runs of the 0.8B and 2B experiments, with other seeds;
+- a sweep of the learning rate at 0.8B, from 1e-6 to 3e-5;
+- a sweep of design choices at 0.8B: 20% and 60% solutions, 50M and 200M tokens, and one solution per problem.
+
+---
+
+## 7. Reproducing the study
+
+The commands below rebuild every result in this README. The fast path downloads the data and checkpoints from the
+Hugging Face Hub instead of rebuilding them.
 
 ```bash
 # --- environment -----------------------------------------------------------------------------------------------
 cp site.env.example site.env            # where the data, the models and the Python environment live on this machine
 source scripts/env.sh                   # sets MIDTRAIN_DATA, MIDTRAIN_MODELS, MIDTRAIN_PYTHON, PYTHONPATH=src
 
-# --- the fast way: the pool, packs, rewrites, probe data and checkpoints from the Hugging Face Hub ----------------
+# --- the fast way: the pool, the teacher-written text, the probe data and every checkpoint from the Hub ----------
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-data              # about 28 GB into $MIDTRAIN_DATA
-env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run screen18_r01_0.8B
-# (then the evaluation sets below; everything else of this block can be skipped)
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.hub download-checkpoint --run dose_distill_lr3e-6_9B
 
-# --- the pool: download, normalise, tokenize (CPU, about an hour) -------------------------------------------------
+# --- or build the pool yourself (CPU, about an hour) ---------------------------------------------------------------
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.data_sources download
 $MIDTRAIN_PYTHON -m midtrain.data_sources build
-$MIDTRAIN_PYTHON -m midtrain.data_sources summary                      # writes results/pool_summary.json
+$MIDTRAIN_PYTHON -m midtrain.data_hygiene decontaminate --methods ngram          # the check every source passes
 
-# --- evaluation sets and the probe's fine-tuning data ---------------------------------------------------------
+# --- test sets and probe data ---------------------------------------------------------------------------------------
 env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.eval_tasks build
-$MIDTRAIN_PYTHON -m midtrain.eval_tasks check                          # gold answers through graders and sandbox
-env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.sft_probe build-data
+$MIDTRAIN_PYTHON -m midtrain.eval_tasks check                                    # gold answers through the graders
+env -u HF_HUB_OFFLINE $MIDTRAIN_PYTHON -m midtrain.sft_probe build-data --variant generic
 
-# --- measurement audit: run BEFORE believing any result --------------------------------------------------------
-$MIDTRAIN_PYTHON -m pytest tests -q
-$MIDTRAIN_PYTHON -m midtrain.data_hygiene decontaminate --methods ngram   # benchmark text in the pool?
-$MIDTRAIN_PYTHON -m midtrain.mixture show configs/recipes/pilot_hard_heavy.yaml   # the shares a recipe really gives
+# --- distillation data: the teacher solves, the right solutions join the pool ----------------------------------------
+$MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase serve --gpu 0 --port 8200 &      # one teacher per GPU
+$MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --endpoint http://127.0.0.1:8200 --samples-per-problem 8
+$MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase publish-solutions --maximum-per-problem 4
+$MIDTRAIN_PYTHON -m midtrain.data_sources tokenize --source synthetic_solutions
+$MIDTRAIN_PYTHON -m midtrain.data_hygiene decontaminate --methods ngram          # a new source must pass the check
 
-# --- one candidate: continued pretraining, then the probe ------------------------------------------------------
+# --- one run and its evaluations --------------------------------------------------------------------------------------
 CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.train_continue --base-model $MIDTRAIN_MODELS/qwen35_0.8B_base \
-    --recipe configs/recipes/pilot_hard_heavy.yaml --run-name pilot_hard_heavy_0.8B_lr1e-5 --peak-learning-rate 1e-5
-CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.sft_probe run --run-name pilot_hard_heavy_0.8B_lr1e-5 \
-    --checkpoint $MIDTRAIN_DATA/runs/pilot_hard_heavy_0.8B_lr1e-5/checkpoint_final
+    --recipe configs/recipes/dose/dose_distill_100m.yaml --run-name dose_distill_lr3e-6_0.8B --peak-learning-rate 3e-6
+run=dose_distill_lr3e-6_0.8B; checkpoint=$MIDTRAIN_DATA/runs/$run/checkpoint_final
+CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression final --checkpoint $checkpoint --run-name $run
+CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression run --checkpoint $checkpoint --run-name $run
+CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.sft_probe run --variant generic --checkpoint $checkpoint --run-name $run
 
-# --- many candidates: put one script per task into a queue folder, start a worker per machine ---------------------
+# --- the comparisons and figures of this README -----------------------------------------------------------------------
+$MIDTRAIN_PYTHON -m midtrain.mixing_law compare-with-base --model-size 0.8B      # results/comparisons/dose_vs_base_0.8B.json
+$MIDTRAIN_PYTHON -m midtrain.figures                                             # assets/*.png and *.pdf, English and Chinese
+
+# --- many runs: one script per task in a queue folder, one worker per machine ------------------------------------------
 MIDTRAIN_QUEUE=$MIDTRAIN_DATA/queue_local bash scripts/cluster/node_worker.sh --this-node-only
-sbatch scripts/cluster/worker.slurm                                    # the same worker on cluster nodes
 ```
+
+A 9B run takes about 26 hours on two 40 GB GPUs. If it stops, `--resume-from-step N` continues from its last saved
+checkpoint (Appendix B). The checkpoints of every run are on the Hub, one folder per run
+(`jiazhe868/qwen-midtrain-checkpoints`). The pool, the teacher-written text and the probe data are there too
+(`jiazhe868/qwen-midtrain-data`).
 
 ---
 
-## 3. Define success before training
+## 8. Appendices
 
-### 3.1 Why loss is not the yardstick
+The appendices hold the engineering detail behind the main text. They are written as reference material.
 
-The common habit is to train, watch the validation loss and keep the checkpoint with the lowest one. The pilot
-table above shows what loss does measure well: which domain a run moved toward. It does not say whether the model
-became a better starting point for post-training. Two models with the same loss can differ in how often they reach
-a correct answer in 64 tries, and that number is the room an RL stage has to work with.
+### A. The text pool
 
-Therefore, the target of this project is measured after a fine-tune, by sampling. Loss stays in the log as a
-diagnostic and as the fastest warning that a run went wrong.
+Each source is the first slice of a much larger public dataset. `configs/sources.yaml` says which files to read, and
+every source is normalised to one row per document (`docs/conventions.md`; counts in `results/pool_summary.json`).
+The counts below are the training split; a small validation split of each source is held out for the loss.
 
-### 3.2 Two judges for every checkpoint
+| source | role | what it is | documents | train tokens |
+|---|---|---|---|---|
+| `replay_web` | replay | FineWeb sample, no quality filter | 662,491 | 477.0M |
+| `replay_web_edu` | replay | the same crawl after the FineWeb-Edu classifier | 493,081 | 516.7M |
+| `wiki_zh` | replay | Chinese Wikipedia | 155,091 | 227.5M |
+| `wiki_en` | curated | English Wikipedia | 220,833 | 252.3M |
+| `textbooks` | curated | open textbooks and course material | 93,611 | 225.8M |
+| `papers` | curated | openly licensed research papers, full text | 59,525 | 974.1M |
+| `forum_qa` | curated | StackExchange questions with answers | 363,606 | 257.6M |
+| `math_web`, `math_web_extra` | hard | FineMath, pages with mathematical content (two slices) | 613,074 | 949.6M |
+| `code` | hard | permissively licensed educational code | 318,020 | 297.5M |
+| `reasoning_qa` | question-answer | WebInstructSub question-answer pairs (Apache-2.0) | 2,289,334 | 791.9M |
+| `synthetic_rephrase`, `synthetic_qa` | teacher-written | rewrites of real passages (Appendix D) | 10,349 | 11.1M |
+| `synthetic_solutions` | teacher-written | checked solutions to GSM8K and MATH training problems (§4.3) | 44,950 | 23.1M |
+| `synthetic_solutions_numina` | teacher-written | checked solutions to NuminaMath-1.5 problems (§4.4) | 21,338 | 12.9M |
 
-| judge | what it does | what it answers |
+**What replay stands for.** Replay is meant to resemble the data the model was pretrained on. That data is not
+public, so a web crawl with some Chinese text stands in for it. The stand-in is narrow. In the first pilot, training
+on web text alone at a learning rate of 1e-5 made the 0.8B model about 2% worse on code, papers and math, and 0.7%
+better on web text. **Web replay is not a neutral anchor for this model: it pulls the model toward the web.**
+
+### B. The continued-pretraining loop
+
+A small custom training loop (`train_continue.py`) was simpler than a general trainer, for three reasons:
+
+| problem | why it breaks training here | solution |
 |---|---|---|
-| regression suite (`base_regression.py`) | the checkpoint as a base model: multiple choice by the log-likelihood of the answer letter, few-shot generation for math, code and trivia, bits per byte on every source, and the gain from few-shot examples | did the run forget anything, and can the model use context |
-| fixed fine-tuning probe (`sft_probe.py`) | the same small fine-tune for every checkpoint, then 64 samples per question at temperature 1, graded | how well does the checkpoint fine-tune, and how many questions can it solve at all |
+| The vocabulary has 248,320 words. Computing the outputs for 16,384 tokens at once needs about 16 GB | out of memory on a 40 GB GPU | the loss is computed in chunks of 1,024 tokens on a detached copy of the hidden states, and the gradient goes back through the model once (`chunked_language_model_loss`) |
+| A learning rate of 1e-5 times a typical gradient is smaller than the precision of 16-bit weights | updates round to zero, and training silently stops | 16-bit working weights, with 32-bit master weights and Adam moments in the optimizer (`MasterWeightAdamW`) |
+| The serving engine needs the checkpoint in the base model's full layout | a text-only checkpoint was refused at load time | `save_checkpoint` writes the trained tensors under the base model's names and copies every other tensor and file from the base |
 
-The regression suite has ten public sets. Their sizes are in `$MIDTRAIN_DATA/eval/manifest.json` after the build:
-MMLU-Pro 1,200 questions (a stratified sample), ARC-Challenge 1,172, HellaSwag 1,000, CommonsenseQA 1,221, CMMLU
-1,000, TriviaQA 1,000, GSM8K 1,319, MATH-500 500, HumanEval 164, MBPP 257. Two more sets of word problems, SVAMP
-(1,000) and ASDiv-A (1,218, both in the Calc-X copies), are part of the greedy final evaluation since 11-23. They are
-answered from the GSM8K examples and test whether a gain on GSM8K carries to problems written elsewhere (§1.2).
+**Master weights on the CPU.** From 2B up, the 32-bit master weights and Adam moments do not fit next to the model on
+a 40 GB GPU, so they live in the computer's main memory. The first version copied each tensor separately and ran the
+optimizer one tensor at a time. One step took 7.6 seconds for the 2B model. The current version keeps one page-locked
+16-bit buffer per tensor and runs the optimizer as one fused CPU kernel. One step now takes 2.1 seconds, and the
+weights match the first version's to the last bit (`tests/test_train_continue.py`). The 9B model splits its layers
+over two GPUs and keeps 163 GB of optimizer state in main memory.
 
-### 3.3 The probe
+**Exact mixtures.** Choosing a source at random for each sequence makes small shares miss their target by several
+percent of themselves in a short run. That error is as large as the effects being measured. So the sampler gives
+every slot to the source that is furthest behind its target (`mixture.py`). Two runs with the same recipe and seed
+read the same tokens in the same order. The `--seed` option changes only the order of the documents.
 
-Everything in the probe is fixed in `configs/probe.yaml`: the conversations and their order, the learning rate
-(2e-5) and the two epochs, the test items and the sampling. Only the checkpoint changes. A difference after the
-probe then comes from the checkpoint.
+**Schedule and clipping.** The learning rate warms up linearly over 2% of the steps and then decays linearly to zero.
+The overall gradient size is clipped at 1.0. The base models' gradient size on this data is about 3, so every step is
+clipped. Under the Adam optimizer, this mostly damps sudden spikes, and it is the same in every run.
 
-The fine-tuning set uses human-written solutions where they exist (GSM8K and MATH train splits, MBPP reference
-programs from the task ids that are not tested) and instruction data for the rest. Its math and code questions are
-worded by the same function that words the test questions, so the fine-tune teaches the format and the test
-measures what the checkpoint brought along.
+**Warm restart.** A 9B run takes a day on a shared workstation, and a crash would lose all of it. The option
+`--resume-from-step N` loads the checkpoint saved after step N, skips the batches before it, and continues the
+learning-rate schedule. The Adam moments start empty, because saving them would take 72 GB for the 9B model. A test
+run that was stopped after step 5 and restarted from step 4 reproduced the original step-5 loss exactly.
 
-```python
-# src/midtrain/eval_tasks.py: the unbiased estimate of pass@k from n samples of which c are correct
-def estimate_pass_at_k(correct_sample_count: int, sample_count: int, k: int) -> float:
-    return 1.0 - math.comb(sample_count - correct_sample_count, k) / math.comb(sample_count, k)
-```
+### C. The screening design and the mixing law
 
-pass@1 is the usual accuracy of one sampled answer. pass@64 is the share of questions that the model solves at
-least once in 64 tries. The gap between them is what a later RL stage can close. A mixture that raises pass@1 and
-lowers pass@64 has made the model more confident and narrower, which is a loss for RL even though the accuracy went
-up.
-
-Model-written programs are graded by running them. They run in a sandbox without network and without access to
-files outside a temporary folder, with limits on memory and time (`eval_tasks.run_python_program_in_sandbox`).
-
-### 3.4 Noise, and how the design deals with it
-
-A run of 40M tokens is small, so its effect on pass@k is small. With 200 questions per task, the interval of one
-pass@1 value is about ±3 points. Three things bring the noise below the effects:
-
-- **Paired comparison.** Every checkpoint answers the same questions with the same sampling, so two checkpoints are
-  compared question by question.
-- **64 samples per question.** The per-question success rate is known to about ±6 points, and the average over
-  questions is far tighter than a single greedy answer per question would be.
-- **Pooling by design.** In an orthogonal design each factor effect is the mean of 6 or 9 runs against the mean of
-  6 or 9 others (§6.2), which divides the run-to-run noise by about 2.5.
-
-The noise floor itself is measured: the probe is repeated on the same checkpoint with other seeds, and no effect
-smaller than that spread is reported as a finding.
-
-### 3.5 What is held out
-
-Validation documents are chosen by a hash of the document id (1 in 200), so a rebuild picks the same ones.
-Benchmark items never enter the pool: §11 describes the two checks. The fine-tuning probe trains on train splits
-only; for MBPP the assert on task ids in `sft_probe.py` keeps the tested tasks out.
-
----
-
-## 4. The text pool
-
-A mixture study needs sources with known roles. Each source is a first slice of a much larger public dataset, read
-by `configs/sources.yaml` and normalised to one row per document (`docs/conventions.md`).
-
-| source | role | what it is | documents | train tokens | median tokens |
-|---|---|---|---|---|---|
-| `replay_web` | replay | FineWeb sample, no quality filter | 662,491 | 477.0M | 428 |
-| `replay_web_edu` | replay | the same crawl after the FineWeb-Edu classifier | 493,081 | 516.7M | 629 |
-| `wiki_zh` | replay | Chinese Wikipedia | 155,091 | 227.5M | 728 |
-| `wiki_en` | curated | English Wikipedia | 220,833 | 252.3M | 651 |
-| `textbooks` | curated | open textbooks and course material | 93,611 | 225.8M | 1,251 |
-| `papers` | curated | openly licensed research papers, full text | 59,525 | 974.1M | 11,448 |
-| `forum_qa` | curated | StackExchange questions with answers | 363,606 | 257.6M | 469 |
-| `math_web` | hard | FineMath, pages with mathematical content | 306,605 | 477.6M | 888 |
-| `code` | hard | permissively licensed educational code | 318,020 | 297.5M | 488 |
-| `synthetic_rephrase`, `synthetic_qa` | synthetic | teacher rewrites of real passages (§7) | *planned* | | |
-
-**Why a pool of 3.7B tokens for runs of 40M.** A run should not see a document twice, and a curated subset keeps
-only part of a source. With 200M to 1B tokens per source, a 40M-token run reads at most a few percent of any
-source.
-
-**What replay stands for.** Replay is meant to be the distribution the model was pretrained on. That distribution
-is not public. A web crawl with some Chinese text is my stand-in, and §1.2 shows it is a narrow one: the model
-drifts when trained on it alone. The design in §6 therefore treats the replay share as a factor to be measured.
-
----
-
-## 5. The continued-pretraining loop
-
-### 5.1 Why a custom loop
-
-The usual choice is a general trainer. Three properties of this problem made a small custom loop simpler.
-
-| hazard | why it breaks training here | resolution |
-|---|---|---|
-| The vocabulary has 248,320 words. Logits for 16,384 tokens in one piece need about 16 GB | out of memory at 16K tokens per forward on a 40 GB GPU (measured in the first speed test) | the loss is computed in chunks of 1,024 tokens on a detached copy of the hidden states; the gradient goes back through the body once (`chunked_language_model_loss`) |
-| A learning rate of 1e-5 times a typical gradient is below the resolution of 16-bit weights | updates round to zero and training stalls silently | the working weights are 16-bit, the optimizer keeps 32-bit master weights and applies the update there (`MasterWeightAdamW`) |
-| The serving engine needs the checkpoint in the base model's full layout | a text-only checkpoint was refused at load time | `save_checkpoint` writes the trained tensors under the base's names and copies every other tensor and file from the base |
-
-The schedule is linear warm-up over 2% of the steps, then linear decay to zero. Decay to zero is the cooldown that
-the project is about: the last steps make small moves on the final mixture.
-
-The global gradient norm is clipped at 1.0, and on this data the base models' gradient norm is about 3 (median 3.1
-to 3.3 in every run so far, never below 2.5; `gradient_norm` in each run's log). So every step is clipped. Under
-AdamW a nearly constant rescaling of the gradient changes almost nothing, because the update divides the first moment
-by the root of the second; what the clip still does is damp the spikes (up to 12.7). It is the same in every run, so
-it does not bias the design.
-
-**Master weights on the CPU.** The 2B model's FP32 master weights and Adam moments (about 22 GB) do not fit next to
-the model on a 40 GB GPU, so they live on the CPU. The first version moved each tensor with a plain copy, FP32
-through pageable memory in both directions, and ran AdamW one tensor at a time. That step took 7.6 s for 1.8B
-parameters, longer than the forward and backward pass, and the 2B smoke run reached only 2.2K to 2.8K tokens/s.
-The step now keeps one page-locked BF16 buffer per tensor, so each direction moves half the bytes and waits once
-for all tensors; the conversions between BF16 and FP32 run on the CPU; and AdamW runs as one fused CPU kernel. The
-step takes 2.1 s in the same benchmark. After four steps the weights match the first version's on all but 96 of
-1.8 billion elements, a rounding difference in the last bit (`tests/test_train_continue.py`). The 0.8B model keeps
-its master weights on the GPU, and that path was not changed, so its design runs stay comparable with each other.
-The first 2B design run trains at 4.2K tokens/s, against 2.2K to 2.8K in the smoke run, so 40M tokens take 2.7 hours
-instead of about 4.5.
-
-### 5.2 Exact mixtures
-
-The common way to mix sources is to pick a source at random for each sequence. A 20M-token run has about 5,000
-sequences, and a 5% source then misses its share by several percent of itself, which is the size of the effects
-under study. Therefore, the sampler gives every sequence slot to the source that is furthest behind its target
-(`mixture.py`). The realised shares equal the recipe's to within one sequence, and two runs with the same recipe
-and seed read the same tokens in the same order.
-
-```yaml
-# configs/recipes/pilot_hard_heavy.yaml
-token_budget: 20004864          # 610 steps of 32,768 tokens
-context_length: 4096
-components: {replay_web: 0.425, wiki_zh: 0.075, math_web: 0.30, code: 0.20}
-schedule: uniform               # or late / early: when the non-replay share is spent (§6.2)
-seed: 1
-```
-
----
-
-## 6. The mixture as an experiment
-
-### 6.1 Why one share at a time does not work
-
-The natural plan is to vary the replay share with everything else fixed, pick the best, then vary the next share.
-It fails for two reasons. The shares sum to one, so "everything else fixed" is impossible: more of one source is
-less of another, and the result depends on which one gave way. And the factors interact: the best share of
-rewritten text may differ between a low and a high learning rate. A sequence of one-factor sweeps needs many runs
-and still cannot see an interaction.
-
-Therefore, the factors are varied together in an orthogonal array. Every level of every factor meets every level
-of every other factor equally often, so each factor's effect is an average over all settings of the others.
-
-### 6.2 The screening design
-
-The design is the L18 array: 18 runs, one factor with two levels and up to seven with three. The factors are
-ratios, because the questions are about ratios.
+The design is the L18 orthogonal array: 18 runs, one factor with two levels and up to seven factors with three. Every
+level of every factor meets every level of every other factor equally often. So each factor's effect is an average
+over all settings of the others. Testing every combination would need 1,458 runs.
 
 | column | factor | levels |
 |---|---|---|
 | 1 | peak learning rate | 3e-6, 1e-5 |
 | 2 | replay share of all tokens | 55%, 70%, 85% |
-| 3 | synthetic share of the non-replay text | 0, 25%, 50% |
+| 3 | rewritten share of the non-replay text | 0, 25%, 50% |
 | 4 | hard share (math and code) of the real non-replay text | 25%, 50%, 75% |
 | 5 | math share of the hard text | 25%, 50%, 75% |
 | 6 | long context: 40% of the non-replay tokens in 16K sequences | none, random packs, semantic packs |
-| 7 | schedule of the non-replay share | uniform, late, early |
-| 8 | (empty) | its "effect" shows how large a pure-noise effect is |
+| 7 | when the non-replay text is shown | evenly, late, early |
+| 8 | (empty) | its "effect" shows the size of an effect of nothing |
 
-In the L18 the interaction of columns 1 and 2 is not mixed with any other column, so the design also answers
-whether the best replay share depends on the learning rate. `late` and `early` multiply the non-replay share by a
-factor that moves linearly from 0.4 to 1.6 (or back) over the run; the mean share is the same in all three.
-
-Each run trains 40M tokens. The whole design costs 18 runs per model size, against 2 x 3^6 = 1,458 for the full
-grid.
-
-### 6.3 From runs to a mixing law
-
-Each run gives a row of measurements: pass@1, pass@16 and pass@64 per probe task, the regression-suite scores, and
-bits per byte per source. For each measurement, a regression on the absolute token shares gives
+For each measurement, a regression on the token shares gives a **mixing law**:
 
 ```math
 y \;=\; b_0 \;+\; \sum_j b_j\, s_j \;+\; c_{\text{late}} + c_{\text{early}} + c_{\text{lr}}
 ```
 
-where $`s_j`$ is the share of component $`j`$ (rewritten text, curated text, math, code, random packs, semantic
-packs) and replay is what remains. $`b_j`$ is then the change of the measurement when one unit of replay is
-replaced by component $`j`$. With 10 parameters and 18 runs, 8 degrees of freedom are left to estimate the noise.
+Here $`s_j`$ is the share of component $`j`$ (rewritten text, curated text, math, code, random packs, semantic packs),
+and replay is what remains. $`b_j`$ is the change in the measurement when one unit of replay is replaced by component
+$`j`$. With 10 parameters and 18 runs, 8 degrees of freedom are left to estimate the noise. Together, the $`b_j`$ of
+all measurements form an **interference matrix**: what each component gives its own domain and what it costs the
+others.
 
-Collected over all measurements, the $`b_j`$ form the **interference matrix**: one row per measurement, one column
-per component. Its diagonal-like entries say how much a component helps its own domain. Its off-diagonal entries
-say what the component costs or gives elsewhere. The pilot already shows two entries: 30% math lowers the math loss
-by 2.8%, and web replay raises the loss on papers by 2.3%.
+`mixing_law.py` turns the design file (`configs/designs/screen18.yaml`) into 18 recipes and queue tasks. It turns the
+finished runs into level means, the law, the interference matrix, a best mixture under constraints, and the rank
+agreement between two model sizes. A test plants a known law in the 18 designed mixtures and recovers it exactly
+(`tests/test_mixture_and_design.py`). The 2B design stopped after 9 runs, when the dose experiment needed the GPUs.
 
-The published data-mixing law (arXiv 2403.16952) is exponential in the shares. For shifts of a few percent, as
-measured here, the exponential and the linear form agree to within the noise, so the linear form is fitted and a
-curvature term in the total non-replay share is added when the three replay levels call for it.
+### D. Teacher rewriting of real text
 
-### 6.4 The best mixture under a constraint
+Good public text is limited. Letting a model write text from nothing tends to narrow the text with every generation.
+The published methods that hold up keep a real passage as the source of facts and ask the model to change only the
+form. Here, the same 27B teacher rewrote passages of 350 to 1,200 tokens from Wikipedia, textbooks, papers, math pages
+and forum answers. The rewrites took the form of explanations, structured notes, questions with worked answers,
+worked problems and "what if" analyses (`synthetic_rephrase.py`).
 
-The best mixture is the one that maximises the target (mean pass@16 over the probe tasks, with pass@64 reported
-next to it) while the predicted regression-suite score stays within the noise of the replay-only control. That
-score is the mean of the five multiple-choice sets scored by cloze (the likelihood of each answer's own text, with no
-answer letters) and TriviaQA. The first choice was the lettered format, asked with and without examples; after the
-first design run, zero-shot lettered HellaSwag fell 6.4 points while cloze and the five-example format did not move,
-which is the small model's letter preference shifting, not knowledge lost (§1.2, PITFALLS B4). The search stays
-inside the tested ranges: the law is not trusted outside them.
+**The diversity check failed twice before it passed.** A batch of rewrites must be about as varied as the real
+passages it came from (Appendix F). The first batch failed. Its Vendi score, which measures the effective number of
+distinct documents, was 22.1 and 18.6 for the two rewrite sources, against 31.4 for their real passages. A second
+batch, with a random reader and writer's voice for each request, failed by even more.
 
-A linear law puts the optimum on the edge of the tested region. That is an honest answer and it means the region
-was too small on that side. The next runs then follow the direction of steepest ascent beyond the edge until the
-target stops rising, and a small second design around that point measures the curvature. This is the classical
-response-surface sequence: screen, climb, then fit the top.
-
-### 6.5 Two scales before the large model
-
-A small model is a proxy. The check is rank agreement: the 18 runs are ordered by each measurement on the 0.8B and
-on the 2B, and the Spearman correlation of the two orders is computed with an interval. The effects ($`b_j`$) are
-compared too: sign, size and how they change with model size. A proposal for the 9B needs agreement of both sizes
-on the sign of the effects it relies on. The 4B then runs the proposed mixture, the replay-only control and two
-neighbours as a third point. Known hazard: proxies trained at a high learning rate misrank recipes (arXiv
-2512.24503), which is one reason the learning rates here are low.
-
-Code: `mixing_law.py` turns the design file (`configs/designs/screen18.yaml`) into 18 recipes and queue tasks, and
-the finished runs into level means, the law, the interference matrix, the constrained optimum and the rank
-agreement between two sizes. `mixing_law.py compare` sets two runs side by side question by question. A test plants
-a known law in the 18 designed mixtures and recovers it exactly (`tests/test_mixture_and_design.py`).
-
----
-
-## 7. Teacher rewriting of real text
-
-### 7.1 Why rewriting and not free generation
-
-Good public text is finite. Letting a model write new text from nothing is the obvious way to get more, and it is
-the risky one: a model trained on a model's free output drifts toward a narrower distribution with every
-generation. The published work that held up at scale keeps a real passage as the source of facts and asks the
-model to change only the form. Reported optima are near 30% rewritten text, and the real text is added to, never
-replaced.
-
-### 7.2 What is generated
-
-A 27B teacher of the same family rewrites passages of 350 to 1,200 tokens from Wikipedia, textbooks, papers, math
-pages and forum answers (`synthetic_rephrase.py`). Six forms show the same content from several sides:
-
-| form | goes to | what it adds |
-|---|---|---|
-| explanation from first principles | `synthetic_rephrase` | the steps between the claims |
-| structured notes | `synthetic_rephrase` | definitions, relations, a procedure, two typical mistakes |
-| questions with worked answers | `synthetic_qa` | reasoning over the passage |
-| worked problems | `synthetic_qa` | exercises made from the content, solved and checked |
-| dialogue with one corrected mistake | `synthetic_rephrase` | a wrong turn and its repair |
-| what-if analysis | `synthetic_qa` | consequences of a changed condition |
-
-The batch that entered the mixtures (v3, §7.3) keeps five of these forms: three as written, and the questions and
-the worked problems reworded as prose without fixed labels. It leaves the dialogue out.
-
-The outputs are plain text without chat tokens: chat tokens in mid-training data took one published model's GSM8K
-score from 49 to 0. Every output is checked for length, refusals and meta-comments, and for copying: an output
-that shares more than half of its 8-word sequences with its source is dropped, because a copy is a real passage
-at a higher price. The batch then has to pass the diversity gate of §11 before a recipe may use it.
-
-**A first sample.** 600 rewrites from two teacher servers (`synthetic/v1/rewrites.jsonl` under the data folder;
-the counts of the whole first batch are in `results/synthetic_summary_v1.json`):
-
-| style | kept | median words | copied 8-word sequences (median) |
-|---|---|---|---|
-| explanation | 89 of 92 | 780 | 0.6% |
-| structured notes | 90 of 98 | 795 | 0.7% |
-| dialogue | 80 of 99 | 821 | 3.6% |
-| questions with worked answers | 108 of 116 | 751 | 1.3% |
-| worked problems | 86 of 103 | 842 | 2.0% |
-| what-if analysis | 92 of 92 | 725 | 0.8% |
-
-Every dropped rewrite had hit the 1,500-token limit, mostly dialogues; the limit is now 1,800. Reading samples of
-each style: they stay on the passage's content, and the forms differ the way the instructions ask. Generation runs
-at about 3,400 rewrites an hour on two shared GPUs, so the batch is 12,000 rewrites (about 11M tokens), enough for
-the screening design: its run with the most rewritten text draws 4.5M tokens from each of the two sources.
-
-### 7.3 The first batch failed the diversity gate
-
-The usual worry about rewritten text is wrong facts. The check that failed here was diversity. The first batch (v1:
-12,000 rewrites, 11,574 kept, temperature 0.8, one or two styles per passage) was compared with the real passages
-chosen for it, 4,500 documents and 1M tokens on each side (`results/hygiene_diversity_*.json`):
-
-| measure | real passages | rephrase | qa | the gate needs |
-|---|---|---|---|---|
-| Vendi score of the embeddings | 31.4 | **22.1** | **18.6** | at least 25.1 |
-| bigram entropy (bits) | 16.54 | **15.97** | **15.64** | at least 16.04 |
-| mean cosine to the nearest neighbour | 0.746 | 0.806 | 0.807 | not gated |
-| zstd compression ratio | 3.31 | 3.83 | 4.12 | at most 4.30 |
-
-The Vendi score is the effective number of distinct documents in a sample: the exponential of the entropy of the
-eigenvalues of the documents' similarity matrix, 1 when every document is the same and the sample size when all are
-unrelated. English Wikipedia alone scores 40.0 on the same sample size.
-
-Two explanations fit these numbers. The batch has fewer distinct parents than documents, because half of the
-passages were rewritten twice; or the rewriting itself narrows the text. Keeping one rewrite per parent separates
-the two: 22.2 and 18.7, no better. So the narrowing comes from the rewriting. One teacher writes every passage for
-the same reader in the same voice, and each style imposes its structure on every topic.
-
-Therefore, I changed the request and kept the gate (v2). The temperature is 1.0. Each request draws a reader (12
-kinds, from a high-school student to a researcher who needs a refresher) and a writer's voice (12 kinds, from a
-patient tutor to a puzzle setter). Each passage gets one style, so every rewrite has a parent of its own. The v2
-passages also skip every document that the decontamination gate flagged. v1 chose its passages before that check
-existed, and a rewrite can carry an evaluation item along in words that no n-gram check finds again. Last, the
-rewritten sources no longer count in a run's validation loss: that loss measures how well a run fits the teacher's
-text, which no analysis uses, and runs that started before the change measured v1.
-
-**A sample before the full batch.** A full batch costs about 3.5 hours of two GPUs, so a sample of 600 rewrites is
-checked first, against its own parents at equal size (`synthetic_rephrase.py check-sample`). Small samples are more
-lenient. v1 checked this way, at 300 rewrites per source, still fails, but by less: the Vendi ratio is 0.74 and 0.61
-(0.70 and 0.59 at full size) and the bigram entropy drops by 0.46 and 0.70 bits (0.57 and 0.90)
-(`results/synthetic_sample_check_v1_300.json`). So a v2 sample has to pass with about that much room, a Vendi ratio
-near 0.84 or more and a bigram drop near 0.40 bits or less, before the full batch is written.
-
-**The v2 sample failed by more, and the main cause was one habit of the teacher.** At 300 rewrites per source the
-Vendi ratio fell to 0.63 and 0.59 (`results/synthetic_sample_check_v2_300.json`). Two measurements found why
-(`results/synthetic_shared_direction.json`, from `scripts/request_variants.py --diagnose`). With each set's mean
-direction removed, the rewrites are 92% as spread as their parents, in v1 and v2 alike, so the
-topics survive the rewriting. What the rewrites share is one direction: the length of their mean unit embedding grows
-from 0.70 for the parents to 0.74 (v1) and 0.76 (v2), and that alone pulls the Vendi score down. The words of the
-documents furthest along this direction are the words of talking about a text ("passage", "text", "explicitly",
-"consequently", "conclusion"); the words least far along are concrete ones ("named", "history", "early", "called"). A
-count settled it: 83 of 144 rewrites of the plain request refer to "the passage", "the text" or "the author"
-within their first 400 words, a source that their reader never sees. The reader and voice of v2 added a register of
-their own: "Good evening, everyone." opens 14 of its 571 rewrites.
-
-Then I tried seven wordings of the request on the same 150 passages, each measured against those passages
-(`scripts/request_variants.py`, `results/synthetic_request_variants.json`):
-
-| wording | Vendi ratio | mean-vector length (parents 0.70) | bigram drop (bits) | refer to their source |
-|---|---|---|---|---|
-| v2: a reader and a voice | 0.65 | 0.76 | 0.34 | 74 of 142 |
-| a random format for each style | 0.67 | 0.75 | 0.36 | 58 of 146 |
-| keep the genre of the source | 0.71 | 0.75 | 0.32 | 66 of 144 |
-| plain, temperature 1.0 | 0.73 | 0.74 | 0.36 | 83 of 144 |
-| keep the specific names and numbers | 0.74 | 0.74 | 0.40 | 75 of 145 |
-| write as the author, never refer to a source | 0.78 | 0.73 | 0.15 | 15 of 149 |
-| **both of the last two (v3)** | **0.86** | 0.72 | 0.28 | 23 of 146 |
-| plain paraphrase, no reasoning styles | 0.85 | 0.72 | 0.06 | 18 of 149 |
-
-Every instruction that adds a frame (a reader, a format, a genre) makes the rewrites more alike. Taking away the
-frame the teacher added by itself, the reference to its source, does the most. Therefore, v3 asks the teacher to
-write as the author of the material, never referring to a source, and to keep the material's own names, places,
-dates and numbers. A rewrite that still points at a hidden source ("The text states that...") is dropped. v3 keeps
-the six reasoning styles; a plain paraphrase passes too, but it adds no reasoning to the passage.
-
-**The v3 sample passes** (`results/synthetic_sample_check_v3_300.json`). Of 600 rewrites 452 were kept; 127 were
-dropped for pointing at a hidden source, most of them question-answer rewrites. The kept rewrites share less: their
-mean-vector length is 0.72, and without the mean direction they are 94% as spread as their parents:
-
-| source | rewrites | Vendi ratio (needs 0.80) | bigram drop (needs at most 0.50) |
-|---|---|---|---|
-| rephrase | 264 | 0.83 | 0.24 |
-| qa | 188 | 0.86 | 0.30 |
-
-**A second check at 600 per source caught the rest.** Small samples are lenient, so the batch was checked again
-after 2,225 rewrites, at 600 per source. The rephrase source passed with a Vendi ratio of 0.81, and the qa source
-missed the bigram-entropy limit by 0.01 bits. Measured per style against each style's own parents, three styles lost
-0.57 to 0.62 bits and the other three 0.09 to 0.26 (`synthetic_rephrase.py check-styles`,
-`results/synthetic_style_check_v3_rewrites.json`): the dialogue, the questions with answers and the worked problems.
-All three repeat fixed labels ("Teacher:", "Question", "Step 1", "Solution", "Check"). Reworded without labels, the
-questions lost 0.10 bits instead of 0.45 on the same small sample, and kept 81% of their rewrites instead of 40%. The
-worked problems kept 73% instead of 54%, with the same entropy. A dialogue with named roles was no better (Vendi
-ratio 0.66), so the dialogue left v3 (`results/synthetic_style_check_v3_rewrites_style_test.json`). Extra passages
-for the reworded styles brought each source above 5M tokens.
-
-**The full batch passes the gate**, 4,500 rewrites and 1M tokens on each side (`results/synthetic_sample_check_v3_4500.json`,
-`results/synthetic_summary_v3.json`):
-
-| source | styles (documents) | tokens | Vendi ratio (needs 0.80) | bigram drop (needs at most 0.50) |
-|---|---|---|---|---|
-| synthetic_rephrase | explanation 2,754, structured notes 2,503 | 5.5M | 0.83 | 0.29 |
-| synthetic_qa | what-if 2,942, questions in prose 1,513, worked problems in prose 696 | 5.6M | 0.82 | 0.39 |
-
-Of the 11,686 rewrites in these styles, 1,149 were dropped for pointing at a hidden source, 94 for running past
-1,800 tokens and 35 for copying. Decontamination flagged 3 of the kept rewrites, and the sampler leaves them out.
-The 12 design runs with rewritten text started on 11-21 at 05:00.
+Measurements found the cause. The topics survived the rewriting. What the rewrites shared was a habit of the teacher:
+it kept talking about the text itself. In 83 of 144 rewrites, the teacher referred to "the passage", "the text" or
+"the author", a source that the reader never sees. Seven wordings of the request were tried on the same 150
+passages. Every added frame, such as a reader, a format or a genre, made the rewrites more alike. Removing the frame
+the teacher added by itself helped most (`results/synthetic_request_variants.json`). The third batch asks the teacher
+to write as the author, to keep the source's names and numbers, and drops any rewrite that still points at a hidden
+source. It passed the check, with Vendi ratios of 0.83 and 0.82 (`results/synthetic_sample_check_v3_4500.json`).
 
 **One repeated phrase can move a diversity score more than any added variety. Find what the documents share before
-adding variety.**
+adding variety** (PITFALLS A3).
 
----
+### E. Built for later: curation, long-context packing, priming
 
-## 8. Curation for learnability
+These components are built and tested. They were not part of the dose experiment.
 
-### 8.1 Why not a quality classifier alone
+- **Curation for learnability** (`curation_funnel.py`). A quality classifier removes text that looks plain but
+  teaches a lot, and it knows nothing about what the model already predicts. The funnel removes junk, duplicates and
+  paraphrases, then scores every document with the loss of the student and of a stronger reference model. The useful
+  text is what the student cannot predict yet and the reference can. A three-way comparison of one web crawl is
+  queued: the crawl as it is, after the FineWeb-Edu classifier, and after learnability selection.
+- **Long-context packing** (`document_packing.py`). A long training sequence filled with unrelated short documents
+  teaches the model that distant context can be ignored. Semantic packs fill a sequence with related documents (the
+  similarity of neighbours is 0.81, against 0.15 for random packs of the same documents). Two problems were fixed on
+  the way: editions of one textbook placed side by side, and a tail of leftover packs (PITFALLS A1, A2). In the
+  screening design, neither kind of pack changed how much the model gains from distant context, and semantic packs
+  lowered few-shot GSM8K pass@16.
+- **Priming for exploration.** Text with reasoning primitives and repaired mistakes, meant to widen what a model can
+  reach in k tries, was not built in this version.
 
-The common filter is a quality classifier: keep pages that look educational. It removes junk, and it also removes
-text that looks plain and teaches a lot, and it knows nothing about what this model already predicts. A token the
-model predicts perfectly teaches nothing. A token nobody can predict (noise, lists of names) teaches nothing
-either. The useful text lies between: the student cannot predict it yet and a stronger model can.
+### F. Guardrails
 
-### 8.2 The funnel
+**Contamination.** Every pool document is compared with every test file, few-shot files included. Any 13-word
+sequence of a test text found in a document flags it, and the sampler never uses a flagged document
+(`data_hygiene.py decontaminate`). Reading the first scan's matches showed that two thirds of the flagged documents
+matched only runs of numbers: the test cases of HumanEval and MBPP against tables in papers and math pages (PITFALLS
+B2). The check still drops them all, because it costs only a quarter of a percent of the pool. Planted questions were
+all caught. A question shorter than 13 words, or a reworded one, can pass this check. That is why problem sets
+written by other models are also checked by meaning. No test text is ever written into `results/`, because that
+folder is published. `data_hygiene.py matched-items` lists every test question a source touches, and
+`compare-with-base` reports every gain without those questions.
 
-`curation_funnel.py` removes text in the order of its cost, cheapest first, so the expensive stages only see what
-survived the cheap ones.
+**Collapse.** A generator can fill a batch with the same few documents in different words. The diversity check
+measures a batch in several ways (token entropy, distinct n-grams, compression, repeated templates, similarity to the
+nearest neighbour, embedding clusters, Vendi score) and compares it with real text at the same sample size. A batch
+that is clearly less varied than real text is rejected.
 
-| stage | removes | cost |
+### G. Compute and the task queue
+
+One queue serves every machine. A task is a shell script in a folder. A worker claims a task by renaming it, which is
+atomic on a shared file system. It runs the task and moves it to `done` or `failed` with its output
+(`scripts/cluster/node_worker.sh`). The workstation and every cluster node run the same worker. A task named
+`node__…` takes every GPU of a worker, as a 9B run does, and a task named `gpu__…` takes one.
+
+Cluster jobs are submitted before their tasks exist, and they read the queue when they start. The wait in the cluster
+queue is the slowest part of an experiment. The allocation's priority was near zero after an earlier project, so a
+new job waits until its age gives it priority. The jobs submitted on 11-20 are expected to start around 11-26. The 9B
+runs therefore moved to the workstation, two GPUs each, and the cluster takes the repeated runs and sweeps.
+
+### H. Predictions written before the results
+
+Twelve predictions were written on 2026-11-20, when only the losses of three pilot runs were known. Each named the
+measurement that would prove it wrong. They stay unchanged, with outcomes from the 0.8B screening design.
+
+| | prediction | outcome |
 |---|---|---|
-| filter | too short or long, repetition, symbol soup, menus | string checks |
-| dedup | exact copies, then near copies (MinHash with banding), across sources | CPU |
-| embed, semdedup | paraphrases: one vector per document, k-means, cosine similarity inside each cluster | one small model |
-| score | nothing; records each document's mean loss under the student and under a reference model | one forward pass per model |
-| select | documents outside the learnable band: excess loss = student loss minus reference loss | none |
+| P1 | less web replay is better | not supported: the probe and knowledge did not move with the replay share |
+| P2 | a quarter of rewritten text helps a little, half not more | right on the probe, wrong in kind: rewritten text raised the few-shot scores in proportion to its share |
+| P3 | hard text moves its own domains and little else | half right: steeper loss slopes than predicted, and no probe change |
+| P4 | reasoning primitives widen pass@64 over pass@1 | untested (Appendix E) |
+| P5 | related packs teach the use of context | wrong: no pack changed the context gain |
+| P6 | learnability selection beats a quality classifier slightly | pending |
+| P7 | text shown early beats text shown late | not supported: late was best on few-shot GSM8K pass@16 |
+| P8 | total loss ranks runs badly, matched loss fairly | half right: neither ranks runs as the probe does |
+| P9 | the two small sizes agree on losses, less on the probe | pending (the 2B design stopped at 9 runs) |
+| P10 | the 9B gains less than the small models | partly confirmed: in the few-shot test the 9B gains 5.3 on GSM8K, between the 0.8B's 6.8 and the 2B's 4.3; after the generic fine-tune it gains nothing on math, where the small models gain 5 to 8 points (§5.5); the 9B replay-only control waits for the cluster |
+| P11 | the fine-tune hides part of the difference | confirmed, more strongly than predicted: the spread before the probe was 2.9 times the spread after it |
+| P12 | 3e-6 keeps everything and gains less; 1e-5 gains more and costs knowledge | wrong in the design (3e-6 was better everywhere); right for distillation (§5.4) |
 
-A stage never rewrites text. It writes one small file per stage keyed by document id with `keep`, `drop_reason` and
-the numbers it measured, so a threshold can be changed without recomputing anything.
-
-**The comparison for P6.** Three versions of one web crawl fill the 85% web share of a replay recipe, at the same
-token budget: the crawl as it is (200,000 FineWeb documents), the crawl after the FineWeb-Edu quality classifier, and
-the same 200,000 documents kept by learnability (the largest gap between the loss of the 0.8B student and the 4B
-reference on their first 512 tokens, 50M tokens kept). The first two funnel stages removed 79 of the 200,000
-documents: FineWeb is filtered and deduplicated upstream, so in this comparison the selection rule does all the
-work. The scoring stage is queued behind the screening design (`configs/recipes/curation/`).
-
----
-
-## 9. Long-context packing
-
-Most documents are short: the median is 651 tokens for Wikipedia and 469 for forum answers. A 16K-token training
-sequence therefore holds many documents. When they are concatenated at random, nothing in the first 12K tokens
-helps to predict the last 4K, and the model learns that distant context can be ignored.
-
-Therefore, long sequences are filled with related documents: an article, a textbook section and a forum question
-on one topic (`document_packing.py`). The control arm holds exactly the same documents grouped at random, so a
-difference between the arms comes from the grouping alone. A third arm uses documents that are long by themselves,
-mostly papers.
-
-How related documents are found. Each candidate document (64 to 8,192 tokens, from Wikipedia, textbooks, forum
-answers, math pages and code) becomes a TF-IDF vector reduced to 128 dimensions. A pack starts from a random
-document and grows by the unused document closest to the mean of the pack so far, until it holds 16,384 tokens.
-The build takes about two minutes on the CPU for 125,000 documents.
-
-| pack set | packs | documents | sources per pack | similarity of neighbours | repeated 8-word sequences |
-|---|---|---|---|---|---|
-| semantic | 6,782 | 108,246 | 1.89 | **0.811** | 0.27% |
-| random (same documents) | 6,827 | 108,246 | 4.65 | 0.152 | 0.003% |
-| natural (one long document each) | 7,324 | 7,324 | 1 | | |
-
-Similarity is the cosine between consecutive documents of a pack in the 128-dimensional space; the last column is
-the share of a pack's 8-word sequences that already occurred earlier in the same pack (`results/pack_summary.json`).
-
-Two hazards showed up in the first build, and both would have made the comparison unfair:
-
-| hazard | why it breaks the comparison | resolution |
-|---|---|---|
-| The same textbook section exists in several editions, and similarity packing put the editions side by side: 9% of semantic packs held a document more than half repeated from earlier in the pack | the model can lower its loss by copying from context, which is a different skill from using related text, and the random arm has almost none of it | a document is skipped for a pack when more than 10% of its 8-word sequences already occur in it; repeated text fell from 2.07% to 0.27%, and what remains are stock phrases |
-| The packs built last are leftovers: the mean similarity fell from 0.87 in the first tenth of packs to 0.65 in the last | the semantic arm would contain a tail of unrelated packs that look like the random arm | 10% more documents are sampled, and packs below 0.5 similarity plus the last ones built are dropped from both arms |
-
-A third choice keeps packs from collapsing onto one source: two unrelated documents of one source score 0.25,
-against 0.12 across sources, so without a correction 61% of packs held a single source. A candidate now loses 0.1
-times the share of the pack that comes from its own source, which brings single-source packs to 37% at a cost of
-0.01 in similarity.
-
-The effect is looked for where it should appear. The regression suite measures how much few-shot examples help
-(accuracy with shots minus accuracy without), and how much the loss on the last 2K tokens of a long document falls
-when 14K tokens of context are given compared with 2K. Short-task scores are compared too, since the cost of long
-sequences is expected there.
-
----
-
-## 10. Priming for exploration
-
-The fourth lever in the project brief is text that widens what the model can reach in k tries: reasoning
-primitives, traces that contain a mistake and its repair, and generic tool-use formats. Its generator is not built
-in this version, so this factor is absent from the design in §6.2 and prediction P4 in §13 stays untested. Two
-parts of the question are still covered by what exists: the probe reports pass@64 next to pass@1 for every
-mixture. The one rewriting form with a corrected mistake, the dialogue, left the final batch because it failed the
-diversity gate in both of its wordings (§7.3).
-
----
-
-## 11. Guardrails
-
-Two defects of training text do not show in the loss curve and ruin a result anyway (`data_hygiene.py`).
-
-**Contamination.** A benchmark question in the training text makes the benchmark measure memory. Gate 1 compares
-the pool with every evaluation file, the few-shot files included. The first layer is exact: any 13-word sequence of
-an evaluation text (after normalisation) found in a pool document flags it. The second layer embeds evaluation
-questions and pool windows and flags near matches, which catches a reworded question. Flagged documents are left
-out of every mixture. No evaluation text is ever written into `results/`, because that folder is committed.
-
-**Collapse.** A generator can fill a batch with the same few documents in different words. Gate 2 measures the
-batch (token entropies, distinct n-grams, compression ratio, repeated templates, nearest-neighbour similarity,
-number of embedding clusters) and compares it with a baseline measured on real text at the same sample size. A
-batch that is clearly less diverse than real text is rejected before it reaches a recipe.
-
-**What the 13-gram layer found.** It scanned 2,686,237 documents against 8,886 evaluation items in 2 minutes and
-flagged 6,030 documents, 0.22% of the pool. (Since the rewritten sources joined the pool on 11-21, the scan covers
-2,696,645 documents and flags 6,033; the 3 new ones are rewrites; `results/hygiene_decontamination.json`.) That count overstates the
-contamination. Reading the matched 13-grams showed four kinds:
-
-| kind of match | documents | what it is |
-|---|---|---|
-| only numbers and symbols | 3,257 (54%) | the test cases of HumanEval and MBPP hold long lists of numbers, and so does any table in a paper or a math page |
-| mostly numbers | 731 (12%) | the same, with a word or two in between |
-| a run of single letters | 592 (10%) | "a b c d e f g h i j k l m" |
-| words | 1,450 (24%) | where real leaks are: 714 match CMMLU in Chinese Wikipedia (many are famous classical quotes that a question cites), 265 MATH-500, 163 MMLU-Pro, 141 TriviaQA |
-
-The gate stays strict and drops all 6,030: it costs 0.2% of the pool, and a real leak would cost the evaluation.
-The price is uneven, though: math pages lose 3.5% of their tokens and papers 2.7%, mostly to runs of numbers
-(79% of the flagged math tokens and 94% of the flagged paper tokens).
-
-**Does it catch a leak?** One question of each of the ten sets was planted inside an unrelated document. Every
-planted question was flagged. When only the last two thirds of a question were planted, 3 of 10 were missed: the
-part left was shorter than 13 words. A short question rewritten in other words passes this layer by design; the
-embedding layer is for that case and has not run on the whole pool yet.
-
----
-
-## 12. Compute plan
-
-The dates in the project brief were written for months. The plan below fits ten days because a proxy run takes
-about an hour.
-
-| stage | model | runs | GPU-hours | where |
-|---|---|---|---|---|
-| pilot: learning rate, effect size, probe noise | 0.8B | 6 runs + 7 probes | 12 | workstation |
-| screening design (§6.2) | 0.8B | 18 | 48 | workstation |
-| screening design | 2B | 18 | 72 | workstation |
-| steepest ascent and confirmation, two seeds | 0.8B, 2B | about 20 | 70 | workstation, cluster |
-| third scale | 4B | 6 | 42 | workstation, cluster |
-| ablations: curation, synthetic share to collapse, packing | 0.8B, 2B | about 20 | 80 | workstation |
-| target | 9B | proposed mixture, replay-only control, neighbours, seeds | 48 per run | one 3-GPU node per run |
-
-The estimates use the measured speeds of §1.1 and a probe of about one hour for the 0.8B. The 9B number is an
-estimate until its first run.
-
-**The cluster comes late.** The allocation's fairshare is near zero after an earlier project, so a new job's priority
-is its age: 1,151 on the first evening, against about 4,000 for the jobs that start, at about 500 a day. The 12 jobs
-submitted on day 1 should start around day 6. Backfill does not help: every job that started that evening, 20-minute
-ones included, had a priority above 3,800. So the 2B design runs on the workstation after the 0.8B design, and the
-cluster takes the 9B runs; its queues already hold work that needs no analysis (the 9B and 4B base evaluations and a
-9B replay-only control), because a job that starts and finds nothing to do gives up its place.
-
-**The plan changed with the dose results (11-23).** The design's runs were set aside for the dose experiment, and
-the distillation recipe became the recipe to test at every size. The 9B model now trains on two of the
-workstation's 40 GB GPUs, its layers split between them and its master weights and Adam moments on the CPU (about
-165 GB of host memory): the smoke run reached about 1,000 tokens/s, so 100M tokens take a little over a day. That puts
-the 9B result before the cluster jobs are expected to start (around 11-26). The cluster's queues now hold work that
-replicates and extends: the 9B replay-only control, second and third seeds of the 0.8B and 2B runs, and a
-learning-rate sweep of the distillation recipe at 0.8B (1e-6 to 3e-5).
-
-**One queue for every machine.** A task is a shell script in a folder. A worker claims a task by renaming it,
-which is atomic on a shared file system, runs it and moves it to `done` or `failed` with its output
-(`scripts/cluster/node_worker.sh`). The workstation and every cluster node run the same worker. Cluster jobs are
-submitted before their tasks exist and read the queue when they start, because the wait in the cluster queue is
-the slowest part of an experiment.
-
----
-
-## 13. Predictions, written before the results
-
-Written on 2026-11-20. At that time the validation losses of three pilot runs were known (§1.2) and no probe or
-regression-suite result existed. Each prediction names the measurement that would prove it wrong. They will stay
-here unchanged, with the outcome added below each one.
-
-**The recipe I expect to propose for the 9B:** replay near 60% of the tokens; of the rest about one quarter
-rewritten text, the remainder split evenly between curated text and math plus code; about 15% of all tokens in long
-sequences of related documents; uniform or early schedule; peak learning rate between 3e-6 and 1e-5 with linear
-decay to zero.
-
-| | prediction | proved wrong if |
-|---|---|---|
-| P1 | **Less web replay is better here.** The best replay share is at the low end of the tested range (55 to 65%), and the regression suite is flat or slightly better there, because broad curated text is closer to what the model was pretrained on than a web crawl is. | the regression suite falls by more than its noise as replay goes from 85% to 55%, or the probe is best at 85% |
-| P2 | **A quarter of rewritten text helps a little; half does not help more.** Real text is not scarce here (3.7B tokens for 40M-token runs), so rewriting can only win by being denser. Expected effect on probe pass@1 for math: under 1 point. pass@64 is no higher at 50% than at 25%. | 50% beats 25% on pass@64 by more than the noise, or rewritten text lowers pass@1 |
-| P3 | **Hard text moves its own domains and little else.** About -0.9% math loss per 10 points of math share and -0.65% code loss per 10 points of code share (the pilot's slopes), +0.5 to +1.5 points of probe pass@1 on math from the lowest to the highest hard share, knowledge scores within noise. | knowledge scores fall by more than 1 point, or the probe does not move |
-| P4 | Text with reasoning primitives and repaired mistakes widens the gap between pass@64 and pass@1. | untested: the generator is not built (§10) |
-| P5 | **Related packs teach the use of context; random packs do not.** The gain from few-shot examples and the loss reduction from distant context are larger after semantic packs than after random packs. Short-task probe scores do not change with up to 18% of the tokens in long sequences. | random packs give the same context gains, or the short-task scores fall by more than the noise |
-| P6 | **Learnability selection beats a quality classifier by a small margin and narrows the data.** Under 1 point on the probe; a measurable drop in the diversity numbers of §11. | the classifier subset wins, or the diversity numbers do not move |
-| P7 | **Early beats late.** With a learning rate that decays linearly to zero, text shown early gets 1.2 times the learning-rate-weighted dose of a uniform schedule and text shown late gets 0.8 times. In this small-step regime the dose decides, so the order on the non-replay domains' loss is early, uniform, late. This is the opposite of the usual advice to inject the target data late. | late gives the lowest loss on math and code, or the best probe |
-| P8 | **Total loss ranks the runs badly; matched loss ranks them fairly.** Over the 18 runs, the rank correlation between web loss and probe pass@16 is below 0.4 in size. Between math loss and the math probe it is 0.5 to 0.7. | web loss predicts the probe with a correlation above 0.7 |
-| P9 | **The two proxy sizes agree on losses and less on the probe.** Rank correlation between 0.8B and 2B over the 18 runs: at least 0.7 for the losses, 0.3 to 0.6 for pass@k. The two largest effects have the same sign on both sizes. | the largest effect changes sign between the sizes |
-| P10 | **The 9B gains less than the proxies.** Proposed mixture against replay-only control at the same budget: +1 to +3 points of probe pass@16 on math, regression suite within ±0.5 points, effects smaller than on the 0.8B. GSM8K pass@64 is near its ceiling for the 9B, so MATH-500 and MBPP carry the result. | the proposed mixture loses to the control, or the regression suite falls by more than 1 point |
-| P11 | **The fine-tune hides part of the difference.** The spread of few-shot pass@1 of the base checkpoints over the 18 runs is at least 1.5 times the spread of pass@1 after the probe, because 6M tokens of fine-tuning on math and code partly overwrite 40M tokens of mid-training. | the spread after the probe is as large as before it |
-| P12 | **3e-6 keeps everything and gains less; 1e-5 gains more and costs up to 1 point of knowledge.** | 1e-5 costs nothing, or 3e-6 gains as much |
-
-**Outcomes on the 0.8B design (11-21).** The table above stays as written; the 2B design and the 9B runs will add to
-this list.
-
-- **P1: not supported.** The probe does not move with the replay share (its level means differ by less than the
-  empty column's), and the knowledge guard is flat.
-- **P2: consistent on the probe, wrong in kind.** Rewritten text changes no probe score, but it raises the few-shot
-  scores almost in proportion to its share (GSM8K pass@16 +1.7 per 10% of tokens), which the prediction did not expect.
-- **P3: half right.** The loss slopes are steeper than predicted: -1.7% math loss per 10 points of math share
-  (predicted -0.9%) and -1.3% code loss per 10 points of code (predicted -0.65%). The probe does not move, which the
-  prediction named as proof that it is wrong.
-- **P4: untested** (§10).
-- **P5: wrong.** Neither kind of pack changes the gain from distant context, and semantic packs lower few-shot GSM8K
-  pass@16 (-0.85 per 10% of tokens, t ≥ 3).
-- **P6: pending**; the curation arms are queued.
-- **P7: not supported.** The schedule moves the math and code losses by less than the empty column. On few-shot GSM8K
-  pass@16 the late schedule is best (+2.8 points, t ≥ 3), the opposite of the prediction; on few-shot MBPP
-  pass@1 the uniform one is.
-- **P8: half right.** Web loss does not rank the runs as the probe does (Spearman -0.04), but neither does matched
-  loss: math loss against the math probe -0.02 and -0.10, code loss against the code probe +0.24 and +0.15.
-- **P9, P10: pending** (the 2B design runs now; the 9B runs wait for the cluster).
-- **P11: confirmed, more strongly than predicted.** The spread of few-shot pass@1 over the 18 runs is 2.9 times its
-  spread after the probe (1.9 for GSM8K, 1.7 for MATH-500), and the order of the runs before and after the fine-tune is
-  unrelated.
-- **P12: wrong.** 3e-6 is better on every loss and on few-shot pass@1 (by 0.9 points); 1e-5 costs no knowledge on the cloze
-  guard and gains only on lettered multiple choice (+1.1) and on CommonsenseQA cloze (+1.7).
-
----
-
-## 14. Repository layout
+### I. Repository layout
 
 ```
 configs/
   sources.yaml            the public sources of the pool: files, licences, how much to take
-  probe.yaml              the fixed fine-tune and its test: data, steps, sampling
-  recipes/                one YAML per mixture
+  probe.yaml, probe_generic.yaml   the two fine-tuning probes and their tests
+  recipes/                one YAML per mixture; recipes/dose/ holds the dose and distillation recipes
+  designs/                the screening design
 docs/conventions.md       the contracts between the modules: file layouts, schemas
 scripts/
   env.sh                  reads site.env, sets paths and the Python environment
-  cluster/                node_worker.sh (the queue worker), worker.slurm (the same worker as a batch job)
+  cluster/                node_worker.sh (the queue worker), worker.slurm, sync.sh (code and data to the cluster)
 src/midtrain/
   data_sources.py         download, normalise, tokenize; the pool
-  mixture.py              recipes to exact token sequences; schedules; long-context share
-  train_continue.py       the continued-pretraining loop; checkpoints in the base layout
-  eval_tasks.py           twelve public evaluation sets, prompts, graders, the sandbox for model-written code
-  sft_probe.py            the fixed fine-tune, sampling, pass@k
-  synthetic_rephrase.py   teacher rewriting of real passages, checks on every output
-  curation_funnel.py      filter, dedup, semantic dedup, loss scoring, learnability selection
-  data_hygiene.py         decontamination against the evaluation sets; diversity gate
+  mixture.py              recipes to exact token sequences; schedules; subsets; the contamination check at sampling time
+  train_continue.py       the continued-pretraining loop; master weights; checkpoints in the base layout; warm restart
+  eval_tasks.py           twelve public test sets, prompts, graders, the sandbox for model-written code
+  base_regression.py      the regression suite and the few-shot final evaluation
+  sft_probe.py            the fixed fine-tuning probes, sampling, pass@k
+  synthetic_rephrase.py   the teacher: rewrites of real passages, solutions to problems, their checks and summaries
+  data_hygiene.py         contamination checks, matched test questions, the diversity check
+  curation_funnel.py      filtering, deduplication, loss scoring, learnability selection
   document_packing.py     related documents into long sequences; the random and natural control arms
-  base_regression.py      the regression suite: the checkpoint as a base model
-  mixing_law.py           the orthogonal design, the mixing law, the interference matrix, paired comparisons
+  mixing_law.py           the orthogonal design, the mixing law, paired comparisons with the base model
+  merging.py              weight averaging between two checkpoints
   figures.py              every figure of this README, drawn from results/
   hub.py                  data and checkpoints to and from the Hugging Face Hub
 tests/                    one file per module
@@ -1230,32 +1188,38 @@ PITFALLS.md               the failure atlas: incidents met while building the pi
 
 ---
 
-## 15. References
+## 9. References
 
-**Mid-training and annealing.** OLMo 3 (arXiv 2512.13961): mid-training mix, no chat tokens in mid-training data,
-long-context stage. Proxy runs and learning rate (arXiv 2512.24503).
+**Mid-training and continued pretraining.** OLMo 2 (Team OLMo, 2025, arXiv 2501.00656): the Dolmino mid-training
+mix. OLMo 3 (arXiv 2512.13961): no chat tokens in mid-training data. The Llama 3 Herd of Models (Dubey et al., 2024,
+arXiv 2407.21783): annealing on high-quality math and code. Qwen3 Technical Report (2025, arXiv 2505.09388). Simple
+and Scalable Strategies to Continually Pre-train Large Language Models (Ibrahim et al., 2024, arXiv 2403.08763).
+Don't Stop Pretraining (Gururangan et al., 2020, arXiv 2004.10964). OctoThinker: mid-training and the readiness of
+base models for reinforcement learning (Wang et al., 2025). Proxy runs and the learning rate (arXiv 2512.24503).
 
-**Loss against post-training outcomes.** Perplexity does not order fine-tuned models (arXiv 2504.12491). DataDecide
-(arXiv 2504.11393).
+**Distillation and synthetic data.** Distilling the Knowledge in a Neural Network (Hinton, Vinyals and Dean, 2015,
+arXiv 1503.02531). Sequence-Level Knowledge Distillation (Kim and Rush, 2016, arXiv 1606.07947). STaR (Zelikman et
+al., 2022, arXiv 2203.14465). Rejection-sampling fine-tuning (Yuan et al., 2023, arXiv 2308.01825). On-policy
+distillation, GKD (Agarwal et al., 2024, arXiv 2306.13649). MiniLLM (Gu et al., 2024, arXiv 2306.08543). Gemma 2
+(2024, arXiv 2408.00118): distillation in pretraining. NuminaMath-1.5 (AI-MO, the dataset card).
+
+**Loss and what post-training can reach.** Perplexity does not order fine-tuned models (arXiv 2504.12491). DataDecide
+(arXiv 2504.11393). Reinforcement learning raises pass@1 more than pass@256 (arXiv 2504.13837).
 
 **Mixtures.** Data Mixing Laws (arXiv 2403.16952). Scaling Laws for Optimal Data Mixtures (arXiv 2507.09404).
 
-**Rewriting and synthetic text.** WRAP, Nemotron-CC, REWIRE, BeyondWeb; the share of rewritten text (arXiv
-2510.01631).
+**Rewriting.** WRAP, Nemotron-CC, REWIRE, BeyondWeb; the share of rewritten text (arXiv 2510.01631).
 
-**Curation.** SemDeDup; MinHash; FineWeb-Edu classifier; WebOrganizer (arXiv 2502.10341).
-
-**Exploration and pass@k.** RL raises pass@1 and not pass@256 (arXiv 2504.13837); diverse verified solutions before
-RL (arXiv 2605.08472); mistakes and backtracking in training text (arXiv 2503.01307, 2408.16293).
-
-**Decontamination.** Tulu 3: n-gram overlap rule and the limits of embedding matching.
+**Curation and contamination.** SemDeDup; MinHash; the FineWeb-Edu classifier; WebOrganizer (arXiv 2502.10341);
+Tulu 3 on n-gram decontamination.
 
 ---
 
-## 16. Data and licensing
+## 10. Data and licensing
 
 Code: MIT (`LICENSE`). The pool is built from public datasets under their own licences, listed per source in
-`configs/sources.yaml` (ODC-By, CC BY-SA, CC BY, CC0, permissive code licences). No pool text and no evaluation
-text is committed: only counts and scores are. Rewritten text is produced with an openly licensed model from
-openly licensed passages. The evaluation sets keep their licences; CMMLU is CC BY-NC and is used for evaluation
-only.
+`configs/sources.yaml` (ODC-By, CC BY-SA, CC BY, CC0, Apache-2.0, permissive code licences). The teacher-written text
+comes from an openly licensed model (Qwen3.8-27B, Apache-2.0) applied to openly licensed passages and problems (GSM8K
+and MATH, MIT; NuminaMath-1.5, Apache-2.0). No pool text and no test text is committed; only counts and scores are.
+The test sets keep their licences; CMMLU is CC BY-NC and is used for evaluation only. The checkpoints are released
+under Apache-2.0, like the base models.

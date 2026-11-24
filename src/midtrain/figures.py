@@ -56,7 +56,8 @@ def apply_shared_style(language: str) -> None:
 
 def save_figure(figure, name: str, language: str) -> None:
     asset_directory.mkdir(exist_ok=True)
-    for suffix, settings in ((".png", {"dpi": 300}), (".pdf", {})):
+    # no creation date in the PDF: otherwise every redraw rewrites every PDF and buries the figures that changed
+    for suffix, settings in ((".png", {"dpi": 300}), (".pdf", {"metadata": {"CreationDate": None}})):
         figure.savefig(asset_directory / f"{name}_{language}{suffix}", bbox_inches="tight", **settings)
     plt.close(figure)
 
