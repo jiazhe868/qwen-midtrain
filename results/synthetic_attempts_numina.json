@@ -1,0 +1,26 @@
+{
+ "problem_set": "numina",
+ "groups": {
+  "cn_k12": {
+   "attempts": 12000,
+   "problems": 6000,
+   "right_share": 0.3787,
+   "cut_share": 0.5074,
+   "solved_problem_share": 0.4153
+  },
+  "orca_math": {
+   "attempts": 14000,
+   "problems": 7000,
+   "right_share": 0.7379,
+   "cut_share": 0.1566,
+   "solved_problem_share": 0.768
+  },
+  "synthetic_math": {
+   "attempts": 14000,
+   "problems": 7000,
+   "right_share": 0.4693,
+   "cut_share": 0.4553,
+   "solved_problem_share": 0.4999
+  }
+ }
+}

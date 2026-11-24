@@ -1,0 +1,61 @@
+{
+ "problem_set": "training_splits",
+ "groups": {
+  "gsm8k": {
+   "attempts": 58952,
+   "problems": 7473,
+   "right_share": 0.944,
+   "cut_share": 0.025,
+   "solved_problem_share": 0.9726
+  },
+  "math": {
+   "attempts": 27156,
+   "problems": 6789,
+   "right_share": 0.6048,
+   "cut_share": 0.3841,
+   "solved_problem_share": 0.6845
+  },
+  "math/level_1": {
+   "attempts": 2088,
+   "problems": 522,
+   "right_share": 0.967,
+   "cut_share": 0.0283,
+   "solved_problem_share": 0.9866
+  },
+  "math/level_2": {
+   "attempts": 4936,
+   "problems": 1234,
+   "right_share": 0.8811,
+   "cut_share": 0.1098,
+   "solved_problem_share": 0.9295
+  },
+  "math/level_3": {
+   "attempts": 5812,
+   "problems": 1453,
+   "right_share": 0.7369,
+   "cut_share": 0.2445,
+   "solved_problem_share": 0.8293
+  },
+  "math/level_4": {
+   "attempts": 6160,
+   "problems": 1540,
+   "right_share": 0.5727,
+   "cut_share": 0.4154,
+   "solved_problem_share": 0.6799
+  },
+  "math/level_5": {
+   "attempts": 8152,
+   "problems": 2038,
+   "right_share": 0.2745,
+   "cut_share": 0.7175,
+   "solved_problem_share": 0.3587
+  },
+  "math/level_?": {
+   "attempts": 8,
+   "problems": 2,
+   "right_share": 1.0,
+   "cut_share": 0.0,
+   "solved_problem_share": 1.0
+  }
+ }
+}

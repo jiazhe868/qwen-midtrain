@@ -721,6 +721,36 @@ def publish_solutions_to_pool(maximum_per_problem: int, problem_set: str = "trai
     print(json.dumps(summary, indent=1))
 
 
+def summarize_teacher_attempts(problem_set: str) -> dict:
+    """How the teacher did on one problem set, by task and (for MATH) by level: the share of attempts it got right
+    and the share it could not finish within its answer limit. Written to results/synthetic_attempts_<set>.json, the
+    file README §4 and its figure read: the first set's 1,024-token cap cut off 72% of the MATH level-5 attempts."""
+    records = read_json_lines(synthetic_directory(solution_problem_sets[problem_set]["folder"]) / "solutions.jsonl")
+    groups: dict[str, dict] = {}
+    for record in records:
+        keys = [record["task"]]
+        if record["task"] == "math" and record.get("level", "").startswith("Level "):
+            keys.append(f"math/{record['level'].replace('Level ', 'level_')}")
+        for key in keys:
+            group = groups.setdefault(key, {"attempts": 0, "right": 0, "cut_at_answer_limit": 0, "problems": set(),
+                                            "problems_solved": set()})
+            group["attempts"] += 1
+            group["right"] += int(record["is_correct"])
+            group["cut_at_answer_limit"] += int(record["finish_reason"] == "length")
+            group["problems"].add(record["problem_id"])
+            if record["is_correct"]:
+                group["problems_solved"].add(record["problem_id"])
+    summary = {"problem_set": problem_set, "groups": {
+        key: {"attempts": group["attempts"], "problems": len(group["problems"]),
+              "right_share": round(group["right"] / group["attempts"], 4),
+              "cut_share": round(group["cut_at_answer_limit"] / group["attempts"], 4),
+              "solved_problem_share": round(len(group["problems_solved"]) / len(group["problems"]), 4)}
+        for key, group in sorted(groups.items())}}
+    (repository_root / "results" / f"synthetic_attempts_{problem_set}.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(json.dumps(summary, indent=1))
+    return summary
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # check-sample: the diversity gate on a batch's rewrites against the passages they were written from
 # ---------------------------------------------------------------------------------------------------------------
@@ -879,6 +909,8 @@ def main() -> None:
     solve.add_argument("--temperature", type=float, default=1.0)
     solve.add_argument("--maximum-new-tokens", type=int, default=1024)
     solve.add_argument("--requests-in-flight-per-endpoint", type=int, default=24)
+    summarize_attempts = commands.add_parser("summarize-attempts", help="the teacher's right and cut-off shares")
+    summarize_attempts.add_argument("--problem-set", choices=list(solution_problem_sets), default="training_splits")
     publish_solutions = commands.add_parser("publish-solutions")
     publish_solutions.add_argument("--maximum-per-problem", type=int, default=4)
     for command_parser in (solve, publish_solutions):
@@ -903,6 +935,8 @@ def main() -> None:
         solve_training_problems(arguments.endpoint, arguments.samples_per_problem, arguments.temperature,
                                 arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint,
                                 arguments.problem_set)
+    elif arguments.command == "summarize-attempts":
+        summarize_teacher_attempts(arguments.problem_set)
     elif arguments.command == "publish-solutions":
         publish_solutions_to_pool(arguments.maximum_per_problem, arguments.problem_set)
     elif arguments.command == "check-styles":

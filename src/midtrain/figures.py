@@ -293,10 +293,283 @@ def draw_dose_results(language: str, model_size: str = "0.8B") -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# the paper figures of README §3-5 (11-24): one colour per test set, the same in every figure
+# ---------------------------------------------------------------------------------------------------------------
+task_identities = {
+    "gsm8k": {"color": "#2a78d6", "marker": "o", "label": "GSM8K"},
+    "math500": {"color": "#eb6834", "marker": "s", "label": "MATH-500"},
+    "svamp": {"color": "#1baf7a", "marker": "D", "label": "SVAMP"},
+    "humaneval": {"color": "#6250d6", "marker": "^", "label": "HumanEval"},
+    "mbpp": {"color": "#e87ba4", "marker": "v", "label": "MBPP"},
+}
+model_sizes = ["0.8B", "2B", "4B", "9B"]
+words = {
+    "few_shot": {"en": "few-shot", "zh": "少样本"},
+    "after_fine_tune": {"en": "after fine-tune", "zh": "微调之后"},
+    "gain_points": {"en": "Δ vs base (points)", "zh": "相对基座的变化（个点）"},
+    "model_size": {"en": "model size", "zh": "模型规模"},
+    "peak_learning_rate": {"en": "peak learning rate", "zh": "峰值学习率"},
+    "knowledge": {"en": "knowledge (cloze)", "zh": "知识（完形）"},
+    "attempts_percent": {"en": "% of attempts", "zh": "尝试的百分比"},
+    "right": {"en": "right", "zh": "答对"},
+    "cut_off": {"en": "cut off", "zh": "被截断"},
+    "first_set": {"en": "GSM8K + MATH (by level)", "zh": "GSM8K + MATH（按难度级别）"},
+    "numina_set": {"en": "NuminaMath", "zh": "NuminaMath"},
+    "answer_characters": {"en": "answer length (characters)", "zh": "回答长度（字符）"},
+    "cut_percent": {"en": "cut at the limit (%)", "zh": "达到长度上限（%）"},
+    "loss_change": {"en": "Δ held-out bits per byte (%)", "zh": "留出每字节比特数变化（%）"},
+    "pass_at_1": {"en": "Δ pass@1", "zh": "Δ pass@1"},
+    "pass_at_16": {"en": "Δ pass@16", "zh": "Δ pass@16"},
+}
+run_labels = {
+    "base": {"en": "base", "zh": "基座"},
+    "distill_3e-6": {"en": "distillation, 3e-6", "zh": "蒸馏，3e-6"},
+    "distill_1e-5": {"en": "distillation, 1e-5", "zh": "蒸馏，1e-5"},
+    "nosolutions": {"en": "without the solutions", "zh": "去掉解答"},
+    "control": {"en": "replay only", "zh": "只做回放"},
+}
+
+
+def place_end_labels(panel, entries: list[tuple[float, float, str, str]], minimum_gap_share: float = 0.06) -> None:
+    """Write a label at the end of each series; labels closer than `minimum_gap_share` of the y-range are spread
+    apart (GSM8K and SVAMP end within 0.2 points of each other at 9B)."""
+    if not entries:
+        return
+    low, high = panel.get_ylim()
+    gap = minimum_gap_share * (high - low)
+    ordered = sorted(entries, key=lambda entry: entry[1])
+    placed = []
+    for x, y, label, color in ordered:
+        y_label = y if not placed else max(y, placed[-1] + gap)
+        placed.append(y_label)
+        panel.annotate(label, (x, y), xytext=(x, y_label), textcoords="data", fontsize=7, color=color, va="center",
+                       ha="left", annotation_clip=False)
+
+
+def comparison_of_size(model_size: str) -> dict | None:
+    return read_json(results_directory / "comparisons" / f"dose_vs_base_{model_size}.json")
+
+
+def draw_scaling_gains(language: str) -> bool:
+    """The headline: the distillation run at 3e-6 minus its base, at each size, before and after the generic probe."""
+    sizes, comparisons = [], {}
+    for size in model_sizes:
+        comparison = comparison_of_size(size)
+        if comparison and f"dose_distill_lr3e-6_{size}" in comparison["runs"]:
+            sizes.append(size)
+            comparisons[size] = comparison["runs"][f"dose_distill_lr3e-6_{size}"]
+    if not sizes:
+        return False
+    apply_shared_style(language)
+    figure, panels = plt.subplots(1, 2, figsize=(7.4, 3.0), sharey=True)
+    views = [("few_shot", ["gsm8k", "svamp", "math500", "humaneval"]), ("after_fine_tune", ["gsm8k", "math500", "humaneval"])]
+    for panel, (view, task_names) in zip(panels, views):
+        offsets = np.linspace(-0.18, 0.18, len(task_names))
+        label_entries = []
+        panel.axhline(0, color="#52514e", linewidth=0.8)
+        for offset, task_name in zip(offsets, task_names):
+            identity = task_identities[task_name]
+            xs, ys, lows, highs = [], [], [], []
+            for index, size in enumerate(sizes):
+                block = comparisons[size]["few_shot_greedy" if view == "few_shot" else "generic_probe"].get(task_name)
+                if not block:
+                    continue
+                value = block if view == "few_shot" else block["pass@1"]
+                xs.append(index + offset)
+                ys.append(value["difference"])
+                lows.append(value["difference"] - value["low"])
+                highs.append(value["high"] - value["difference"])
+            if not xs:
+                continue
+            panel.errorbar(xs, ys, yerr=[lows, highs], color=identity["color"], marker=identity["marker"], markersize=4.5,
+                           linewidth=0, elinewidth=1.3, capsize=0, markeredgecolor="white", markeredgewidth=0.5)
+            panel.plot(xs, ys, color=identity["color"], linewidth=0.8, alpha=0.5)
+            # labels start right of the whole group of points at the last size (offsets reach ±0.18)
+            label_entries.append((round(xs[-1]) + 0.3, ys[-1], identity["label"], identity["color"]))
+        panel.set_xticks(range(len(sizes)), sizes)
+        panel.set_xlim(-0.4, len(sizes) - 1 + 1.1)
+        panel.set_title(words[view][language], fontsize=8.5, color=ink_color)
+        panel.set_xlabel(words["model_size"][language])
+        panel.grid(axis="x", visible=False)
+        place_end_labels(panel, label_entries)
+    panels[0].set_ylabel(words["gain_points"][language])
+    save_figure(figure, "scaling_gains", language)
+    return True
+
+
+def draw_public_text_learning_rate(language: str) -> bool:
+    """The first dose sweep: 300M tokens of the reasoning mix at four peak learning rates, minus the base."""
+    comparison = comparison_of_size("0.8B")
+    if not comparison:
+        return False
+    rates = [(3e-6, "dose_reasoning_lr3e-6_0.8B"), (1e-5, "dose_reasoning_lr1e-5_0.8B"), (3e-5, "dose_reasoning_lr3e-5_0.8B"),
+             (1e-4, "dose_reasoning_lr1e-4_0.8B")]
+    rates = [(rate, run) for rate, run in rates if run in comparison["runs"]]
+    if len(rates) < 2:
+        return False
+    apply_shared_style(language)
+    figure, panels = plt.subplots(1, 2, figsize=(6.8, 2.8), gridspec_kw={"width_ratios": [2.2, 1]})
+    panels[0].axhline(0, color="#52514e", linewidth=0.8)
+    for task_name in ("gsm8k", "math500", "humaneval", "mbpp"):
+        identity = task_identities[task_name]
+        xs = [rate for rate, _ in rates]
+        ys = [comparison["runs"][run]["few_shot_greedy"][task_name]["difference"] for _, run in rates]
+        panels[0].plot(xs, ys, color=identity["color"], marker=identity["marker"], markersize=4, linewidth=1.5)
+        panels[0].annotate(identity["label"], (xs[-1], ys[-1]), xytext=(5, 0), textcoords="offset points", fontsize=7,
+                           color=identity["color"], va="center")
+    rate_ticks = [rate for rate, _ in rates]
+    rate_labels = [f"{rate:.0e}".replace("e-0", "e-") for rate in rate_ticks]
+    panels[0].set_xscale("log")
+    panels[0].set_xlim(2.2e-6, 2.6e-4)
+    panels[0].set_xticks(rate_ticks, rate_labels)
+    panels[0].minorticks_off()
+    panels[0].set_xlabel(words["peak_learning_rate"][language])
+    panels[0].set_ylabel(words["gain_points"][language])
+    knowledge = [(rate, comparison["runs"][run].get("knowledge_cloze_change")) for rate, run in rates]
+    knowledge = [(rate, value) for rate, value in knowledge if value is not None]
+    panels[1].axhline(0, color="#52514e", linewidth=0.8)
+    panels[1].plot([rate for rate, _ in knowledge], [value for _, value in knowledge], color=muted_color, marker="o",
+                   markersize=4, linewidth=1.5)
+    panels[1].set_xscale("log")
+    panels[1].set_xticks(rate_ticks, rate_labels)
+    panels[1].minorticks_off()
+    panels[1].set_xlabel(words["peak_learning_rate"][language])
+    panels[1].set_title(words["knowledge"][language], fontsize=8.5, color=ink_color)
+    save_figure(figure, "public_text_learning_rate", language)
+    return True
+
+
+def draw_teacher_attempts(language: str) -> bool:
+    """How often the teacher got an attempt right, and how often its answer hit the length limit, by group."""
+    first = read_json(results_directory / "synthetic_attempts_training_splits.json")
+    second = read_json(results_directory / "synthetic_attempts_numina.json")
+    if not first:
+        return False
+    groups = [("GSM8K", first["groups"]["gsm8k"])] + [
+        (f"L{level}", first["groups"][f"math/level_{level}"]) for level in range(1, 6)
+        if f"math/level_{level}" in first["groups"]]
+    if second:
+        numina_groups = (("orca", "orca_math"), ("cn_k12", "cn_k12"), ("synth.", "synthetic_math"))
+        groups += [(name, second["groups"][key]) for name, key in numina_groups if key in second["groups"]]
+    apply_shared_style(language)
+    figure, axes = plt.subplots(figsize=(6.6, 2.7))
+    positions = [index + (0.6 if index >= 6 else 0) for index in range(len(groups))]
+    width = 0.36
+    axes.bar([p - width / 2 for p in positions], [100 * g["right_share"] for _, g in groups], width, color="#2a78d6",
+             label=words["right"][language])
+    axes.bar([p + width / 2 for p in positions], [100 * g["cut_share"] for _, g in groups], width, color="#c9c8c1",
+             label=words["cut_off"][language])
+    axes.set_xticks(positions, [name for name, _ in groups])
+    axes.set_ylabel(words["attempts_percent"][language])
+    axes.set_ylim(0, 100)
+    axes.grid(axis="x", visible=False)
+    axes.legend(frameon=False, fontsize=7, loc="upper right")
+    axes.text(2.5, -24, words["first_set"][language], ha="center", fontsize=7, color=muted_color)
+    if second:
+        axes.text(positions[7], -24, words["numina_set"][language], ha="center", fontsize=7, color=muted_color)
+    save_figure(figure, "teacher_attempts", language)
+    return True
+
+
+def draw_answer_length_after_probe(language: str) -> bool:
+    """After the generic fine-tune, how long the 0.8B models' answers are and how often they hit the probe's limit."""
+    runs = [("base", "base_0.8B", muted_color), ("distill_3e-6", "dose_distill_lr3e-6_0.8B", "#eb6834"),
+            ("distill_1e-5", "dose_distill_lr1e-5_0.8B", "#e34948")]
+    results = {key: read_json(results_directory / "probe_generic" / f"{run}.json") for key, run, _ in runs}
+    if not all(results.values()):
+        return False
+    apply_shared_style(language)
+    figure, panels = plt.subplots(1, 2, figsize=(6.4, 2.6))
+    task_names = ["gsm8k", "math500"]
+    width = 0.26
+    for index, (key, _, color) in enumerate(runs):
+        tasks = results[key]["tasks"]
+        xs = [position + (index - 1) * width for position in range(len(task_names))]
+        panels[0].bar(xs, [tasks[t]["mean_completion_characters"] for t in task_names], width, color=color,
+                      label=run_labels[key][language])
+        panels[1].bar(xs, [100 * tasks[t]["share_cut_at_token_limit"] for t in task_names], width, color=color)
+    for panel, label in zip(panels, ("answer_characters", "cut_percent")):
+        panel.set_xticks(range(len(task_names)), [task_identities[t]["label"] for t in task_names])
+        panel.set_ylabel(words[label][language])
+        panel.grid(axis="x", visible=False)
+    panels[0].legend(frameon=False, fontsize=7, loc="upper left")
+    save_figure(figure, "answer_length_after_probe", language)
+    return True
+
+
+def draw_loss_by_source(language: str) -> bool:
+    """Held-out loss change per source for the distillation run, its ablation and the replay-only control (0.8B)."""
+    comparison = comparison_of_size("0.8B")
+    runs = [("distill_3e-6", "dose_distill_lr3e-6_0.8B", "#eb6834"), ("nosolutions", "dose_nosolutions_lr3e-6_0.8B", "#6250d6"),
+            ("control", "dose_control100m_lr3e-6_0.8B", muted_color)]
+    if not comparison or not all(run in comparison["runs"] for _, run, _ in runs):
+        return False
+    sources = sorted(comparison["runs"][runs[0][1]]["loss_change_percent"],
+                     key=lambda source: comparison["runs"][runs[0][1]]["loss_change_percent"][source])
+    apply_shared_style(language)
+    figure, axes = plt.subplots(figsize=(6.0, 3.4))
+    height = 0.26
+    for index, (key, run, color) in enumerate(runs):
+        changes = comparison["runs"][run]["loss_change_percent"]
+        axes.barh([row + (1 - index) * height for row in range(len(sources))], [changes.get(s, 0) for s in sources], height,
+                  color=color, label=run_labels[key][language])
+    axes.set_yticks(range(len(sources)), sources)
+    axes.axvline(0, color="#52514e", linewidth=0.8)
+    axes.set_xlabel(words["loss_change"][language])
+    axes.grid(axis="y", visible=False)
+    axes.legend(frameon=False, fontsize=7, loc="upper left")
+    save_figure(figure, "loss_by_source", language)
+    return True
+
+
+def draw_reliability_vs_reach(language: str) -> bool:
+    """After the generic probe: the change of pass@1 against the change of pass@16, per task and distillation run."""
+    points, markers_used = [], {}
+    for size, run, marker in (("0.8B", "dose_distill_lr3e-6_0.8B", "o"), ("0.8B", "dose_distill_lr1e-5_0.8B", "^"),
+                              ("2B", "dose_distill_lr3e-6_2B", "s"), ("4B", "dose_distill_lr3e-6_4B", "P"),
+                              ("9B", "dose_distill_lr3e-6_9B", "D")):
+        comparison = comparison_of_size(size)
+        if not comparison or run not in comparison["runs"]:
+            continue
+        for task_name, block in comparison["runs"][run]["generic_probe"].items():
+            if "pass@16" in block:
+                points.append((block["pass@1"]["difference"], block["pass@16"]["difference"], task_name, marker))
+                markers_used[marker] = f"{size}, {run.split('_lr')[1].split('_')[0]}"
+    if not points:
+        return False
+    apply_shared_style(language)
+    figure, axes = plt.subplots(figsize=(4.2, 3.6))
+    limit = max(abs(value) for point in points for value in point[:2]) + 1.5
+    axes.plot([-limit, limit], [-limit, limit], color="#c9c8c1", linewidth=1, linestyle="--")
+    axes.axhline(0, color="#52514e", linewidth=0.6)
+    axes.axvline(0, color="#52514e", linewidth=0.6)
+    for x, y, task_name, marker in points:
+        axes.plot(x, y, marker=marker, color=task_identities[task_name]["color"], markersize=5.5, linestyle="none",
+                  markeredgecolor="white", markeredgewidth=0.5)
+    for task_name in sorted({point[2] for point in points}):
+        axes.plot([], [], marker="o", linestyle="none", color=task_identities[task_name]["color"],
+                  label=task_identities[task_name]["label"])
+    axes.set_xlim(-limit, limit)
+    axes.set_ylim(-limit, limit)
+    axes.set_aspect("equal")
+    axes.set_xlabel(words["pass_at_1"][language])
+    axes.set_ylabel(words["pass_at_16"][language])
+    task_legend = axes.legend(frameon=False, fontsize=7, loc="upper left")
+    axes.add_artist(task_legend)
+    run_handles = [plt.Line2D([], [], marker=marker, linestyle="none", color=muted_color, label=label)
+                   for marker, label in markers_used.items()]
+    axes.legend(handles=run_handles, frameon=False, fontsize=7, loc="lower right")
+    save_figure(figure, "reliability_vs_reach", language)
+    return True
+
+
 def main() -> None:
     drawn = []
     for language in ("en", "zh"):
-        for draw in (draw_pilot_loss_change, draw_probe_pass_at_k, draw_design_main_effects, draw_dose_results):
+        for draw in (draw_pilot_loss_change, draw_probe_pass_at_k, draw_design_main_effects, draw_dose_results,
+                     draw_scaling_gains, draw_public_text_learning_rate, draw_teacher_attempts,
+                     draw_answer_length_after_probe, draw_loss_by_source, draw_reliability_vs_reach):
             if draw(language):
                 drawn.append(f"{draw.__name__.removeprefix('draw_')}_{language}")
     print("drew " + ", ".join(drawn) if drawn else "nothing to draw yet")
