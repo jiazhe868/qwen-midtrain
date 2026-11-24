@@ -57,6 +57,10 @@ the current batch, v3):
     # the first set's hard problems again, with 4,096 tokens per answer
     $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase solve --problem-set training_splits_hard --endpoint ... \
         --samples-per-problem 4 --maximum-new-tokens 4096 --temperature 0.8
+    # targeted solutions: the problems the student cannot solve yet (README §5.5), then their subsets and a recipe
+    CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase student-check \
+        --student-checkpoint $MIDTRAIN_MODELS/qwen35_9B_base --student 9B_base
+    $MIDTRAIN_PYTHON -m midtrain.synthetic_rephrase student-subset --student 9B_base
 """
 from __future__ import annotations
 
@@ -752,6 +756,205 @@ def summarize_teacher_attempts(problem_set: str) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# student-check and student-subset: which solved problems the student cannot solve yet, and their solutions
+# ---------------------------------------------------------------------------------------------------------------
+# Why. At 9B the first solution set raised few-shot GSM8K by 5.3 points, and a short generic fine-tune gave the base
+# model the same gain without any solutions (README §5.5, 11-24): the 9B model already knew most of what those
+# solutions show, and they mostly taught it to write out its working. The teacher's solutions that can still teach
+# the student are those of problems the student cannot solve by itself. `student-check` asks the student every
+# problem in the training format, with four teacher solutions as examples (so that it writes out its working as
+# the distilled model would), samples four answers and grades them with the teacher's own check. `student-subset`
+# keeps the solutions of the problems the student got right at most once, as a subset of each solutions source,
+# and writes a recipe that draws only on them.
+student_check_example_count = 4
+student_check_sample_count = 4
+
+
+def pick_teacher_examples(problem_kind: str) -> list[dict]:
+    """Four right teacher solutions of the first set, used as the examples of the student's prompt: GSM8K solutions
+    for GSM8K problems, MATH level-3 solutions from four different subjects for every other problem. Picked by a
+    fixed hash among solutions of moderate length, so the prompt stays well inside the student's context."""
+    records = read_json_lines(synthetic_directory(solution_problem_sets["training_splits"]["folder"]) / "solutions.jsonl")
+    if problem_kind == "gsm8k":
+        candidates = [record for record in records if record["is_correct"] and record["task"] == "gsm8k"
+                      and 250 <= len(record["solution"]) <= 700]
+    else:
+        candidates = [record for record in records if record["is_correct"] and record["task"] == "math"
+                      and record.get("level") == "Level 3" and 300 <= len(record["solution"]) <= 900]
+    candidates.sort(key=lambda record: hashlib.sha256(f"student examples {record['problem_id']}".encode()).hexdigest())
+    examples, subjects_taken, problems_taken = [], set(), set()
+    for record in candidates:
+        # a MATH problem id is math_train:<subject>:<row>; one example per subject keeps the prompt varied
+        subject = record["problem_id"].split(":")[1] if problem_kind == "math" else None
+        if record["problem_id"] in problems_taken or (subject is not None and subject in subjects_taken):
+            continue
+        examples.append(record)
+        problems_taken.add(record["problem_id"])
+        if subject is not None:
+            subjects_taken.add(subject)
+        if len(examples) == student_check_example_count:
+            break
+    assert len(examples) == student_check_example_count, f"only {len(examples)} examples for {problem_kind}"
+    return examples
+
+
+def render_student_prompt(problem_text: str, examples: list[dict]) -> str:
+    """The training documents' own format (publish_solutions_to_pool): `Question: …` then `Answer: …`, the examples
+    first and the open problem last."""
+    blocks = [f"Question: {example['problem']}\n\nAnswer: {example['solution']}" for example in examples]
+    blocks.append(f"Question: {problem_text}\n\nAnswer:")
+    return "\n\n\n".join(blocks)
+
+
+def check_student_on_training_problems(student_checkpoint: str, student_name: str, temperature: float,
+                                       maximum_new_tokens: int) -> dict:
+    """Ask the student every first-set problem and every NuminaMath problem the teacher solved; write each problem's
+    count of right answers to synthetic/student_checks/<student>.jsonl and a summary by group to
+    results/student_check_<student>.json.
+
+    All 14,262 first-set problems are asked, also those the first pass did not solve, because the hard pass
+    (`training_splits_hard`) solves some of them again and its solutions need the student's verdict too. A problem
+    that is one of the prompt's examples is skipped, since the prompt holds its answer. Results are appended in
+    chunks, so a stopped check continues where it ended."""
+    from midtrain import sft_probe
+    from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
+
+    first_set_records = read_json_lines(synthetic_directory(solution_problem_sets["training_splits"]["folder"]) / "solutions.jsonl")
+    problems: dict[str, dict] = {}
+    for record in first_set_records:
+        problems.setdefault(record["problem_id"], record)
+    for record in read_json_lines(synthetic_directory(solution_problem_sets["numina"]["folder"]) / "solutions.jsonl"):
+        if record["is_correct"]:
+            problems.setdefault(record["problem_id"], record)
+    examples_by_kind = {kind: pick_teacher_examples(kind) for kind in ("gsm8k", "math")}
+    example_problem_ids = {example["problem_id"] for examples in examples_by_kind.values() for example in examples}
+    output_directory = data_root() / "synthetic" / "student_checks"
+    output_directory.mkdir(parents=True, exist_ok=True)
+    output_path = output_directory / f"{student_name}.jsonl"
+    done_ids = {record["problem_id"] for record in read_json_lines(output_path)} if output_path.exists() else set()
+    to_do = [problem for problem_id, problem in problems.items()
+             if problem_id not in done_ids and problem_id not in example_problem_ids]
+    print(f"{len(problems):,} problems, {len(done_ids):,} already checked, {len(example_problem_ids)} are examples, "
+          f"{len(to_do):,} to do", flush=True)
+    port = sft_probe.port_for_this_process()
+    if to_do:
+        # prompts reach about 2,500 tokens (four examples and a long problem) before the 1,024-token answer
+        server_process = sft_probe.start_inference_server(student_checkpoint, port, output_directory / f"server_{student_name}.log",
+                                                          maximum_context_tokens=6144)
+        stop_token_ids = sft_probe.end_token_ids()
+        try:
+            chunk_size = 2048
+            for chunk_start in range(0, len(to_do), chunk_size):
+                chunk = to_do[chunk_start:chunk_start + chunk_size]
+                prompts = [render_student_prompt(problem["problem"], examples_by_kind["gsm8k" if problem["task"] == "gsm8k" else "math"])
+                           for problem in chunk]
+                with concurrent.futures.ThreadPoolExecutor(1024 // student_check_sample_count) as request_pool:
+                    answers = list(request_pool.map(
+                        lambda prompt: sft_probe.sample_completions(port, prompt, student_check_sample_count, maximum_new_tokens,
+                                                                    temperature, 1.0, ["\nQuestion:"], stop_token_ids),
+                        prompts))
+                with output_path.open("a", encoding="utf-8") as output_file:
+                    for problem, (texts, finish_reasons) in zip(chunk, answers):
+                        right_count = 0
+                        for text, finish_reason in zip(texts, finish_reasons):
+                            predicted = find_last_boxed_content(text)
+                            right_count += int(finish_reason == "stop" and predicted is not None
+                                               and is_math_answer_equivalent(predicted, problem["reference_answer"]))
+                        output_file.write(json.dumps({
+                            "problem_id": problem["problem_id"], "task": problem["task"], "level": problem.get("level"),
+                            "student_right": right_count, "samples": len(texts),
+                            "cut": sum(reason == "length" for reason in finish_reasons)}) + "\n")
+                print(f"checked {min(chunk_start + chunk_size, len(to_do)):,} of {len(to_do):,}", flush=True)
+        finally:
+            sft_probe.stop_inference_server(server_process)
+    records = read_json_lines(output_path)
+    groups: dict[str, dict] = {}
+    for record in records:
+        keys = [record["task"]]
+        if record["task"] == "math" and (record.get("level") or "").startswith("Level "):
+            keys.append(f"math/{record['level'].replace('Level ', 'level_')}")
+        for key in keys:
+            group = groups.setdefault(key, {"problems": 0, "right": 0, "samples": 0, "at_most_one_right": 0, "cut": 0})
+            group["problems"] += 1
+            group["right"] += record["student_right"]
+            group["samples"] += record["samples"]
+            group["cut"] += record["cut"]
+            group["at_most_one_right"] += int(record["student_right"] <= 1)
+    summary = {"student": student_name, "temperature": temperature, "maximum_new_tokens": maximum_new_tokens,
+               "samples_per_problem": student_check_sample_count, "problems": len(records), "groups": {
+                   key: {"problems": group["problems"], "right_share": round(group["right"] / group["samples"], 4),
+                         "cut_share": round(group["cut"] / group["samples"], 4),
+                         "share_with_at_most_one_right": round(group["at_most_one_right"] / group["problems"], 4)}
+                   for key, group in sorted(groups.items())}}
+    (repository_root / "results" / f"student_check_{student_name}.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(json.dumps(summary, indent=1))
+    return summary
+
+
+def write_subsets_the_student_cannot_solve(student_name: str, maximum_student_right: int, target_epochs: float,
+                                           maximum_total_share: float) -> dict:
+    """For each solutions source, the documents of the problems the student answered right at most
+    `maximum_student_right` times out of four, stored as the subset `fails_<student>`; then a recipe that replaces
+    the first set's 40% in dose_distill_100m.yaml by these subsets.
+
+    The subsets' share is set so that each kept solution is seen about `target_epochs` times in 100M tokens, at most
+    `maximum_total_share`; each source gets a share in proportion to its kept tokens, so every kept solution is seen
+    equally often, and what is left of the 40% goes to replay_web_edu, which changed nothing on its own (README §5.2)."""
+    from midtrain.mixture import make_subset_from_decisions
+
+    student_right = {record["problem_id"]: record["student_right"]
+                     for record in read_json_lines(data_root() / "synthetic" / "student_checks" / f"{student_name}.jsonl")}
+    subset_name = f"fails_{student_name}"
+    kept_tokens_by_source, report = {}, {"student": student_name, "maximum_student_right": maximum_student_right, "sources": {}}
+    for problem_set, settings in solution_problem_sets.items():
+        pool_source = settings["pool_source"]
+        pool_files = sorted((data_root() / "pool" / pool_source).glob("*.parquet"))
+        assert pool_files, f"the pool has no {pool_source}: publish and tokenize it first"
+        table = pa.concat_tables([pq.read_table(path, columns=["doc_id", "meta_json", "token_count"]) for path in pool_files])
+        problem_ids = [json.loads(meta)["problem_id"] for meta in table.column("meta_json").to_pylist()]
+        keep = [problem_id in student_right and student_right[problem_id] <= maximum_student_right for problem_id in problem_ids]
+        token_counts = table.column("token_count").to_pylist()
+        decisions_path = data_root() / "synthetic" / "student_checks" / f"decisions_{pool_source}_{subset_name}.parquet"
+        pq.write_table(pa.table({"doc_id": table.column("doc_id"), "keep": keep}), decisions_path)
+        make_subset_from_decisions(pool_source, subset_name, str(decisions_path), "keep")
+        kept_tokens_by_source[pool_source] = int(sum(count for count, is_kept in zip(token_counts, keep) if is_kept))
+        report["sources"][pool_source] = {
+            "documents": len(keep), "kept_documents": int(sum(keep)), "kept_tokens": kept_tokens_by_source[pool_source],
+            "kept_problems": len({problem_id for problem_id, is_kept in zip(problem_ids, keep) if is_kept}),
+            "problems_not_checked": len({problem_id for problem_id in problem_ids if problem_id not in student_right})}
+    base_recipe_path = repository_root / "configs" / "recipes" / "dose" / "dose_distill_100m.yaml"
+    import yaml
+
+    base_recipe = yaml.safe_load(base_recipe_path.read_text())
+    token_budget = base_recipe["token_budget"]
+    first_set_share = base_recipe["components"].pop("synthetic_solutions")
+    total_kept_tokens = sum(kept_tokens_by_source.values())
+    total_share = min(maximum_total_share, first_set_share, target_epochs * total_kept_tokens / token_budget)
+    shares = {source: round(total_share * tokens / total_kept_tokens, 4) for source, tokens in kept_tokens_by_source.items()}
+    components = {**shares, **base_recipe["components"]}
+    components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - sum(shares.values()), 4)
+    assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
+    report.update({"total_kept_tokens": total_kept_tokens, "share_of_kept_solutions": round(sum(shares.values()), 4),
+                   "epochs_of_each_kept_solution": round(sum(shares.values()) * token_budget / total_kept_tokens, 2)})
+    recipe_lines = [
+        f"# The distillation mixture with targeted solutions (README §5.5, §6.4), 100M tokens. Written by",
+        f"# `synthetic_rephrase.py student-subset --student {student_name}`. The first set's 40% is replaced by the solutions of",
+        f"# problems the student ({student_name}) answered right at most {maximum_student_right} times in 4 tries,",
+        f"# from all three solution sets: {total_kept_tokens / 1e6:.1f}M tokens, seen about "
+        f"{report['epochs_of_each_kept_solution']} times each. The rest of the 40% goes to replay_web_edu.",
+        f"token_budget: {token_budget}", f"context_length: {base_recipe['context_length']}", "components:"]
+    recipe_lines += [f"  {source}: {share}" for source, share in components.items()]
+    recipe_lines += [f"schedule: {base_recipe['schedule']}", f"seed: {base_recipe['seed']}", "subsets:"]
+    recipe_lines += [f"  {source}: {subset_name}" for source in shares]
+    recipe_path = repository_root / "configs" / "recipes" / "dose" / f"dose_distill_targeted_{student_name}_100m.yaml"
+    recipe_path.write_text("\n".join(recipe_lines) + "\n")
+    report["recipe"] = str(recipe_path.relative_to(repository_root))
+    (repository_root / "results" / f"student_subset_{student_name}.json").write_text(json.dumps(report, indent=1) + "\n")
+    print(json.dumps(report, indent=1))
+    return report
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # check-sample: the diversity gate on a batch's rewrites against the passages they were written from
 # ---------------------------------------------------------------------------------------------------------------
 def check_sample_against_parents(batch_name: str, documents_per_source: int, device: str, seed: int,
@@ -915,6 +1118,17 @@ def main() -> None:
     publish_solutions.add_argument("--maximum-per-problem", type=int, default=4)
     for command_parser in (solve, publish_solutions):
         command_parser.add_argument("--problem-set", choices=list(solution_problem_sets), default="training_splits")
+    student_check = commands.add_parser("student-check", help="which solved problems the student cannot solve yet")
+    student_check.add_argument("--student-checkpoint", required=True, help="the student model folder (a base model)")
+    student_check.add_argument("--student", required=True, help="a short name for files, such as 9B_base")
+    student_check.add_argument("--temperature", type=float, default=1.0, help="the teacher's own sampling temperature")
+    student_check.add_argument("--maximum-new-tokens", type=int, default=1024, help="the teacher's first-pass answer limit")
+    student_subset = commands.add_parser("student-subset", help="subsets and a recipe of the solutions the student lacks")
+    student_subset.add_argument("--student", required=True)
+    student_subset.add_argument("--maximum-student-right", type=int, default=1, help="out of four tries")
+    student_subset.add_argument("--target-epochs", type=float, default=2.5,
+                                help="times each kept solution is seen in 100M tokens (the first set: about 1.7)")
+    student_subset.add_argument("--maximum-total-share", type=float, default=0.40, help="the first set's share")
     publish = commands.add_parser("publish")
     for command_parser in (select, generate, check_sample, check_styles, publish):
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
@@ -939,6 +1153,12 @@ def main() -> None:
         summarize_teacher_attempts(arguments.problem_set)
     elif arguments.command == "publish-solutions":
         publish_solutions_to_pool(arguments.maximum_per_problem, arguments.problem_set)
+    elif arguments.command == "student-check":
+        check_student_on_training_problems(arguments.student_checkpoint, arguments.student, arguments.temperature,
+                                           arguments.maximum_new_tokens)
+    elif arguments.command == "student-subset":
+        write_subsets_the_student_cannot_solve(arguments.student, arguments.maximum_student_right, arguments.target_epochs,
+                                               arguments.maximum_total_share)
     elif arguments.command == "check-styles":
         check_styles_against_parents(arguments.batch, arguments.results_name, arguments.token_sample_size, arguments.device)
     elif arguments.command == "check-sample":

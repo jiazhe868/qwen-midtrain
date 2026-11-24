@@ -153,6 +153,20 @@
    "documents_of_at_least_4096_tokens": 0
   }
  },
+ "synthetic_solutions_hard": {
+  "train": {
+   "documents": 7251,
+   "tokens": 14030326,
+   "median_document_tokens": 1706,
+   "documents_of_at_least_4096_tokens": 42
+  },
+  "validation": {
+   "documents": 36,
+   "tokens": 70632,
+   "median_document_tokens": 1804,
+   "documents_of_at_least_4096_tokens": 0
+  }
+ },
  "synthetic_solutions_numina": {
   "train": {
    "documents": 21338,

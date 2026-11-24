@@ -118,6 +118,10 @@
      "documents": 482,
      "tokens": 344685
     },
+    "synthetic_solutions_hard": {
+     "documents": 402,
+     "tokens": 832821
+    },
     "synthetic_solutions_numina": {
      "documents": 74,
      "tokens": 58050
@@ -228,6 +232,10 @@
      "synthetic_solutions": {
       "documents": 40,
       "tokens": 16469
+     },
+     "synthetic_solutions_hard": {
+      "documents": 4,
+      "tokens": 5585
      }
     },
     "hellaswag": {
@@ -280,6 +288,10 @@
      "synthetic_solutions": {
       "documents": 6,
       "tokens": 4794
+     },
+     "synthetic_solutions_hard": {
+      "documents": 25,
+      "tokens": 65354
      },
      "synthetic_solutions_numina": {
       "documents": 11,
@@ -339,6 +351,10 @@
       "documents": 402,
       "tokens": 296115
      },
+     "synthetic_solutions_hard": {
+      "documents": 361,
+      "tokens": 740498
+     },
      "synthetic_solutions_numina": {
       "documents": 62,
       "tokens": 49250
@@ -384,6 +400,10 @@
      "synthetic_solutions": {
       "documents": 4,
       "tokens": 3396
+     },
+     "synthetic_solutions_hard": {
+      "documents": 5,
+      "tokens": 8161
      },
      "synthetic_solutions_numina": {
       "documents": 5,
@@ -434,6 +454,10 @@
      "synthetic_solutions": {
       "documents": 34,
       "tokens": 27307
+     },
+     "synthetic_solutions_hard": {
+      "documents": 12,
+      "tokens": 21384
      },
      "textbooks": {
       "documents": 51,
@@ -540,6 +564,10 @@
      "documents": 482,
      "tokens": 344685
     },
+    "synthetic_solutions_hard": {
+     "documents": 402,
+     "tokens": 832821
+    },
     "synthetic_solutions_numina": {
      "documents": 74,
      "tokens": 58050
@@ -604,6 +632,10 @@
    "documents": 45177,
    "tokens": 23243228
   },
+  "synthetic_solutions_hard": {
+   "documents": 7287,
+   "tokens": 14100958
+  },
   "synthetic_solutions_numina": {
    "documents": 21445,
    "tokens": 12967589
@@ -624,25 +656,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 5928,
-   "words": 3986,
-   "mostly_numbers": 2748,
+   "numbers": 5974,
+   "words": 4282,
+   "mostly_numbers": 2808,
    "alphabet": 872
   },
   "by_task": {
    "mbpp": {
-    "numbers": 3939,
+    "numbers": 3944,
     "alphabet": 872,
     "mostly_numbers": 60,
     "words": 108
    },
    "math500": {
-    "words": 2332,
-    "numbers": 122,
-    "mostly_numbers": 2431
+    "words": 2612,
+    "numbers": 143,
+    "mostly_numbers": 2491
    },
    "humaneval": {
-    "numbers": 5511,
+    "numbers": 5536,
     "mostly_numbers": 340,
     "words": 193,
     "alphabet": 75
@@ -651,7 +683,7 @@
     "words": 722
    },
    "mmlu_pro": {
-    "words": 343,
+    "words": 355,
     "mostly_numbers": 8
    },
    "triviaqa": {
@@ -661,7 +693,7 @@
     "words": 4
    },
    "gsm8k": {
-    "words": 55
+    "words": 59
    },
    "arc_challenge": {
     "words": 102

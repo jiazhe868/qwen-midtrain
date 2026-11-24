@@ -1,0 +1,54 @@
+{
+ "problem_set": "training_splits_hard",
+ "groups": {
+  "gsm8k": {
+   "attempts": 820,
+   "problems": 205,
+   "right_share": 0.122,
+   "cut_share": 0.0622,
+   "solved_problem_share": 0.2146
+  },
+  "math": {
+   "attempts": 9544,
+   "problems": 2386,
+   "right_share": 0.753,
+   "cut_share": 0.1789,
+   "solved_problem_share": 0.8554
+  },
+  "math/level_1": {
+   "attempts": 28,
+   "problems": 7,
+   "right_share": 0.8214,
+   "cut_share": 0.0,
+   "solved_problem_share": 0.8571
+  },
+  "math/level_2": {
+   "attempts": 348,
+   "problems": 87,
+   "right_share": 0.8218,
+   "cut_share": 0.0287,
+   "solved_problem_share": 0.8851
+  },
+  "math/level_3": {
+   "attempts": 992,
+   "problems": 248,
+   "right_share": 0.8296,
+   "cut_share": 0.0615,
+   "solved_problem_share": 0.8871
+  },
+  "math/level_4": {
+   "attempts": 2408,
+   "problems": 602,
+   "right_share": 0.8214,
+   "cut_share": 0.1026,
+   "solved_problem_share": 0.9037
+  },
+  "math/level_5": {
+   "attempts": 5768,
+   "problems": 1442,
+   "right_share": 0.7068,
+   "cut_share": 0.2408,
+   "solved_problem_share": 0.828
+  }
+ }
+}
