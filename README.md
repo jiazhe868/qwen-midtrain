@@ -24,8 +24,9 @@ the target. Hardware: four A100 40 GB GPUs on a workstation and A100 nodes of a 
 > helps: 100M tokens with 40% teacher solutions raise greedy GSM8K accuracy from 42.7 to 49.5 (+6.8 [+4.3, +9.3]) and
 > move MATH-500, HumanEval and MBPP up within their noise. After a generic fine-tune, the run at a learning rate of
 > 1e-5 gains 11.8 points on GSM8K and 7.1 on MATH-500. At 2B, already at 3e-6, the gains are +4.3 on GSM8K few-shot
-> and, after the fine-tune, +5.6 on GSM8K and +7.6 on MATH-500. The recipe now runs at 9B, with a control, an
-> ablation, a second seed and two held-out sets of word problems. The pool, the rewritten text, the probe data and
+> and, after the fine-tune, +5.6 on GSM8K and +7.6 on MATH-500. At 9B, the target, GSM8K rises from 87.1 to 92.4
+> (+5.3) and SVAMP by 5.1, with knowledge intact. Replay-only controls and the mixture without its solutions gain
+> nothing, so the solutions carry the gain. The pool, the rewritten text, the probe data and
 > every checkpoint are on the Hugging Face Hub (§2). Section 13 holds the predictions, written before any probe
 > result existed, with their outcomes so far. This file is updated with every result.
 
@@ -80,13 +81,14 @@ worse at a peak learning rate of 1e-5 and above, the replay-only control include
 where it was. The base model has already learnt what this text holds. What it has not seen is the reasoning of a
 stronger model. Therefore, I let the 27B teacher solve the training problems of GSM8K and MATH and kept the 45,177
 solutions whose final answers are right. With 40% of 100M tokens taken from these solutions, greedy GSM8K accuracy
-rises from 42.7 to 49.5, a gain of 6.8 points [+4.3, +9.3]; MATH-500, HumanEval and MBPP rise by 1 to 2 points
-within their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5,
-GSM8K pass@1 rises by 11.8 points and MATH-500 by 7.1. The 2B model shows the same at the lower rate: GSM8K +4.3
-few-shot, and +5.6 on GSM8K and +7.6 on MATH-500 after the fine-tune. **Distillation in mid-training works where more
-public text did not.** The
-next question is how far the gain carries beyond the problems that were solved. Two sets of word problems from other
-sources, a control, an ablation and the same recipe at 2B and 9B answer it.
+rises from 42.7 to 49.5, a gain of 6.8 points [+4.3, +9.3]; MATH-500, HumanEval and MBPP rise by 1 to 2 points within
+their noise, and knowledge holds. After a generic fine-tune the gain grows: at a peak learning rate of 1e-5, GSM8K
+pass@1 rises by 11.8 points and MATH-500 by 7.1. The 2B model shows the same at the lower rate: GSM8K +4.3 few-shot,
+and +5.6 on GSM8K and +7.6 on MATH-500 after the fine-tune. The 9B model, the target, gains 5.3 points on GSM8K and
+5.1 on SVAMP, a set of word problems written elsewhere, with knowledge intact. Replay-only controls at the same budget
+and rate, and the same mixture without its solutions, gain nothing: the solutions carry the gain. **Distillation in
+mid-training works where more public text did not.** The gain carries only partly beyond the problems that were
+solved: SVAMP keeps about half of the GSM8K gain at 2B and all of it at 9B, and MATH-500 moves only after a fine-tune.
 
 ## Contents
 
@@ -421,6 +423,20 @@ by 1.5 on GSM8K, both within noise. The distilled model is right more often on p
 already solve some of the time; it solves few new ones. For a later RL stage this means more right answers within
 each group of samples, and about as many problems with no right answer at all. The 2B run at 1e-5 is running.
 
+**The 9B model, the target, keeps the gain.** The same recipe at 3e-6 and 100M tokens took 25 hours on two of the
+workstation's GPUs (`results/comparisons/dose_vs_base_9B.json`):
+
+| 9B, distillation, LR 3e-6 | GSM8K | MATH-500 | HumanEval | MBPP | SVAMP | ASDiv-A | knowledge |
+|---|---|---|---|---|---|---|---|
+| base model, few-shot greedy | 87.1 | 55.2 | 58.5 | 73.2 | 87.5 | 97.6 | 54.6 |
+| run − base | **+5.3 [+3.7, +6.9]** | +1.0 [−2.8, +4.6] | 0.0 [−6.1, +6.1] | −0.4 [−4.3, +3.5] | **+5.1 [+3.3, +6.9]** | −0.2 [−1.1, +0.7] | +0.4 |
+
+From a base of 87.1, the share of GSM8K problems the model gets wrong falls from 12.9% to 7.6%, by 41%. At this size
+the gain carries in full to SVAMP (+5.1), where it carried half at 2B and less at 0.8B. Knowledge rises a little, and
+the held-out loss falls on 9 of 11 sources. MATH-500 does not move beyond its noise. A teacher that got 60% of the
+MATH training attempts right has little to teach a model that already solves 55% of MATH-500. The generic probe of
+the base 9B model is running.
+
 **The few-shot gain carries only partly to other word problems.** The solutions answer GSM8K and MATH training
 problems, and the GSM8K test comes from the same distribution. SVAMP (1,000 problems) and ASDiv-A (1,218) are word
 problems written elsewhere, answered from the same eight GSM8K examples; no solution shares a 13-gram with them
@@ -440,6 +456,28 @@ SVAMP keeps about half of the GSM8K gain at 2B and less at 0.8B. ASDiv-A, which 
 mixture of public text lowered SVAMP. **Most of the few-shot gain belongs to the distribution of the solved
 problems; some of it is a skill that travels.** A wider problem set (NuminaMath-1.5, being solved now) tests whether
 more varied problems carry further.
+
+**A wider problem set moves the gain; it does not grow it.** The first solution set covers two distributions. The
+second keeps 20% of it and gives the other 20% of tokens to teacher solutions of 20,000 NuminaMath-1.5 problems from
+three other sources: orca_math (grade-school word problems written by a model), cn_k12 (Chinese school exercises in
+English) and synthetic_math (new competition-style problems) (`synthetic_rephrase.py select-problems`,
+`configs/recipes/dose/dose_distill_numina_100m.yaml`). The gate removed 960 of the 26,000 drawn problems before the
+teacher saw them: about 350 share a 13-gram with a SVAMP or ASDiv-A item and 83 with a MATH-500 item, most of them in
+orca_math (`results/synthetic_solutions_numina_selection.json`). Two attempts per problem gave 21,445 right
+solutions of 11,367 problems, 12.9M tokens; the teacher got 74%, 47% and 38% of the attempts right on the three
+sources (`results/synthetic_solutions_numina_summary.json`). 0.8B, 100M tokens, LR 3e-6, each run minus the base:
+
+| solutions in the mixture | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 |
+|---|---|---|---|---|---|
+| first set, 40% | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.6 [−1.2, +4.5] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] |
+| first set 20% + NuminaMath 20% | **+4.4 [+2.0, +6.8]** | −0.4 [−4.0, +3.0] | **+3.6 [+1.0, +6.2]** | **+5.4 [+3.0, +7.8]** | +0.1 [−1.4, +1.5] |
+
+Half of the GSM8K training solutions buy back about two points of SVAMP, and nothing else moves. MATH-500 does not
+gain from the competition-style problems either. Two cautions come with the SVAMP column: orca_math writes problems
+of the SVAMP kind, so a gate that removes only near-copies (one shared 13-gram, or cosine 0.9) leaves problems close
+enough to help without being copies; and 37% of the teacher's attempts ran past its 1,024-token limit (half of them
+on cn_k12 and synthetic_math), so the kept solutions of the harder sources are the shorter ones. The second set stays
+in the pool; the 9B runs use the first.
 
 Caveats, plainly:
 - The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution, and

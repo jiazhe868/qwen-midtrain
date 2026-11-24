@@ -551,6 +551,143 @@
    },
    "tokens_seen": 100007936
   },
+  "dose_distill_numina_lr3e-6_0.8B": {
+   "few_shot_greedy": {
+    "gsm8k": {
+     "run": 47.08,
+     "base": 42.68,
+     "difference": 4.4,
+     "low": 2.05,
+     "high": 6.75,
+     "questions": 1319,
+     "without_matched_items": {
+      "difference": 4.33,
+      "low": 1.9,
+      "high": 6.61,
+      "questions": 1316
+     }
+    },
+    "math500": {
+     "run": 22.6,
+     "base": 23.0,
+     "difference": -0.4,
+     "low": -4.0,
+     "high": 3.0,
+     "questions": 500,
+     "without_matched_items": {
+      "difference": -0.89,
+      "low": -4.47,
+      "high": 2.46,
+      "questions": 447
+     }
+    },
+    "humaneval": {
+     "run": 22.56,
+     "base": 21.34,
+     "difference": 1.22,
+     "low": -2.44,
+     "high": 4.88,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 36.96,
+     "base": 37.35,
+     "difference": -0.39,
+     "low": -5.06,
+     "high": 4.28,
+     "questions": 257
+    },
+    "svamp": {
+     "run": 64.8,
+     "base": 61.2,
+     "difference": 3.6,
+     "low": 1.0,
+     "high": 6.2,
+     "questions": 1000
+    },
+    "asdiv_a": {
+     "run": 91.3,
+     "base": 90.23,
+     "difference": 1.07,
+     "low": -0.57,
+     "high": 2.63,
+     "questions": 1218
+    }
+   },
+   "generic_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 5.38,
+      "low": 3.0,
+      "high": 7.75,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 2.0,
+      "low": -3.0,
+      "high": 7.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 0.1,
+      "low": -1.38,
+      "high": 1.48,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 0.0,
+      "low": -5.6,
+      "high": 5.6,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.11,
+      "low": -1.41,
+      "high": 1.64,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": -1.22,
+      "low": -7.32,
+      "high": 5.49,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": 0.09,
+      "low": -1.5,
+      "high": 1.63,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -1.0,
+      "low": -5.5,
+      "high": 3.5,
+      "questions": 200
+     }
+    }
+   },
+   "knowledge_cloze_change": 0.22,
+   "loss_change_percent": {
+    "code": -2.12,
+    "forum_qa": 0.39,
+    "math_web": -1.47,
+    "math_web_extra": -2.23,
+    "papers": 0.51,
+    "reasoning_qa": -13.04,
+    "replay_web": -0.16,
+    "replay_web_edu": -0.25,
+    "textbooks": -1.18,
+    "wiki_en": -0.61,
+    "wiki_zh": -1.37
+   },
+   "tokens_seen": 100007936
+  },
   "dose_nosolutions_lr3e-6_0.8B": {
    "few_shot_greedy": {
     "gsm8k": {

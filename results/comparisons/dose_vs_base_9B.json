@@ -1,0 +1,87 @@
+{
+ "model_size": "9B",
+ "base": "base_9B",
+ "matched_items_left_out_by": "synthetic_solutions",
+ "runs": {
+  "dose_distill_lr3e-6_9B": {
+   "few_shot_greedy": {
+    "gsm8k": {
+     "run": 92.42,
+     "base": 87.11,
+     "difference": 5.31,
+     "low": 3.71,
+     "high": 6.9,
+     "questions": 1319,
+     "without_matched_items": {
+      "difference": 5.32,
+      "low": 3.72,
+      "high": 6.91,
+      "questions": 1316
+     }
+    },
+    "math500": {
+     "run": 56.2,
+     "base": 55.2,
+     "difference": 1.0,
+     "low": -2.8,
+     "high": 4.6,
+     "questions": 500,
+     "without_matched_items": {
+      "difference": 1.57,
+      "low": -2.24,
+      "high": 5.37,
+      "questions": 447
+     }
+    },
+    "humaneval": {
+     "run": 58.54,
+     "base": 58.54,
+     "difference": 0.0,
+     "low": -6.1,
+     "high": 6.1,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 72.76,
+     "base": 73.15,
+     "difference": -0.39,
+     "low": -4.28,
+     "high": 3.5,
+     "questions": 257
+    },
+    "svamp": {
+     "run": 92.6,
+     "base": 87.5,
+     "difference": 5.1,
+     "low": 3.3,
+     "high": 6.9,
+     "questions": 1000
+    },
+    "asdiv_a": {
+     "run": 97.45,
+     "base": 97.62,
+     "difference": -0.16,
+     "low": -1.07,
+     "high": 0.74,
+     "questions": 1218
+    }
+   },
+   "generic_probe": {},
+   "knowledge_cloze_change": 0.43,
+   "loss_change_percent": {
+    "code": -1.99,
+    "forum_qa": 0.5,
+    "math_web": -0.88,
+    "math_web_extra": -1.83,
+    "papers": 0.22,
+    "reasoning_qa": -13.75,
+    "replay_web": -0.24,
+    "replay_web_edu": -0.23,
+    "textbooks": -1.57,
+    "wiki_en": -0.25,
+    "wiki_zh": -0.73
+   },
+   "tokens_seen": 100007936
+  }
+ }
+}
