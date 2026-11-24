@@ -1,0 +1,14 @@
+{
+ "problems": 20000,
+ "solutions": 40000,
+ "correct": 21445,
+ "problems_with_a_correct_solution": 11367,
+ "published_solutions": 21445,
+ "published_tokens": 12967589,
+ "maximum_per_problem": 2,
+ "correct_share_by_task": {
+  "cn_k12": 0.3787,
+  "orca_math": 0.7379,
+  "synthetic_math": 0.4693
+ }
+}

@@ -153,6 +153,20 @@
    "documents_of_at_least_4096_tokens": 0
   }
  },
+ "synthetic_solutions_numina": {
+  "train": {
+   "documents": 21338,
+   "tokens": 12902564,
+   "median_document_tokens": 582,
+   "documents_of_at_least_4096_tokens": 0
+  },
+  "validation": {
+   "documents": 107,
+   "tokens": 65025,
+   "median_document_tokens": 586,
+   "documents_of_at_least_4096_tokens": 0
+  }
+ },
  "textbooks": {
   "train": {
    "documents": 93611,

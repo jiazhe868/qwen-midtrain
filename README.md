@@ -440,14 +440,13 @@ Caveats, plainly:
 - The solutions answer training problems of GSM8K and MATH, so the GSM8K test is close to their distribution, and
   the table above shows that part of the gain stays there. The 13-grams of SVAMP and ASDiv-A occur in 17 of the
   4.26M pool documents, all of them math web pages, and in no solution.
-- The solutions were checked against the test sets after training. 433 of the 45,177 share a 13-gram with a test
-  item: 377 with MATH-500 items, mostly through the fixed wording of MATH problems ("enter your answer in the form";
-  53 of the 500 items are matched), and 16 with three GSM8K test problems that have a near-copy among the GSM8K
-  training problems (`data_hygiene.py decontaminate --leave-out-few-shot-files`,
-  `results/hygiene_decontamination_solutions.json`). On the 1,316 GSM8K problems that no solution matches, the gain is
-  the same, +6.8 [+4.4, +9.2] (`data_hygiene.py matched-items`, then `without_matched_items` in
-  `results/comparisons/dose_vs_base_0.8B.json`). The flagged solutions stay in the source, so that every run of this
-  recipe sees the same data.
+- The solutions passed the decontamination gate when they were published (11-22, `results/hygiene_decontamination.json`):
+  482 of the 45,177 share a 13-gram with a test item or a few-shot example (433 with a tested item alone,
+  `results/hygiene_decontamination_solutions.json`), and the sampler leaves them out of every run. Most matches are the fixed wording of MATH problems ("enter your answer in the form"); 16 answer three GSM8K
+  training problems that are near-copies of GSM8K test problems. As a second check, every test item that any solution
+  touches was listed (`data_hygiene.py matched-items`: 3 GSM8K and 53 MATH-500 items). On the 1,316 GSM8K problems that
+  no solution touches, the gain is the same, +6.8 [+4.4, +9.2] (`without_matched_items` in
+  `results/comparisons/dose_vs_base_0.8B.json`).
 - One seed per run. The intervals cover the questions, not the training run; a second seed is running.
 - The recipe differs from the runs that did not help in two ways: the solutions, and a mixture that is mostly
   question-answer text and code. The replay-only controls at the same budget and rate (0.8B and 2B) move nothing, so

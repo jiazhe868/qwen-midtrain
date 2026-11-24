@@ -15,6 +15,11 @@
    "ngram_keys": 15146,
    "items_without_ngram_key": 52
   },
+  "asdiv_a": {
+   "items": 1218,
+   "ngram_keys": 21514,
+   "items_without_ngram_key": 0
+  },
   "cmmlu": {
    "items": 1005,
    "ngram_keys": 26822,
@@ -26,8 +31,8 @@
    "items_without_ngram_key": 120
   },
   "gsm8k": {
-   "items": 1327,
-   "ngram_keys": 162795,
+   "items": 1343,
+   "ngram_keys": 164373,
    "items_without_ngram_key": 0
   },
   "hellaswag": {
@@ -55,6 +60,11 @@
    "ngram_keys": 56658,
    "items_without_ngram_key": 21
   },
+  "svamp": {
+   "items": 1000,
+   "ngram_keys": 20795,
+   "items_without_ngram_key": 0
+  },
   "triviaqa": {
    "items": 1008,
    "ngram_keys": 3678,
@@ -73,16 +83,16 @@
      "tokens": 534747
     },
     "math_web": {
-     "documents": 3095,
-     "tokens": 16557818
+     "documents": 3098,
+     "tokens": 16561069
     },
     "math_web_extra": {
-     "documents": 3103,
-     "tokens": 14210652
+     "documents": 3117,
+     "tokens": 14248938
     },
     "papers": {
-     "documents": 829,
-     "tokens": 26702159
+     "documents": 832,
+     "tokens": 26740507
     },
     "reasoning_qa": {
      "documents": 3822,
@@ -107,6 +117,10 @@
     "synthetic_solutions": {
      "documents": 482,
      "tokens": 344685
+    },
+    "synthetic_solutions_numina": {
+     "documents": 74,
+     "tokens": 58050
     },
     "textbooks": {
      "documents": 248,
@@ -150,6 +164,20 @@
      "wiki_en": {
       "documents": 7,
       "tokens": 16785
+     }
+    },
+    "asdiv_a": {
+     "math_web": {
+      "documents": 3,
+      "tokens": 3251
+     },
+     "math_web_extra": {
+      "documents": 14,
+      "tokens": 38286
+     },
+     "papers": {
+      "documents": 3,
+      "tokens": 38348
      }
     },
     "cmmlu": {
@@ -253,6 +281,10 @@
       "documents": 6,
       "tokens": 4794
      },
+     "synthetic_solutions_numina": {
+      "documents": 11,
+      "tokens": 8049
+     },
      "textbooks": {
       "documents": 96,
       "tokens": 555951
@@ -307,6 +339,10 @@
       "documents": 402,
       "tokens": 296115
      },
+     "synthetic_solutions_numina": {
+      "documents": 62,
+      "tokens": 49250
+     },
      "textbooks": {
       "documents": 50,
       "tokens": 278010
@@ -348,6 +384,10 @@
      "synthetic_solutions": {
       "documents": 4,
       "tokens": 3396
+     },
+     "synthetic_solutions_numina": {
+      "documents": 5,
+      "tokens": 3711
      },
      "textbooks": {
       "documents": 89,
@@ -402,6 +442,12 @@
      "wiki_en": {
       "documents": 1,
       "tokens": 1046
+     }
+    },
+    "svamp": {
+     "math_web_extra": {
+      "documents": 2,
+      "tokens": 2588
      }
     },
     "triviaqa": {
@@ -459,16 +505,16 @@
      "tokens": 534747
     },
     "math_web": {
-     "documents": 3095,
-     "tokens": 16557818
+     "documents": 3098,
+     "tokens": 16561069
     },
     "math_web_extra": {
-     "documents": 3103,
-     "tokens": 14210652
+     "documents": 3117,
+     "tokens": 14248938
     },
     "papers": {
-     "documents": 829,
-     "tokens": 26702159
+     "documents": 832,
+     "tokens": 26740507
     },
     "reasoning_qa": {
      "documents": 3822,
@@ -493,6 +539,10 @@
     "synthetic_solutions": {
      "documents": 482,
      "tokens": 344685
+    },
+    "synthetic_solutions_numina": {
+     "documents": 74,
+     "tokens": 58050
     },
     "textbooks": {
      "documents": 248,
@@ -554,6 +604,10 @@
    "documents": 45177,
    "tokens": 23243228
   },
+  "synthetic_solutions_numina": {
+   "documents": 21445,
+   "tokens": 12967589
+  },
   "textbooks": {
    "documents": 94096,
    "tokens": 226955391
@@ -570,27 +624,27 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 5904,
-   "words": 3928,
-   "mostly_numbers": 2736,
+   "numbers": 5928,
+   "words": 3986,
+   "mostly_numbers": 2748,
    "alphabet": 872
   },
   "by_task": {
    "mbpp": {
-    "numbers": 3934,
+    "numbers": 3939,
     "alphabet": 872,
     "mostly_numbers": 60,
     "words": 108
    },
    "math500": {
-    "words": 2294,
-    "numbers": 110,
-    "mostly_numbers": 2419
+    "words": 2332,
+    "numbers": 122,
+    "mostly_numbers": 2431
    },
    "humaneval": {
-    "numbers": 5501,
+    "numbers": 5511,
     "mostly_numbers": 340,
-    "words": 192,
+    "words": 193,
     "alphabet": 75
    },
    "cmmlu": {
@@ -611,6 +665,12 @@
    },
    "arc_challenge": {
     "words": 102
+   },
+   "asdiv_a": {
+    "words": 20
+   },
+   "svamp": {
+    "words": 2
    },
    "commonsenseqa": {
     "words": 4

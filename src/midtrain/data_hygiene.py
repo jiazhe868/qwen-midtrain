@@ -94,7 +94,7 @@ def load_evaluation_items(evaluation_directory, include_few_shot_files: bool = T
 
     A pool source is gated with the shots included (a leaked shot is still a leaked benchmark item). A source made
     from training splits is also checked without them: its own problems are the shots' neighbours by construction,
-    and the question there is which tested items it touches (PITFALLS A4)."""
+    and the question there is which tested items it touches (README §1.2)."""
     evaluation_paths = sorted(path for path in Path(evaluation_directory).glob("*.jsonl")
                               if include_few_shot_files or not path.name.endswith("_fewshot.jsonl"))
     assert evaluation_paths, f"no evaluation file (*.jsonl) in {evaluation_directory}"
@@ -953,7 +953,7 @@ def find_evaluation_items_matched_by_source(source_name: str, task_names: list[s
     say which test items a source touches: a solution can match several. This looks up every key of every document
     in a set (45,177 solutions in about 25 seconds, 11-23) and writes the item ids to
     $MIDTRAIN_DATA/hygiene/matched_items_<source>.json, where `mixing_law.py compare-with-base` reads them to report
-    each gain without the matched items (README §1.2, PITFALLS A4). Few-shot files are not read: a shot is not tested.
+    each gain without the matched items (README §1.2). Few-shot files are not read: a shot is not tested.
     """
     evaluation_items = []
     for task_name in task_names:

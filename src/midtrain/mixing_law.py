@@ -511,7 +511,7 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
     The tables of README §1.2 are read from the file this writes, results/comparisons/dose_vs_base_<size>.json, so
     that every number there traces to one command. A run is left out of a block when it or the base lacks that
     result; a test set is compared only on questions both answered. Each greedy difference is also given without the
-    test items that `without_items_matched_by` touches (`data_hygiene.py matched-items`; PITFALLS A4), as
+    test items that `without_items_matched_by` touches (`data_hygiene.py matched-items`; README §1.2), as
     `without_matched_items`, when that file exists.
     """
     matched_item_ids: set = set()
