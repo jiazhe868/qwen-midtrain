@@ -854,7 +854,8 @@ def render_student_prompt(problem_text: str, examples: list[dict]) -> str:
 
 
 def check_student_on_training_problems(student_checkpoint: str, student_name: str, temperature: float,
-                                       maximum_new_tokens: int) -> dict:
+                                       maximum_new_tokens: int, first_set_only: bool = False,
+                                       save_right_answers: bool = False) -> dict:
     """Ask the student every first-set problem and every NuminaMath problem the teacher solved; write each problem's
     count of right answers to synthetic/student_checks/<student>.jsonl and a summary by group to
     results/student_check_<student>.json.
@@ -862,7 +863,10 @@ def check_student_on_training_problems(student_checkpoint: str, student_name: st
     All 14,262 first-set problems are asked, also those the first pass did not solve, because the hard pass
     (`training_splits_hard`) solves some of them again and its solutions need the student's verdict too. A problem
     that is one of the prompt's examples is skipped, since the prompt holds its answer. Results are appended in
-    chunks, so a stopped check continues where it ended."""
+    chunks, so a stopped check continues where it ended.
+
+    `first_set_only` leaves NuminaMath out, and `save_right_answers` keeps the text of the student's right answers:
+    both for the 2B decomposition (README §5.6), which trains the 2B model on its own right answers."""
     from midtrain import sft_probe
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
@@ -870,9 +874,10 @@ def check_student_on_training_problems(student_checkpoint: str, student_name: st
     problems: dict[str, dict] = {}
     for record in first_set_records:
         problems.setdefault(record["problem_id"], record)
-    for record in read_json_lines(synthetic_directory(solution_problem_sets["numina"]["folder"]) / "solutions.jsonl"):
-        if record["is_correct"]:
-            problems.setdefault(record["problem_id"], record)
+    if not first_set_only:
+        for record in read_json_lines(synthetic_directory(solution_problem_sets["numina"]["folder"]) / "solutions.jsonl"):
+            if record["is_correct"]:
+                problems.setdefault(record["problem_id"], record)
     examples_by_kind = {kind: pick_teacher_examples(kind) for kind in ("gsm8k", "math")}
     example_problem_ids = {example["problem_id"] for examples in examples_by_kind.values() for example in examples}
     output_directory = data_root() / "synthetic" / "student_checks"
@@ -902,15 +907,18 @@ def check_student_on_training_problems(student_checkpoint: str, student_name: st
                         prompts))
                 with output_path.open("a", encoding="utf-8") as output_file:
                     for problem, (texts, finish_reasons) in zip(chunk, answers):
-                        right_count = 0
+                        right_answers = []
                         for text, finish_reason in zip(texts, finish_reasons):
                             predicted = find_last_boxed_content(text)
-                            right_count += int(finish_reason == "stop" and predicted is not None
-                                               and is_math_answer_equivalent(predicted, problem["reference_answer"]))
-                        output_file.write(json.dumps({
-                            "problem_id": problem["problem_id"], "task": problem["task"], "level": problem.get("level"),
-                            "student_right": right_count, "samples": len(texts),
-                            "cut": sum(reason == "length" for reason in finish_reasons)}) + "\n")
+                            if (finish_reason == "stop" and predicted is not None
+                                    and is_math_answer_equivalent(predicted, problem["reference_answer"])):
+                                right_answers.append(text.strip())
+                        record = {"problem_id": problem["problem_id"], "task": problem["task"], "level": problem.get("level"),
+                                  "student_right": len(right_answers), "samples": len(texts),
+                                  "cut": sum(reason == "length" for reason in finish_reasons)}
+                        if save_right_answers:
+                            record["right_answers"] = right_answers
+                        output_file.write(json.dumps(record, ensure_ascii=False) + "\n")
                 print(f"checked {min(chunk_start + chunk_size, len(to_do)):,} of {len(to_do):,}", flush=True)
         finally:
             sft_probe.stop_inference_server(server_process)
@@ -997,6 +1005,97 @@ def write_subsets_the_student_cannot_solve(student_name: str, maximum_student_ri
     recipe_path.write_text("\n".join(recipe_lines) + "\n")
     report["recipe"] = str(recipe_path.relative_to(repository_root))
     (repository_root / "results" / f"student_subset_{student_name}.json").write_text(json.dumps(report, indent=1) + "\n")
+    print(json.dumps(report, indent=1))
+    return report
+
+
+def write_first_set_decomposition(student_name: str, maximum_student_right_of_fails: int = 1) -> dict:
+    """Split the first solution set by what the student can already do: a direct test of the main lesson, that
+    mid-training helps when the data teaches what the model does not know (README §5.6).
+
+    Three recipes come out, each with one kind of solutions in place of the first set:
+      fails    the teacher's solutions of the problems the student answers right at most once in four tries
+      solves   the teacher's solutions of the problems the student already solves (twice or more in four)
+      self     the student's own right answers to those same problems, in place of the teacher's
+    Every kept solution is seen as often as in the full run (its 40% of 100M tokens over the first set's train
+    tokens, about 1.7 times), so the solutions of the full run are exactly `fails` and `solves` put together; the
+    share a recipe does not use goes to replay_web_edu. `solves` against `self` changes only who wrote the text."""
+    import yaml
+
+    from midtrain.mixture import make_subset_from_decisions
+
+    student_records = {record["problem_id"]: record
+                       for record in read_json_lines(data_root() / "synthetic" / "student_checks" / f"{student_name}.jsonl")}
+    pool_source = solution_problem_sets["training_splits"]["pool_source"]
+    table = pa.concat_tables([pq.read_table(path, columns=["doc_id", "meta_json"])
+                              for path in sorted((data_root() / "pool" / pool_source).glob("*.parquet"))])
+    problem_ids = [json.loads(meta)["problem_id"] for meta in table.column("meta_json").to_pylist()]
+    train_offsets = np.load(data_root() / "tokens" / pool_source / "train.document_offsets.npy")
+    first_set_train_tokens = int(train_offsets[-1])
+    base_recipe = yaml.safe_load((repository_root / "configs" / "recipes" / "dose" / "dose_distill_100m.yaml").read_text())
+    token_budget = base_recipe["token_budget"]
+    first_set_share = base_recipe["components"].pop("synthetic_solutions")
+    passes_of_the_full_run = first_set_share * token_budget / first_set_train_tokens
+
+    def write_recipe(kind: str, source: str, share: float, subset_name: str | None, kept_tokens: int) -> str:
+        components = {source: round(share, 4), **base_recipe["components"]}
+        components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - components[source], 4)
+        assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
+        lines = [f"# The first solution set split by what the student ({student_name}) can already do (README §5.6): `{kind}`.",
+                 f"# Written by `synthetic_rephrase.py decompose-first-set`: {kept_tokens / 1e6:.1f}M tokens, seen about",
+                 f"# {passes_of_the_full_run:.2f} times each as in the full run; the rest of its 40% goes to replay_web_edu.",
+                 f"token_budget: {token_budget}", f"context_length: {base_recipe['context_length']}", "components:"]
+        lines += [f"  {name}: {value}" for name, value in components.items()]
+        lines += [f"schedule: {base_recipe['schedule']}", f"seed: {base_recipe['seed']}"]
+        if subset_name:
+            lines += ["subsets:", f"  {source}: {subset_name}"]
+        recipe_path = repository_root / "configs" / "recipes" / "dose" / f"dose_distill_{kind}_{student_name}_100m.yaml"
+        recipe_path.write_text("\n".join(lines) + "\n")
+        return str(recipe_path.relative_to(repository_root))
+
+    report = {"student": student_name, "passes_over_each_kept_solution": round(passes_of_the_full_run, 3), "kinds": {}}
+    is_in_kind = {
+        "fails": lambda problem_id: problem_id in student_records
+        and student_records[problem_id]["student_right"] <= maximum_student_right_of_fails,
+        "solves": lambda problem_id: problem_id in student_records
+        and student_records[problem_id]["student_right"] > maximum_student_right_of_fails}
+    for kind, belongs in is_in_kind.items():
+        subset_name = f"{kind}_{student_name}"
+        decisions_path = data_root() / "synthetic" / "student_checks" / f"decisions_{pool_source}_{subset_name}.parquet"
+        pq.write_table(pa.table({"doc_id": table.column("doc_id"), "keep": [belongs(problem_id) for problem_id in problem_ids]}),
+                       decisions_path)
+        make_subset_from_decisions(pool_source, subset_name, str(decisions_path), "keep")
+        positions = np.load(data_root() / "subsets" / pool_source / f"{subset_name}.document_positions.npy")
+        kept_tokens = int((train_offsets[positions + 1] - train_offsets[positions]).sum())
+        share = passes_of_the_full_run * kept_tokens / token_budget
+        report["kinds"][kind] = {"train_documents": int(len(positions)), "train_tokens": kept_tokens, "share": round(share, 4),
+                                 "problems": len({problem_id for problem_id in set(problem_ids) if belongs(problem_id)}),
+                                 "recipe": write_recipe(kind, pool_source, share, subset_name, kept_tokens)}
+    # the student's own right answers to the problems it already solves, as a pool source of their own
+    from transformers import AutoTokenizer
+
+    problem_texts = {}
+    for record in read_json_lines(synthetic_directory(solution_problem_sets["training_splits"]["folder"]) / "solutions.jsonl"):
+        problem_texts.setdefault(record["problem_id"], record["problem"])
+    self_source = f"synthetic_solutions_self_{student_name}"
+    texts, metas = [], []
+    problems_with_a_teacher_solution = set(problem_ids)      # the same problems as `solves`: only the writer changes
+    for problem_id, record in student_records.items():
+        if not is_in_kind["solves"](problem_id) or problem_id not in problems_with_a_teacher_solution:
+            continue
+        assert "right_answers" in record, "run student-check with --save-right-answers"
+        for answer_index, answer_text in enumerate(dict.fromkeys(record["right_answers"])):      # distinct, in order
+            texts.append(f"Question: {problem_texts[problem_id]}\n\nAnswer: {answer_text}")
+            metas.append({"problem_id": problem_id, "task": record["task"], "sample_index": answer_index,
+                          "generator": student_name})
+    token_counts = [len(ids) for ids in AutoTokenizer.from_pretrained(tokenizer_path())(texts, add_special_tokens=False)["input_ids"]]
+    write_pool_rows(self_source, [document_id_for_text(self_source, text) for text in texts], texts, token_counts, metas)
+    self_tokens = int(sum(token_counts))
+    share = min(first_set_share, passes_of_the_full_run * self_tokens / token_budget)
+    report["kinds"]["self"] = {"documents": len(texts), "tokens": self_tokens, "share": round(share, 4),
+                               "problems": len({meta["problem_id"] for meta in metas}),
+                               "recipe": write_recipe("self", self_source, share, None, self_tokens)}
+    (repository_root / "results" / f"first_set_decomposition_{student_name}.json").write_text(json.dumps(report, indent=1) + "\n")
     print(json.dumps(report, indent=1))
     return report
 
@@ -1203,12 +1302,16 @@ def main() -> None:
     student_check.add_argument("--student", required=True, help="a short name for files, such as 9B_base")
     student_check.add_argument("--temperature", type=float, default=1.0, help="the teacher's own sampling temperature")
     student_check.add_argument("--maximum-new-tokens", type=int, default=1024, help="the teacher's first-pass answer limit")
+    student_check.add_argument("--first-set-only", action="store_true", help="leave the NuminaMath problems out")
+    student_check.add_argument("--save-right-answers", action="store_true", help="keep the text of the right answers")
     student_subset = commands.add_parser("student-subset", help="subsets and a recipe of the solutions the student lacks")
     student_subset.add_argument("--student", required=True)
     student_subset.add_argument("--maximum-student-right", type=int, default=1, help="out of four tries")
     student_subset.add_argument("--target-epochs", type=float, default=2.5,
                                 help="times each kept solution is seen in 100M tokens (the first set: about 1.7)")
     student_subset.add_argument("--maximum-total-share", type=float, default=0.40, help="the first set's share")
+    decompose = commands.add_parser("decompose-first-set", help="the first set split by what the student already solves")
+    decompose.add_argument("--student", required=True)
     solutions_recipe = commands.add_parser("solutions-recipe", help="a recipe with one solutions source in place of the first set")
     solutions_recipe.add_argument("--pool-source", required=True)
     solutions_recipe.add_argument("--recipe-name", required=True)
@@ -1241,7 +1344,10 @@ def main() -> None:
         publish_solutions_to_pool(arguments.maximum_per_problem, arguments.problem_set)
     elif arguments.command == "student-check":
         check_student_on_training_problems(arguments.student_checkpoint, arguments.student, arguments.temperature,
-                                           arguments.maximum_new_tokens)
+                                           arguments.maximum_new_tokens, arguments.first_set_only,
+                                           arguments.save_right_answers)
+    elif arguments.command == "decompose-first-set":
+        write_first_set_decomposition(arguments.student)
     elif arguments.command == "solutions-recipe":
         write_recipe_with_solutions_source(arguments.pool_source, arguments.recipe_name, arguments.target_epochs,
                                            arguments.maximum_total_share, arguments.context_length)
