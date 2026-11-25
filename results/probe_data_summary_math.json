@@ -1,0 +1,14 @@
+{
+ "conversations": 10842,
+ "dropped_as_too_long": 58,
+ "tokens": 4666719,
+ "tokens_with_loss": 3298697,
+ "conversations_by_source": {
+  "numina_teacher_solutions": 4000,
+  "everyday_conversation": 800,
+  "summarization": 743,
+  "code_instructions": 2999,
+  "rewriting": 800,
+  "instruction_following": 1500
+ }
+}

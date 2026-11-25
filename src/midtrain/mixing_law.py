@@ -523,10 +523,14 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
 
     base_name = f"base_{model_size}"
     folders = {block: repository_root / "results" / block
-               for block in ("final_eval", "probe_generic", "probe_generic_long", "regression", "training")}
+               for block in ("final_eval", "probe_generic", "probe_generic_long", "probe_math", "regression", "training")}
     base_final = read_json_if_present(folders["final_eval"] / f"{base_name}.json")
     base_probe = read_json_if_present(folders["probe_generic"] / f"{base_name}.json")
-    base_probe_long = read_json_if_present(folders["probe_generic_long"] / f"{base_name}.json")
+    # the other probes, each compared like the generic one: the same fine-tune sampled with longer answer limits
+    # (README §6.4), and the fine-tune that also holds math solutions (README §5.9)
+    other_probes = {"generic_probe_long": "probe_generic_long", "math_probe": "probe_math"}
+    base_of_other_probe = {block: read_json_if_present(folders[folder] / f"{base_name}.json")
+                           for block, folder in other_probes.items()}
     base_regression = read_json_if_present(folders["regression"] / f"{base_name}.json")
     assert base_final, f"no greedy final evaluation of {base_name}"
     # a run of this size ends in the size (dose_distill_lr3e-6_0.8B) or carries it before a suffix (..._0.8B_merge25)
@@ -576,14 +580,15 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
                 run_result["few_shot_greedy_on_probe_items"][task_name] = {
                     "run": round(100.0 * float(np.mean(run_values)), 2), "base": round(100.0 * float(np.mean(base_values)), 2),
                     **paired_difference_with_interval(run_values, base_values)}
-        # the same fine-tune sampled with longer answer limits (README §6.4), for runs trained on long thinking traces
-        run_probe_long = read_json_if_present(folders["probe_generic_long"] / f"{run_name}.json")
-        if run_probe_long and base_probe_long:
-            run_result["generic_probe_long"] = {}
-            for task_name, task in run_probe_long["tasks"].items():
-                base_task = base_probe_long["tasks"][task_name]
-                assert task["item_ids"] == base_task["item_ids"], f"{run_name} {task_name}: different long-probe questions"
-                run_result["generic_probe_long"][task_name] = {
+        for block, folder in other_probes.items():
+            run_other_probe = read_json_if_present(folders[folder] / f"{run_name}.json")
+            if not (run_other_probe and base_of_other_probe[block]):
+                continue
+            run_result[block] = {}
+            for task_name, task in run_other_probe["tasks"].items():
+                base_task = base_of_other_probe[block]["tasks"][task_name]
+                assert task["item_ids"] == base_task["item_ids"], f"{run_name} {task_name}: different questions in {folder}"
+                run_result[block][task_name] = {
                     f"pass@{k}": paired_difference_with_interval(
                         [estimate_pass_at_k(count, task["sample_count"], k) for count in task["correct_counts"]],
                         [estimate_pass_at_k(count, task["sample_count"], k) for count in base_task["correct_counts"]])

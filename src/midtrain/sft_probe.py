@@ -58,6 +58,9 @@ probe_variants = {
     # the generic probe's fine-tune with longer answer limits, for models trained on long thinking traces (README §6.4)
     "generic_long": {"configuration": "probe_generic_long.yaml", "data_folder": "probe_generic",
                      "results_folder": "probe_generic_long"},
+    # the generic probe's data plus the teacher's solutions of other math problems (NuminaMath): does a gain from
+    # mid-training on solutions survive a fine-tune that itself contains math solutions? (README §5.9)
+    "math": {"configuration": "probe_math.yaml", "data_folder": "probe_math", "results_folder": "probe_math"},
 }
 active_probe_variant = {"name": "in_domain"}
 
@@ -138,6 +141,20 @@ def collect_probe_conversations(configuration: dict) -> list[dict]:
         take_math_training_solutions(take, question_then_answer, seed)
     if wanted.get("mbpp_train"):
         take_mbpp_training_programs(take, question_then_answer)
+    if wanted.get("numina_teacher_solutions"):
+        # The teacher's checked solutions of NuminaMath problems (synthetic_rephrase.py), one per problem: math
+        # fine-tuning data without any problem of the tested tasks. The problems passed the decontamination gate
+        # before the teacher saw them.
+        from midtrain.synthetic_rephrase import read_json_lines, solution_problem_sets, synthetic_directory
+
+        first_right_solution: dict[str, dict] = {}
+        for record in read_json_lines(synthetic_directory(solution_problem_sets["numina"]["folder"]) / "solutions.jsonl"):
+            if record["is_correct"]:
+                first_right_solution.setdefault(record["problem_id"], record)
+        numina_records = list(first_right_solution.values())
+        np.random.default_rng(seed).shuffle(numina_records)
+        take(numina_records, "numina_teacher_solutions", lambda record: question_then_answer(
+            {"task": "math500", "kind": "numeric", "question": record["problem"]}, record["solution"]))
 
     smoltalk_subsets = {"code_instructions": "self-oss-instruct", "instruction_following": "smol-constraints",
                         "summarization": "smol-summarize", "rewriting": "smol-rewrite",

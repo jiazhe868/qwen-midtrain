@@ -14,7 +14,7 @@
 #   MIDTRAIN_CLUSTER_MODELS       MIDTRAIN_MODELS on the cluster
 #
 #   bash scripts/cluster/sync.sh code               # code and the small committed result files
-#   bash scripts/cluster/sync.sh data               # token files, evaluation items, data of both probes, gate file, packs, subsets
+#   bash scripts/cluster/sync.sh data               # token files, evaluation items, data of the probes, gate file, packs, subsets
 #   bash scripts/cluster/sync.sh model 2B           # one base checkpoint
 #   bash scripts/cluster/sync.sh results            # result files written on the cluster, back into results/
 set -euo pipefail
@@ -30,7 +30,7 @@ case "${1:-}" in
     rsync -a -e "${remote_shell}" "${repository_root}/results/" "${cluster_host}:${MIDTRAIN_CLUSTER_ROOT}/results/"
     ;;
   data)
-    for part in tokens eval probe probe_generic hygiene packs subsets; do
+    for part in tokens eval probe probe_generic probe_math hygiene packs subsets; do
       [[ -d "${MIDTRAIN_DATA}/${part}" ]] || continue
       rsync -a --partial -e "${remote_shell}" "${MIDTRAIN_DATA}/${part}/" "${cluster_host}:${MIDTRAIN_CLUSTER_DATA}/${part}/"
       echo "$(date '+%H:%M') copied ${part}"

@@ -1,0 +1,46 @@
+# The math probe (README §5.9): the generic probe's fine-tune with 4,000 of the teacher's checked solutions of
+# NuminaMath problems added. The generic probe holds no math, so it shows what a model brings to a fine-tune. This
+# one asks the opposite question: when the fine-tune itself teaches worked math solutions, of problems that are not
+# from the tested tasks, does a model that was mid-trained on solutions still come out ahead? If the base model
+# catches up, fine-tuning on solutions can stand in for mid-training on them.
+# The generic probe: the same short fine-tune as configs/probe.yaml, on instruction data alone.
+#
+# Why a second probe. The first one trains on the training solutions of the tasks it then tests (GSM8K, MATH, MBPP):
+# about 15,000 worked solutions at a learning rate of 2e-5. Across the 18 runs of the 0.8B design it made the
+# mixtures indistinguishable: the spread of few-shot pass@1 shrank 2.9-fold through it and the order of the runs was
+# lost (README §1.2, 11-21). A probe that teaches the test measures the probe. This one teaches the chat format and
+# instruction following only, so what a model shows afterwards on math and code comes from its checkpoint. The code
+# instructions stay: they are general Python tasks, none from HumanEval or MBPP.
+#
+# Everything else is the same as the first probe; 16 samples per item instead of 64 keep it cheap (pass@1 and
+# pass@16), because it runs on every checkpoint of the dose experiments.
+
+data:
+  seed: 20261120
+  maximum_tokens_per_conversation: 1536
+  sources:
+    code_instructions: 3000                  # smoltalk self-oss-instruct: Python functions checked by execution
+    instruction_following: 1500              # smoltalk smol-constraints
+    summarization: 800                       # smoltalk smol-summarize
+    rewriting: 800                           # smoltalk smol-rewrite
+    everyday_conversation: 800               # smoltalk everyday-conversations
+    numina_teacher_solutions: 4000           # the teacher's checked solutions of NuminaMath problems, one per problem
+
+training:
+  epoch_count: 2
+  peak_learning_rate: 2.0e-5
+  warmup_step_share: 0.03
+  tokens_per_step: 32768
+  seed: 1
+
+evaluation:
+  sample_count: 16
+  temperature: 1.0
+  top_p: 1.0
+  item_seed: 20261120
+  tasks:
+    gsm8k: {item_count: 200, maximum_new_tokens: 512}
+    math500: {item_count: 250, maximum_new_tokens: 1024}
+    humaneval: {item_count: 164, maximum_new_tokens: 512}
+    mbpp: {item_count: 200, maximum_new_tokens: 512}
+  pass_at_k: [1, 4, 16]
