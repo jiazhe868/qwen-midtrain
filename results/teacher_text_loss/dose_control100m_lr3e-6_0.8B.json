@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_control100m_lr3e-6_0.8B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.6379,
+   "bits_per_byte": 0.3147
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.595,
+   "bits_per_byte": 0.3076
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.507,
+   "bits_per_byte": 0.3196
+  }
+ }
+}

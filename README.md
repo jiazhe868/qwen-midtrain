@@ -153,9 +153,10 @@ The answers, in the order the sections present them:
   off 72% of its attempts on the hardest MATH problems, so those problems are nearly missing from the data. A second
   pass, with room for 4,096 tokens, starts today.
 
-> **Status, 2026-11-24.** The results of all four sizes are in. Running now: the 4B control, two check runs on the
-> solutions of the hard problems, and the student check for the next 9B run. Next: two more 9B runs (§6.4). Repeated
-> runs and a sweep of design choices run on the cluster. This file is updated with every result.
+> **Status, 2026-11-25.** The results of all four sizes are in, with their controls (the 9B control waits for the
+> cluster) and two check runs on the hard problems. Running now: two more 9B runs, one on targeted solutions and one
+> at a learning rate of 1e-5. Next: a 9B run on the teacher's thinking traces (§6.4). This file is updated with every
+> result.
 
 ### 1.4 Models, data and compute
 
@@ -608,8 +609,14 @@ With room to finish, the teacher solved most of them. It solved 2,085 of the 2,5
 2,347 that had no right attempt before. At level 5 it solved 1,194 of 1,442 problems, and 71% of its attempts were
 right. Even 4,096 tokens cut off 24% of the level-5 attempts. Only the 205 GSM8K problems of this pass stayed mostly
 unsolved (44 solved) (`results/synthetic_attempts_training_splits_hard.json`). The 7,287 right solutions (14.1M
-tokens) became their own source, `synthetic_solutions_hard`. Two check runs (0.8B and 2B) now train on the recipe
-with 10% of the tokens taken from them (`configs/recipes/dose/dose_distill_hard_100m.yaml`).
+tokens) became their own source, `synthetic_solutions_hard`.
+
+Two check runs (0.8B and 2B) then trained on the recipe with 10% of the tokens taken from these solutions
+(`configs/recipes/dose/dose_distill_hard_100m.yaml`). MATH-500 did not move beyond the noise. In the few-shot test it
+changed by −0.4 points at 0.8B and +0.8 at 2B. After the fine-tune it changed by +1.2 and +6.4, against +0.3 and +7.6
+with the first set alone. Only pass@16 on MATH-500 at 2B rose a little more, +4.0 against +1.2, and that is within the
+noise too (`results/comparisons/dose_vs_base_<size>.json`). One reading is that the small models cannot yet use
+solutions of problems this hard.
 
 ### 4.5 What we did not try, and why
 
@@ -678,8 +685,10 @@ solutions' 40% to general web text (`configs/recipes/dose/dose_nosolutions_100m.
 | 0.8B replay only | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | +0.6 [−2.4, +3.7] | +0.1 [−1.8, +2.1] | 0.0 [−1.3, +1.2] | +0.6 |
 | 2B distillation | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | −2.4 [−7.3, +2.4] | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | −0.5 |
 | 2B replay only | −0.7 [−2.6, +1.1] | −3.8 [−7.8, 0.0] | −1.2 [−5.5, +3.0] | +0.7 [−1.2, +2.6] | **−1.8 [−3.4, −0.2]** | +0.6 |
+| 4B distillation | +1.4 [−0.5, +3.3] | −2.2 [−6.0, +1.4] | −3.0 [−7.3, +1.2] | **+2.4 [+0.9, +4.0]** | **+3.0 [+1.4, +4.7]** | −0.7 |
+| 4B replay only | +0.3 [−1.1, +1.7] | −2.8 [−6.4, +1.0] | −5.5 [−11.6, +0.6] | +0.5 [−1.0, +1.9] | +0.7 [−0.9, +2.3] | +0.9 |
 
-The answer is clear. Continued training by itself does nothing: the replay-only controls stay level at both sizes.
+The answer is clear. Continued training by itself does nothing: the replay-only controls stay level at all three sizes.
 The rest of the mixture does nothing either: without the solutions, the same mixture gains nothing and even loses 4.4
 points on MATH-500. **The solutions carry the gain.**
 
@@ -780,8 +789,8 @@ scores and the knowledge. 1e-5 doubles the gain after the fine-tune and costs ha
 
 The fine-tuned test of the 9B models finished last, and it does not follow the smaller sizes. After the generic
 fine-tune, the distilled 9B model is no better than the fine-tuned base model. GSM8K pass@1 changes by −0.1
-[−1.3, +1.0], and MATH-500 by 0.0 [−1.3, +1.4]. The one clear change is on HumanEval, +2.5 [+0.6, +4.5], which is
-small and on a task the solutions do not cover.
+[−1.3, +1.0], and MATH-500 by 0.0 [−1.3, +1.4]. The one clear change is on HumanEval, +2.5 [+0.6, +4.5]. The 4B
+replay-only control shows the same change (+2.5 [+0.4, +4.8]), so it does not come from the solutions.
 
 The first thing to rule out is the sample. The probe asks only 200 GSM8K questions and 250 MATH-500 questions, so it
 could miss a gain that the full sets show. So I compared the few-shot answers on exactly those questions. There, the
@@ -830,9 +839,44 @@ MATH-500: at this learning rate it gains nothing there, and at 1e-5 it gains 7.1
 just as well.** The closer the student comes to the teacher's size, the less the teacher's solutions carry that is
 new to it.
 
-This result sets the next experiments at 9B (§6.4). The solutions that can still teach the 9B model are those of
-problems it cannot solve by itself, and the hard problems of §4.4 are among them. A larger learning rate is the
-other lever: at 0.8B it doubled the gain that survives the fine-tune (§5.4).
+**Perplexity on the teacher's text tells the same story.** Training leaves the teacher-written text out of its own
+validation, so I measured it separately: the loss of every model on held-out teacher solutions, in bits per byte
+(`base_regression.py teacher-text-loss`, `results/teacher_text_loss/`). The hard-problem solutions of §4.4 make the
+cleanest test, because none of these runs trained on them.
+
+| model | base, first set | distilled, first set | base, hard set | distilled, hard set | replay only, hard set |
+|---|---|---|---|---|---|
+| 0.8B | 0.284 | 0.191 | 0.292 | 0.239 (−18%) | 0.320 (+10%) |
+| 2B | 0.245 | 0.145 | 0.245 | 0.198 (−19%) | 0.267 (+9%) |
+| 4B | 0.204 | 0.093 | 0.198 | 0.159 (−20%) | 0.215 (+9%) |
+| 9B | 0.180 | 0.086 | 0.183 | 0.143 (−22%) | — |
+
+The larger the base model, the better it predicts the teacher's text before any training: 0.18 bits per byte at 9B
+against 0.28 at 0.8B on the first set. Training on the first set lowers the loss on solutions it never saw by about a fifth at every
+size, and the 9B is no exception. So the 9B model took on the teacher's way of writing as much as the small models
+did. At 9B that did not turn into a gain after the fine-tune. Perplexity on the teacher's text measures how much of
+the teacher's style a model takes on. Training on general text raises it by about a tenth. (On the first set, the
+distilled numbers are lower partly because a held-out solution can share its problem with trained ones.)
+
+**Which problems can still teach the 9B?** This result sets the next experiments at 9B (§6.4). The solutions that can
+still teach the 9B model are those of problems it cannot solve by itself. To find them, I asked the 9B base model
+every problem the teacher had been given: 25,621 problems, four answers each, in the training format with four teacher
+solutions as examples, graded by the teacher's own check (`synthetic_rephrase.py student-check`,
+`results/student_check_9B_base.json`):
+
+| problems | answers right | answers cut at 1,024 tokens | problems right at most once in 4 tries |
+|---|---|---|---|
+| GSM8K (7,469) | 86% | 2% | 6% |
+| MATH level 1–2 (1,756) | 85% | 8% | 7% |
+| MATH level 3–4 (2,989) | 65% | 25% | 27% |
+| MATH level 5 (2,038) | 31% | 54% | 64% |
+| NuminaMath (11,367) | 81% | 9% | 8% |
+
+The 9B base model already solves most of what the teacher was given. It fails 3,597 problems, mostly at MATH levels 4
+and 5. Their solutions from all three sets come to 14.2M tokens, 82% of them from the hard pass of §4.4
+(`results/student_subset_9B_base.json`). One caveat: more than half of the 9B model's level-5 answers ran out of
+room, so this set leans toward problems that need long answers. A larger learning rate is the other lever: at 0.8B it
+doubled the gain that survives the fine-tune (§5.4).
 
 ### 5.6 Reliability, not reach
 
@@ -910,7 +954,8 @@ Three checks say no.
 - Each setting was trained once. The intervals cover the choice of test questions, not the randomness of training.
 - The gain is largest on GSM8K, whose training problems the teacher solved. SVAMP and the fine-tuned MATH-500 show
   transfer; code shows none.
-- The 4B control is still running.
+- The student check gave the 9B base model 1,024 tokens per answer, and 54% of its level-5 answers were cut off, so
+  the targeted solutions lean toward problems that need long answers.
 - The generic probe is one light fine-tune. A full post-training run with reinforcement learning may keep more of the
   gain, or less of it.
 - The teacher ran with 4-bit weights and a 1,024-token limit, so the solution sets lack the hardest problems.
@@ -919,17 +964,20 @@ Three checks say no.
 
 ### 6.4 What comes next
 
-Running on the workstation:
+Running on the workstation, each changing one thing from the first 9B run (§5.5); results on 11-26:
 
-- the 4B replay-only control;
-- the 0.8B and 2B check runs on the recipe with 10% of the hard problems' solutions;
-- the student check: the 9B base model tries every problem the teacher solved.
-
-Next come two 9B runs. Each changes one thing from the first 9B run (§5.5):
-
-- **targeted solutions**: the 9B base model first tries every problem the teacher solved, from all three solution
-  sets. Only the solutions of problems it gets wrong are kept;
+- **targeted solutions**: only the solutions of the 3,597 problems the 9B base model fails, from all three solution
+  sets (14.2M tokens, seen 2.5 times each; `configs/recipes/dose/dose_distill_targeted_9B_base_100m.yaml`);
 - **a larger learning rate**: the same recipe as the first 9B run, at 1e-5.
+
+Next, on 11-26:
+
+- **the teacher's thinking mode**: the teacher reasons in its thinking mode on the same 3,597 problems, and a 9B run
+  trains on its reasoning followed by its solution. These traces run to several thousand tokens, so this run uses
+  sequences of 8,192 tokens and is also tested with answers of up to 4,096 tokens (`configs/probe_generic_long.yaml`),
+  and so is the 9B base model;
+- the seven 0.8B runs that the cluster trained on 11-24 are evaluated here (the cluster could not start its
+  inference server: its compute nodes have no CUDA compiler, which vLLM's default sampler needs; now fixed).
 
 Waiting for the cluster (jobs expected from 11-26):
 

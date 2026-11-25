@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_nosolutions_lr3e-6_0.8B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.6344,
+   "bits_per_byte": 0.313
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.5963,
+   "bits_per_byte": 0.3083
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.5121,
+   "bits_per_byte": 0.3228
+  }
+ }
+}

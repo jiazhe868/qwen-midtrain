@@ -1,0 +1,17 @@
+{
+ "run_name": "base_4B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.4143,
+   "bits_per_byte": 0.2044
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.3832,
+   "bits_per_byte": 0.1981
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.3139,
+   "bits_per_byte": 0.1979
+  }
+ }
+}

@@ -358,9 +358,34 @@ def run_final_evaluation(checkpoint_path: str, run_name: str) -> dict:
                         "cut": task.get("share_cut_at_token_limit")} for task_name, task in results["tasks"].items()}
 
 
+def measure_teacher_text_loss(checkpoint_path: str, run_name: str) -> dict:
+    """Held-out loss of a checkpoint on the teacher-written solutions; writes results/teacher_text_loss/<run>.json.
+
+    Training leaves these sources out of its validation (train_continue.available_validation_sources). Here they are
+    the point: the loss a base model has on the teacher's held-out solutions says how much of that text it can
+    already predict, and so how much there is left for it to learn (README §5.5: at 9B the solutions taught mostly
+    what the model already knew). For a trained run the number is optimistic, because a held-out solution can be
+    a second solution of a problem whose other solutions were trained on."""
+    from midtrain.train_continue import validation_loss_by_source
+
+    teacher_sources = [name for name in ("synthetic_solutions", "synthetic_solutions_numina", "synthetic_solutions_hard")
+                       if (data_root() / "tokens" / name / "validation.document_offsets.npy").exists()]
+    device_names = [f"cuda:{index}" for index in range(torch.cuda.device_count())]
+    assert device_names, "no GPU visible: set CUDA_VISIBLE_DEVICES"
+    model = load_working_model(checkpoint_path)
+    place_model_on_devices(model, device_names)
+    with torch.no_grad():
+        losses = validation_loss_by_source(model, teacher_sources, sequences_per_forward=2)
+    results = {"run_name": run_name, "loss": losses}
+    results_directory = repository_root / "results" / "teacher_text_loss"
+    results_directory.mkdir(parents=True, exist_ok=True)
+    (results_directory / f"{run_name}.json").write_text(json.dumps(results, indent=1) + "\n")
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["run", "add-cloze", "final"])
+    parser.add_argument("command", choices=["run", "add-cloze", "final", "teacher-text-loss"])
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--tokens-per-forward", type=int, default=16384)
@@ -372,6 +397,9 @@ def main() -> None:
     if arguments.command == "final":
         (data_root() / "runs" / arguments.run_name).mkdir(parents=True, exist_ok=True)
         print(json.dumps(run_final_evaluation(arguments.checkpoint, arguments.run_name), indent=1))
+        return
+    if arguments.command == "teacher-text-loss":
+        print(json.dumps(measure_teacher_text_loss(arguments.checkpoint, arguments.run_name), indent=1))
         return
     (data_root() / "runs" / arguments.run_name).mkdir(parents=True, exist_ok=True)
     results = run_regression_suite(arguments.checkpoint, arguments.run_name, arguments.tokens_per_forward, arguments.quick_test)

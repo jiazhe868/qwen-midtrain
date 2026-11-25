@@ -1,0 +1,75 @@
+{
+ "student": "9B_base",
+ "temperature": 1.0,
+ "maximum_new_tokens": 1024,
+ "samples_per_problem": 4,
+ "problems": 25621,
+ "groups": {
+  "cn_k12": {
+   "problems": 2492,
+   "right_share": 0.7517,
+   "cut_share": 0.1308,
+   "share_with_at_most_one_right": 0.1376
+  },
+  "gsm8k": {
+   "problems": 7469,
+   "right_share": 0.8581,
+   "cut_share": 0.016,
+   "share_with_at_most_one_right": 0.0592
+  },
+  "math": {
+   "problems": 6785,
+   "right_share": 0.5986,
+   "cut_share": 0.2948,
+   "share_with_at_most_one_right": 0.3285
+  },
+  "math/level_1": {
+   "problems": 522,
+   "right_share": 0.8927,
+   "cut_share": 0.0498,
+   "share_with_at_most_one_right": 0.0326
+  },
+  "math/level_2": {
+   "problems": 1234,
+   "right_share": 0.8369,
+   "cut_share": 0.0954,
+   "share_with_at_most_one_right": 0.0835
+  },
+  "math/level_3": {
+   "problems": 1449,
+   "right_share": 0.711,
+   "cut_share": 0.1953,
+   "share_with_at_most_one_right": 0.1912
+  },
+  "math/level_4": {
+   "problems": 1540,
+   "right_share": 0.5857,
+   "cut_share": 0.3031,
+   "share_with_at_most_one_right": 0.3377
+  },
+  "math/level_5": {
+   "problems": 2038,
+   "right_share": 0.3083,
+   "cut_share": 0.5429,
+   "share_with_at_most_one_right": 0.6438
+  },
+  "math/level_?": {
+   "problems": 2,
+   "right_share": 1.0,
+   "cut_share": 0.0,
+   "share_with_at_most_one_right": 0.0
+  },
+  "orca_math": {
+   "problems": 5376,
+   "right_share": 0.831,
+   "cut_share": 0.0696,
+   "share_with_at_most_one_right": 0.0672
+  },
+  "synthetic_math": {
+   "problems": 3499,
+   "right_share": 0.833,
+   "cut_share": 0.0914,
+   "share_with_at_most_one_right": 0.0634
+  }
+ }
+}

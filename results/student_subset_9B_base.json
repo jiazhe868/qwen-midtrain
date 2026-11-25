@@ -1,0 +1,31 @@
+{
+ "student": "9B_base",
+ "maximum_student_right": 1,
+ "sources": {
+  "synthetic_solutions": {
+   "documents": 45177,
+   "kept_documents": 1898,
+   "kept_tokens": 1408669,
+   "kept_problems": 687,
+   "problems_not_checked": 8
+  },
+  "synthetic_solutions_hard": {
+   "documents": 7287,
+   "kept_documents": 5598,
+   "kept_tokens": 11671866,
+   "kept_problems": 1641,
+   "problems_not_checked": 0
+  },
+  "synthetic_solutions_numina": {
+   "documents": 21445,
+   "kept_documents": 1421,
+   "kept_tokens": 1136471,
+   "kept_problems": 926,
+   "problems_not_checked": 0
+  }
+ },
+ "total_kept_tokens": 14217006,
+ "share_of_kept_solutions": 0.3554,
+ "epochs_of_each_kept_solution": 2.5,
+ "recipe": "configs/recipes/dose/dose_distill_targeted_9B_base_100m.yaml"
+}

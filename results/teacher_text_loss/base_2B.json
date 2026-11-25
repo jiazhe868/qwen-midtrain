@@ -1,0 +1,17 @@
+{
+ "run_name": "base_2B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.4966,
+   "bits_per_byte": 0.245
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.448,
+   "bits_per_byte": 0.2316
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.3892,
+   "bits_per_byte": 0.2453
+  }
+ }
+}

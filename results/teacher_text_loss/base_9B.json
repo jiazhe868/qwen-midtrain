@@ -1,0 +1,17 @@
+{
+ "run_name": "base_9B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.3638,
+   "bits_per_byte": 0.1795
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.3509,
+   "bits_per_byte": 0.1814
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.2897,
+   "bits_per_byte": 0.1826
+  }
+ }
+}

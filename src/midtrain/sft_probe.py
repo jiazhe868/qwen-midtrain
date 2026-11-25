@@ -55,6 +55,9 @@ turn_start, turn_end = "<|im_start|>", "<|im_end|>"
 probe_variants = {
     "in_domain": {"configuration": "probe.yaml", "data_folder": "probe", "results_folder": "probe"},
     "generic": {"configuration": "probe_generic.yaml", "data_folder": "probe_generic", "results_folder": "probe_generic"},
+    # the generic probe's fine-tune with longer answer limits, for models trained on long thinking traces (README §6.4)
+    "generic_long": {"configuration": "probe_generic_long.yaml", "data_folder": "probe_generic",
+                     "results_folder": "probe_generic_long"},
 }
 active_probe_variant = {"name": "in_domain"}
 
@@ -490,7 +493,10 @@ def evaluate_pass_at_k(checkpoint_path: str, run_name: str, port: int, prompt_st
                 task_settings["sample_count"] = min(8, task_settings["sample_count"])
     run_directory = data_root() / "runs" / run_name
     run_directory.mkdir(parents=True, exist_ok=True)
-    server_process = start_inference_server(checkpoint_path, port, run_directory / f"server_{prompt_style}.log")
+    # the context must hold the prompt and the longest answer allowed (4,096 tokens for MATH-500 in generic_long)
+    longest_answer = max(task_settings["maximum_new_tokens"] for task_settings in configuration["tasks"].values())
+    server_process = start_inference_server(checkpoint_path, port, run_directory / f"server_{prompt_style}.log",
+                                            maximum_context_tokens=max(4096, longest_answer + 2048))
     results: dict = {"run_name": run_name, "prompt_style": prompt_style, "sample_count": configuration["sample_count"], "tasks": {}}
     stop_token_ids = end_token_ids()
     try:

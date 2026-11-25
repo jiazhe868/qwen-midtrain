@@ -286,13 +286,14 @@ def select_passages(batch_name: str, passage_count: int, seed: int, style_subset
 # ---------------------------------------------------------------------------------------------------------------
 # serve: one teacher per GPU
 # ---------------------------------------------------------------------------------------------------------------
-def serve_teacher(gpu_index: int, port: int) -> None:
+def serve_teacher(gpu_index: int, port: int, maximum_context_tokens: int = 6144) -> None:
     """Run the teacher on one GPU until killed. The batch limits are the ones a 27B teacher needs on a 40 GB GPU:
-    at the server's defaults its warm-up pass alone ran out of memory (11-19)."""
+    at the server's defaults its warm-up pass alone ran out of memory (11-19). Thinking traces need a longer context
+    (`--maximum-context-tokens 10240` for answers of up to 8,192 tokens)."""
     teacher_path = os.environ["MIDTRAIN_TEACHER"]
     environment = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu_index), PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True")
     command = [sys.executable, "-m", "vllm.entrypoints.cli.main", "serve", teacher_path, "--served-model-name", "teacher",
-               "--port", str(port), "--max-model-len", "6144", "--gpu-memory-utilization", "0.85",
+               "--port", str(port), "--max-model-len", str(maximum_context_tokens), "--gpu-memory-utilization", "0.85",
                "--max-num-batched-tokens", "2048", "--max-num-seqs", "160", "--mamba-ssm-cache-dtype", "float32",
                "--gdn-prefill-backend", "triton", "--language-model-only", "--no-enable-prefix-caching", "--seed", "0"]
     os.execvpe(command[0], command, environment)
@@ -492,7 +493,11 @@ solution_problem_sets = {"training_splits": {"folder": "solutions", "pool_source
                          "training_splits_hard": {"folder": "solutions_hard", "pool_source": "synthetic_solutions_hard",
                                                   "summary": "synthetic_solutions_hard_summary.json"},
                          "numina": {"folder": "solutions_numina", "pool_source": "synthetic_solutions_numina",
-                                    "summary": "synthetic_solutions_numina_summary.json"}}
+                                    "summary": "synthetic_solutions_numina_summary.json"},
+                         # the problems the 9B base model fails (student-check), solved in the teacher's thinking mode
+                         "student_fails_9B_thinking": {"folder": "solutions_thinking",
+                                                       "pool_source": "synthetic_solutions_thinking",
+                                                       "summary": "synthetic_solutions_thinking_summary.json"}}
 
 
 def load_training_problems() -> list[dict]:
@@ -619,37 +624,72 @@ def select_numina_problems(seed: int, device: str = "cpu") -> dict:
 
 
 def ask_teacher_for_solutions(endpoint: str, problem_text: str, sample_count: int, temperature: float,
-                              maximum_new_tokens: int) -> list[tuple[str, str]]:
-    """`sample_count` independent solutions of one problem in one request: (text, finish reason) each."""
+                              maximum_new_tokens: int, thinking: bool = False) -> list[tuple[str, str, str]]:
+    """`sample_count` independent solutions of one problem in one request: (solution, reasoning, finish reason) each.
+
+    With `thinking`, the teacher first reasons in its thinking mode and then writes the solution. The server returns
+    the reasoning inside the text, between <think> and </think> (no reasoning parser is configured), or in a field of
+    its own; either way it is split off here, and an answer that never closed its reasoning has no solution."""
     request_body = {
         "model": "teacher", "n": sample_count, "max_tokens": maximum_new_tokens, "temperature": temperature,
-        "top_p": 0.95, "chat_template_kwargs": {"enable_thinking": False},
+        "top_p": 0.95, "chat_template_kwargs": {"enable_thinking": thinking},
         "messages": [{"role": "user", "content": f"{solution_instruction}\n\nProblem:\n{problem_text}"}]}
     request = urllib.request.Request(f"{endpoint}/v1/chat/completions", json.dumps(request_body).encode("utf-8"),
                                      {"Content-Type": "application/json"})
-    response = json.load(urllib.request.urlopen(request, timeout=3600))
-    return [((choice["message"].get("content") or "").strip(), choice.get("finish_reason") or "")
-            for choice in response["choices"]]
+    response = json.load(urllib.request.urlopen(request, timeout=7200))
+    answers = []
+    for choice in response["choices"]:
+        text = choice["message"].get("content") or ""
+        reasoning = choice["message"].get("reasoning_content") or choice["message"].get("reasoning") or ""
+        if thinking and "</think>" in text:
+            reasoning, text = text.split("</think>", 1)
+        elif thinking and not reasoning:
+            reasoning, text = text, ""            # cut off inside its reasoning: no solution to check
+        answers.append((text.strip(), reasoning.replace("<think>", "").strip(), choice.get("finish_reason") or ""))
+    return answers
+
+
+def load_problems_the_student_fails(student_name: str, maximum_student_right: int = 1) -> list[dict]:
+    """The problems the student answered right at most `maximum_student_right` times in four tries (student-check),
+    with their text and reference answer from the first set's and NuminaMath's own records."""
+    student_right = {record["problem_id"]: record["student_right"]
+                     for record in read_json_lines(data_root() / "synthetic" / "student_checks" / f"{student_name}.jsonl")}
+    problems: dict[str, dict] = {}
+    kept_keys = ("problem_id", "task", "problem", "reference_answer", "level")
+    for problem_set in ("training_splits", "numina"):
+        for record in read_json_lines(synthetic_directory(solution_problem_sets[problem_set]["folder"]) / "solutions.jsonl"):
+            if student_right.get(record["problem_id"], maximum_student_right + 1) <= maximum_student_right:
+                problems.setdefault(record["problem_id"], {key: record[key] for key in kept_keys if key in record})
+    print(f"{len(problems)} problems that {student_name} gets right at most {maximum_student_right} times in four", flush=True)
+    # a fixed shuffle, so that a pilot on the first problems sees every task and level, not only GSM8K
+    return sorted(problems.values(), key=lambda problem: hashlib.sha256(f"order {problem['problem_id']}".encode()).hexdigest())
 
 
 def solve_training_problems(endpoints: list[str], samples_per_problem: int, temperature: float,
                             maximum_new_tokens: int, requests_in_flight_per_endpoint: int,
-                            problem_set: str = "training_splits") -> None:
+                            problem_set: str = "training_splits", maximum_problems: int | None = None) -> None:
     """Append one record per solution to synthetic/<folder of the set>/solutions.jsonl; a restart skips solved
-    problems. The first set is read from the hub, the second from the problems.jsonl that select-problems wrote."""
+    problems. The first set is read from the hub, the second from the problems.jsonl that select-problems wrote.
+    The thinking set asks the teacher in its thinking mode and keeps the reasoning next to the solution.
+    `maximum_problems` stops after that many problems (a pilot); a later call without it continues."""
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
     folder = synthetic_directory(solution_problem_sets[problem_set]["folder"])
+    thinking = problem_set.endswith("_thinking")
     if problem_set == "training_splits":
         problems = load_training_problems()
     elif problem_set == "training_splits_hard":
         problems = load_hard_training_problems()
+    elif problem_set == "student_fails_9B_thinking":
+        problems = load_problems_the_student_fails("9B_base")
     else:
         problems = read_json_lines(folder / "problems.jsonl")
     output_path = folder / "solutions.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     finished_ids = {record["problem_id"] for record in read_json_lines(output_path)} if output_path.exists() else set()
     todo = [problem for problem in problems if problem["problem_id"] not in finished_ids]
+    if maximum_problems is not None:
+        todo = todo[:maximum_problems]
     print(f"{len(problems)} problems, {len(finished_ids)} already solved, {len(todo)} to do on {len(endpoints)} teacher(s)",
           flush=True)
     write_lock = threading.Lock()
@@ -660,18 +700,21 @@ def solve_training_problems(endpoints: list[str], samples_per_problem: int, temp
         problem = todo[job_index]
         try:
             solutions = ask_teacher_for_solutions(endpoints[job_index % len(endpoints)], problem["problem"],
-                                                  samples_per_problem, temperature, maximum_new_tokens)
+                                                  samples_per_problem, temperature, maximum_new_tokens, thinking)
         except OSError:
             with write_lock:
                 counts["failed_requests"] += 1
             return
         records = []
-        for sample_index, (solution_text, finish_reason) in enumerate(solutions):
+        for sample_index, (solution_text, reasoning_text, finish_reason) in enumerate(solutions):
             predicted = find_last_boxed_content(solution_text)
             is_correct = bool(finish_reason == "stop" and predicted is not None
                               and is_math_answer_equivalent(predicted, problem["reference_answer"]))
-            records.append({**problem, "sample_index": sample_index, "solution": solution_text,
-                            "finish_reason": finish_reason, "predicted_answer": predicted, "is_correct": is_correct})
+            record = {**problem, "sample_index": sample_index, "solution": solution_text,
+                      "finish_reason": finish_reason, "predicted_answer": predicted, "is_correct": is_correct}
+            if thinking:
+                record["reasoning"] = reasoning_text
+            records.append(record)
         with write_lock:
             with output_path.open("a") as output_file:
                 for record in records:
@@ -707,7 +750,11 @@ def publish_solutions_to_pool(maximum_per_problem: int, problem_set: str = "trai
             kept.append(record)
             seen_texts.add(record["solution"])
     kept_records = [record for kept in kept_by_problem.values() for record in kept]
-    texts = [f"Question: {record['problem']}\n\nAnswer: {record['solution']}" for record in kept_records]
+    # a thinking-mode solution keeps its reasoning before the written solution, as plain text: no <think> tags or
+    # other chat tokens enter the pool (chat tokens in mid-training data can break base-model tests, OLMo 3)
+    texts = [f"Question: {record['problem']}\n\nAnswer: {record['reasoning']}\n\n{record['solution']}"
+             if record.get("reasoning") else f"Question: {record['problem']}\n\nAnswer: {record['solution']}"
+             for record in kept_records]
     token_counts = [len(ids) for ids in tokenizer(texts, add_special_tokens=False)["input_ids"]] if texts else []
     metas = [{"problem_id": record["problem_id"], "task": record["task"], "sample_index": record["sample_index"],
               "generator": Path(os.environ.get("MIDTRAIN_TEACHER", "teacher")).name} for record in kept_records]
@@ -954,6 +1001,36 @@ def write_subsets_the_student_cannot_solve(student_name: str, maximum_student_ri
     return report
 
 
+def write_recipe_with_solutions_source(pool_source: str, recipe_name: str, target_epochs: float,
+                                       maximum_total_share: float, context_length: int | None = None) -> dict:
+    """A recipe that replaces the first set's 40% in dose_distill_100m.yaml by one other solutions source (the
+    thinking traces): its share is set so that each document is seen about `target_epochs` times in 100M tokens, at
+    most `maximum_total_share`, and what is left of the 40% goes to replay_web_edu, which changed nothing on its own.
+    `context_length` 8192 keeps a thinking trace of up to 8,192 tokens in one training sequence with its question; at
+    4,096 the second half of a long trace would be trained without the question it answers."""
+    import yaml
+
+    token_source_tokens = int(np.load(data_root() / "tokens" / pool_source / "train.document_offsets.npy")[-1])
+    base_recipe = yaml.safe_load((repository_root / "configs" / "recipes" / "dose" / "dose_distill_100m.yaml").read_text())
+    token_budget = base_recipe["token_budget"]
+    first_set_share = base_recipe["components"].pop("synthetic_solutions")
+    share = round(min(maximum_total_share, first_set_share, target_epochs * token_source_tokens / token_budget), 4)
+    components = {pool_source: share, **base_recipe["components"]}
+    components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - share, 4)
+    assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
+    lines = [f"# The distillation mixture with {pool_source} in place of the first solution set (README §6.4), 100M tokens.",
+             f"# Written by synthetic_rephrase.write_recipe_with_solutions_source: {token_source_tokens / 1e6:.1f}M train tokens,",
+             f"# seen about {share * token_budget / token_source_tokens:.2f} times each; the rest of the 40% goes to replay_web_edu.",
+             f"token_budget: {token_budget}", f"context_length: {context_length or base_recipe['context_length']}",
+             "components:"]
+    lines += [f"  {source}: {value}" for source, value in components.items()]
+    lines += [f"schedule: {base_recipe['schedule']}", f"seed: {base_recipe['seed']}"]
+    recipe_path = repository_root / "configs" / "recipes" / "dose" / f"{recipe_name}.yaml"
+    recipe_path.write_text("\n".join(lines) + "\n")
+    print(f"wrote {recipe_path.relative_to(repository_root)}: {pool_source} {share} of {token_budget:,} tokens")
+    return {"recipe": str(recipe_path.relative_to(repository_root)), "share": share, "train_tokens": token_source_tokens}
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # check-sample: the diversity gate on a batch's rewrites against the passages they were written from
 # ---------------------------------------------------------------------------------------------------------------
@@ -1084,6 +1161,8 @@ def main() -> None:
     serve = commands.add_parser("serve")
     serve.add_argument("--gpu", type=int, required=True)
     serve.add_argument("--port", type=int, required=True)
+    serve.add_argument("--maximum-context-tokens", type=int, default=6144,
+                       help="10240 for thinking traces of up to 8,192 tokens")
     generate = commands.add_parser("generate")
     generate.add_argument("--endpoint", action="append", required=True)
     generate.add_argument("--requests-in-flight-per-endpoint", type=int, default=128)
@@ -1112,6 +1191,7 @@ def main() -> None:
     solve.add_argument("--temperature", type=float, default=1.0)
     solve.add_argument("--maximum-new-tokens", type=int, default=1024)
     solve.add_argument("--requests-in-flight-per-endpoint", type=int, default=24)
+    solve.add_argument("--maximum-problems", type=int, default=None, help="stop after this many problems: a pilot")
     summarize_attempts = commands.add_parser("summarize-attempts", help="the teacher's right and cut-off shares")
     summarize_attempts.add_argument("--problem-set", choices=list(solution_problem_sets), default="training_splits")
     publish_solutions = commands.add_parser("publish-solutions")
@@ -1129,6 +1209,12 @@ def main() -> None:
     student_subset.add_argument("--target-epochs", type=float, default=2.5,
                                 help="times each kept solution is seen in 100M tokens (the first set: about 1.7)")
     student_subset.add_argument("--maximum-total-share", type=float, default=0.40, help="the first set's share")
+    solutions_recipe = commands.add_parser("solutions-recipe", help="a recipe with one solutions source in place of the first set")
+    solutions_recipe.add_argument("--pool-source", required=True)
+    solutions_recipe.add_argument("--recipe-name", required=True)
+    solutions_recipe.add_argument("--target-epochs", type=float, default=2.5)
+    solutions_recipe.add_argument("--maximum-total-share", type=float, default=0.40)
+    solutions_recipe.add_argument("--context-length", type=int, default=None, help="8192 for thinking traces")
     publish = commands.add_parser("publish")
     for command_parser in (select, generate, check_sample, check_styles, publish):
         command_parser.add_argument("--batch", default=current_batch_name, help="folder synthetic/<batch>")
@@ -1138,7 +1224,7 @@ def main() -> None:
     if arguments.command == "select":
         select_passages(arguments.batch, arguments.passage_count, arguments.seed, arguments.styles, arguments.append)
     elif arguments.command == "serve":
-        serve_teacher(arguments.gpu, arguments.port)
+        serve_teacher(arguments.gpu, arguments.port, arguments.maximum_context_tokens)
     elif arguments.command == "generate":
         generate_rewrites(arguments.batch, arguments.endpoint, arguments.requests_in_flight_per_endpoint,
                           arguments.stop_after_hours, arguments.temperature, arguments.maximum_rewrites, arguments.styles,
@@ -1148,7 +1234,7 @@ def main() -> None:
     elif arguments.command == "solve":
         solve_training_problems(arguments.endpoint, arguments.samples_per_problem, arguments.temperature,
                                 arguments.maximum_new_tokens, arguments.requests_in_flight_per_endpoint,
-                                arguments.problem_set)
+                                arguments.problem_set, arguments.maximum_problems)
     elif arguments.command == "summarize-attempts":
         summarize_teacher_attempts(arguments.problem_set)
     elif arguments.command == "publish-solutions":
@@ -1156,6 +1242,9 @@ def main() -> None:
     elif arguments.command == "student-check":
         check_student_on_training_problems(arguments.student_checkpoint, arguments.student, arguments.temperature,
                                            arguments.maximum_new_tokens)
+    elif arguments.command == "solutions-recipe":
+        write_recipe_with_solutions_source(arguments.pool_source, arguments.recipe_name, arguments.target_epochs,
+                                           arguments.maximum_total_share, arguments.context_length)
     elif arguments.command == "student-subset":
         write_subsets_the_student_cannot_solve(arguments.student, arguments.maximum_student_right, arguments.target_epochs,
                                                arguments.maximum_total_share)
