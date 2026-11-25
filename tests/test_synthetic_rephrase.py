@@ -2,7 +2,7 @@
 
 Why these tests exist. The first two batches of rewrites failed the diversity gate, and the main cause was in the
 wording of the request: 58% of the rewrites in a 150-passage test pointed their reader at "the passage" or "the text",
-a source that reader never sees (11-21, README §7.3). The v3 request asks the teacher to write as the author of the
+a source that reader never sees (11-21, README Appendix D). The v3 request asks the teacher to write as the author of the
 material, and a rewrite that still points at a hidden source is dropped. Both halves are tested here, and so is the
 rule that a batch keeps the request wording it was made with.
 

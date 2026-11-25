@@ -1,4 +1,4 @@
-# The screening design of README §6.2: 18 runs of the L18 orthogonal array over seven factors.
+# The screening design of README §3.2 and Appendix C: 18 runs of the L18 orthogonal array over seven factors.
 #
 # The factors are ratios, because the questions are about ratios (how much replay, how much of the rest rewritten,
 # how much of the real text hard). mixing_law.py turns the levels of a run into exact token shares and a recipe.
@@ -21,7 +21,7 @@ long_context:
 factors:                          # column of the array (1 to 8) and the level for each of its level numbers
   peak_learning_rate:             # column 1 has two levels; its interaction with column 2 is free of every other column
     column: 1
-    levels: [3.0e-6, 1.0e-5]      # 3e-5 made the 0.8B model worse on every source in the pilot (README §1.2)
+    levels: [3.0e-6, 1.0e-5]      # 3e-5 made the 0.8B model worse on every source in the pilot (README §3.3)
   replay_share:
     column: 2
     levels: [0.55, 0.70, 0.85]

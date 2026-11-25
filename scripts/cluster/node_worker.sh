@@ -60,12 +60,14 @@ work_on_this_node() {
     done
     # One loop per GPU. Each loop waits for new one-GPU tasks by itself (in 30-second looks, up to the idle
     # allowance): in the first version a GPU whose loop found the queue empty stayed idle until the longest task
-    # on the other GPUs had ended, even when new tasks arrived in between. A loop also stops taking tasks when a
-    # whole-node task arrives, so that the GPUs drain and the node task can start.
+    # on the other GPUs had ended, even when new tasks arrived in between. A node that works on one-GPU tasks stays
+    # on them until none is left, also when a whole-node task arrives. In the first version such a node stopped
+    # taking one-GPU tasks as soon as a whole-node task was pending; with a dozen 9B tasks queued, every node
+    # waited for them and the one-GPU tasks never ran (11-25). Whole-node tasks are taken by nodes that start or
+    # that have just finished one.
     for gpu_index in ${all_gpus//,/ }; do
       ( idle_seconds_left=${idle_seconds}
         while true; do
-          if node_task_is_pending; then break; fi
           if task_path="$(claim_next_task gpu)"; then
             run_claimed_task "${task_path}" "${gpu_index}"
             idle_seconds_left=${idle_seconds}

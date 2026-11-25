@@ -106,7 +106,7 @@ at it. The instruction not to mention the passage was checked only against the f
 **Fix.** The v3 request asks the teacher to write as the author of the material, never referring to a source, and to
 keep the material's own names, places, dates and numbers. A rewrite that still points at a hidden source ("The text
 states that...") is dropped (`hidden_source_reference` in `synthetic_rephrase.py`). On the same 150 passages the
-Vendi ratio rose from 0.73 to 0.86, and the v3 sample passed the gate on both sources (README §7.3).
+Vendi ratio rose from 0.73 to 0.86, and the v3 sample passed the gate on both sources (README Appendix D).
 
 **Permanent regression test.** `tests/test_synthetic_rephrase.py::test_rewrites_that_point_at_a_hidden_source_are_dropped`,
 `::test_ordinary_uses_of_text_passage_and_author_are_kept`.

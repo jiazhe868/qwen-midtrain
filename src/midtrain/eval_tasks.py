@@ -271,7 +271,7 @@ evaluation_tasks = {
         "licence_note": "the card text says CC BY-NC-SA 4.0 while its licence field says cc-by-nc-4.0; "
                         "non-commercial either way",
     },
-    # Two sets of grade-school word problems from sources other than GSM8K (added 11-23, README §1.2). The
+    # Two sets of grade-school word problems from sources other than GSM8K (added 11-23, README §5.3). The
     # distillation data are worked solutions to the training problems of GSM8K and MATH, so a gain on GSM8K may be a
     # gain on its own distribution; these two sets ask whether it carries to problems written elsewhere. Both are
     # answered from the eight GSM8K shots, so the prompt stays the same and only the problems change. The Calc-X

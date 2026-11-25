@@ -1,4 +1,4 @@
-# The distillation mixture without its worked solutions (README §1.2), 100M tokens: the ablation of the distillation run.
+# The distillation mixture without its worked solutions (README §5.2), 100M tokens: the ablation of the distillation run.
 #
 # Why. The distillation run raised GSM8K by 6.8 points at 0.8B. Its mixture changed two things at once against the
 # runs that did not help: 40% teacher-written solutions, and a small web share next to question-answer text, math

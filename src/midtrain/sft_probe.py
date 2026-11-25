@@ -47,9 +47,9 @@ from midtrain import eval_tasks
 from midtrain.data_sources import data_root, repository_root, tokenizer_path
 
 turn_start, turn_end = "<|im_start|>", "<|im_end|>"
-# Two variants of the probe (README §3.3). "in_domain", the first one, fine-tunes on the training solutions of the
+# Two variants of the probe (README §2.3). "in_domain", the first one, fine-tunes on the training solutions of the
 # tested tasks (GSM8K, MATH, MBPP) and so teaches the test: across the 18 runs of the 0.8B design it made the mixtures
-# indistinguishable (11-21, README §1.2). "generic" fine-tunes on instruction data alone, so what the model shows
+# indistinguishable (11-21, README §2.3). "generic" fine-tunes on instruction data alone, so what the model shows
 # afterwards on math and code comes from the checkpoint, not from the fine-tune. Each variant has its own config,
 # data folder and results folder; the variant is chosen once per process with --variant.
 probe_variants = {
@@ -59,7 +59,7 @@ probe_variants = {
     "generic_long": {"configuration": "probe_generic_long.yaml", "data_folder": "probe_generic",
                      "results_folder": "probe_generic_long"},
     # the generic probe's data plus the teacher's solutions of other math problems (NuminaMath): does a gain from
-    # mid-training on solutions survive a fine-tune that itself contains math solutions? (README §5.9)
+    # mid-training on solutions survive a fine-tune that itself contains math solutions? (README §6.4)
     "math": {"configuration": "probe_math.yaml", "data_folder": "probe_math", "results_folder": "probe_math"},
 }
 active_probe_variant = {"name": "in_domain"}
@@ -594,7 +594,7 @@ def main() -> None:
     parser.add_argument("--quick-test", action="store_true",
                         help="20 fine-tuning steps, 12 items per task, 8 samples: checks that every stage runs, in minutes")
     parser.add_argument("--training-seed", type=int, default=None,
-                        help="another batch order for the fine-tune; only for measuring the probe's own noise (README §3.4)")
+                        help="another batch order for the fine-tune; only for measuring the probe's own noise (README §2.4)")
     parser.add_argument("--variant", choices=list(probe_variants), default="in_domain",
                         help="in_domain: fine-tunes on the tested tasks' training solutions; generic: instruction data only")
     arguments = parser.parse_args()

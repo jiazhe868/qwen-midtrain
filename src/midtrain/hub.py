@@ -78,7 +78,7 @@ the data of both fine-tuning probes. With it, the code trains and evaluates with
 |---|---|
 | `pool/<source>/part-*.parquet` | documents as text, with id, token count and source metadata |
 | `tokens/<source>/` | the same documents as Qwen token ids, split into train and validation (0.5% held out) |
-| `packs/` | 16K-token sequences grouped at random, by topic, or by source (README §9 of the code repository) |
+| `packs/` | 16K-token sequences grouped at random, by topic, or by source (README Appendix E of the code repository) |
 | `hygiene/decontamination_flagged.parquet` | documents that share a 13-gram with an evaluation item; the sampler never uses them |
 | `synthetic/v1`, `v2`, `v3` | the three batches of teacher rewrites, with their passages; only v3 passed the diversity gate |
 | `synthetic/request_variants/` | the seven request wordings tried on 150 passages |
@@ -148,8 +148,8 @@ from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_pretrained("{checkpoint_repository}", subfolder="screen18_r01_0.8B")
 ```
 
-`screen18_r*` are the 18 runs of the screening design (README §6.2 of the code repository), `pilot_*` the pilot runs,
-`dose_*` the runs of the dose experiment (README §1.2). The base models are Apache-2.0, and so are these checkpoints.
+`screen18_r*` are the 18 runs of the screening design (README §3.2 of the code repository), `pilot_*` the pilot runs,
+`dose_*` the runs of the dose experiment (README §3.3 and §5). The base models are Apache-2.0, and so are these checkpoints.
 
 | run | base model | tokens | peak learning rate | mixture (share of tokens) |
 |---|---|---|---|---|

@@ -1,7 +1,7 @@
 """Interpolate two checkpoints of one architecture, (1 - w) * first + w * second, and save the result as a run.
 
 Why this file exists. Continued pretraining of the 0.8B model for 300M tokens moved it away from the optimum its own
-training had annealed it into (README §1.2): held-out losses and few-shot accuracy fell, even after training on
+training had annealed it into (README §3.3): held-out losses and few-shot accuracy fell, even after training on
 replay text. Averaging the weights of the trained model with those of its base is the cheapest known remedy for
 such forgetting (weight interpolation, as in WiSE-FT and model soups): it may keep part of what the training added
 and give back part of what it took. The merged model is saved like any other run (runs/<name>/checkpoint_final),

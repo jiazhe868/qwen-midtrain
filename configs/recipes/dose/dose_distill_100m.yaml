@@ -1,6 +1,6 @@
-# The distillation mixture of the dose experiment (README §1.2), 100M tokens.
+# The distillation mixture of the dose experiment (README §4.3), 100M tokens.
 #
-# Why. At 300M tokens every mixture of public text made the 0.8B model worse (README §1.2), and interpolating a run
+# Why. At 300M tokens every mixture of public text made the 0.8B model worse (README §3.3), and interpolating a run
 # with the base only gave the base back: the text held nothing these tasks need that the base did not already have.
 # Here 40% of the tokens are worked solutions written by the 27B teacher for the training problems of GSM8K and MATH
 # (`synthetic_solutions`, only solutions whose final answer is right, at most four per problem); 45,177 solutions and

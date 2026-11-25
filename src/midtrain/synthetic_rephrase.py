@@ -466,7 +466,7 @@ def publish_rewrites_to_pool(batch_name: str, styles_left_out: list[str] | None 
 # solve: worked solutions by the teacher for training-split math problems, kept only when the answer is right
 # ---------------------------------------------------------------------------------------------------------------
 # Why. Rewrites keep a passage's facts and change its form; they did not make the 0.8B model better at mathematics
-# at 300M tokens (README §1.2). A stronger model's worked solutions to problems with known answers carry the skill
+# at 300M tokens (README §3.3). A stronger model's worked solutions to problems with known answers carry the skill
 # itself: the teacher (Qwen3.8-27B) solves the training problems of GSM8K and MATH (both MIT), several times each, and
 # only solutions whose final answer the project's graders accept are kept. The test splits are never read.
 solution_instruction = (
@@ -475,7 +475,7 @@ solution_instruction = (
 math_train_subjects = ("algebra", "counting_and_probability", "geometry", "intermediate_algebra", "number_theory",
                        "prealgebra", "precalculus")
 # The second problem set (11-23). The first covers two distributions, GSM8K's and MATH's, and at 0.8B its gain was
-# largest on GSM8K (README §1.2). Word problems from three other sources of NuminaMath-1.5 (Apache-2.0) widen it:
+# largest on GSM8K (README §5.3). Word problems from three other sources of NuminaMath-1.5 (Apache-2.0) widen it:
 # orca_math (grade-school word problems written by a model), cn_k12 (Chinese school exercises, in English) and
 # synthetic_math (new competition-style problems). Only problems that NuminaMath marks valid, with a valid solution and
 # a short final answer, are drawn in a seeded order, and each passes the decontamination gate (13-grams and
@@ -485,7 +485,7 @@ numina_revision = "1b05109f9e5c1ad06c0663519502416c30b300f8"
 numina_problem_count_by_source = {"orca_math": 7000, "cn_k12": 6000, "synthetic_math": 7000}
 # The third set (11-24): the first set's hard problems again, with room to finish. The first pass capped answers at
 # 1,024 tokens, which cut off 38% of the MATH attempts and 72% at level 5 (27% right there, 97% at level 1), so the
-# kept MATH solutions are mostly easy ones and 2,347 of 14,262 problems got none (README §1.2). Problems that got no
+# kept MATH solutions are mostly easy ones and 2,347 of 14,262 problems got none (README §4.4). Problems that got no
 # right solution, and MATH problems of levels 4 and 5 with fewer than two, are solved again with 4,096 tokens.
 hard_problem_answer_token_limit = 4096
 solution_problem_sets = {"training_splits": {"folder": "solutions", "pool_source": "synthetic_solutions",
@@ -866,7 +866,7 @@ def check_student_on_training_problems(student_checkpoint: str, student_name: st
     chunks, so a stopped check continues where it ended.
 
     `first_set_only` leaves NuminaMath out, and `save_right_answers` keeps the text of the student's right answers:
-    both for the 2B decomposition (README §5.6), which trains the 2B model on its own right answers."""
+    both for the 2B decomposition (README §6.4), which trains the 2B model on its own right answers."""
     from midtrain import sft_probe
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
@@ -1011,7 +1011,7 @@ def write_subsets_the_student_cannot_solve(student_name: str, maximum_student_ri
 
 def write_first_set_decomposition(student_name: str, maximum_student_right_of_fails: int = 1) -> dict:
     """Split the first solution set by what the student can already do: a direct test of the main lesson, that
-    mid-training helps when the data teaches what the model does not know (README §5.6).
+    mid-training helps when the data teaches what the model does not know (README §6.4).
 
     Three recipes come out, each with one kind of solutions in place of the first set:
       fails    the teacher's solutions of the problems the student answers right at most once in four tries
@@ -1041,7 +1041,7 @@ def write_first_set_decomposition(student_name: str, maximum_student_right_of_fa
         components = {source: round(share, 4), **base_recipe["components"]}
         components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - components[source], 4)
         assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
-        lines = [f"# The first solution set split by what the student ({student_name}) can already do (README §5.6): `{kind}`.",
+        lines = [f"# The first solution set split by what the student ({student_name}) can already do (README §6.4): `{kind}`.",
                  f"# Written by `synthetic_rephrase.py decompose-first-set`: {kept_tokens / 1e6:.1f}M tokens, seen about",
                  f"# {passes_of_the_full_run:.2f} times each as in the full run; the rest of its 40% goes to replay_web_edu.",
                  f"token_budget: {token_budget}", f"context_length: {base_recipe['context_length']}", "components:"]

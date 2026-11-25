@@ -3,7 +3,7 @@
 # Nothing here changes between candidates: the same conversations in the same order, the same learning rate and
 # steps, the same test items and sampling. A difference after the probe then comes from the checkpoint alone.
 # The probe is small on purpose: it has to run for dozens of candidates. Its numbers are not meant as the best a
-# checkpoint can reach, only as a ranking of checkpoints (README §2.2).
+# checkpoint can reach, only as a ranking of checkpoints (README §2.3).
 
 data:
   seed: 20261120

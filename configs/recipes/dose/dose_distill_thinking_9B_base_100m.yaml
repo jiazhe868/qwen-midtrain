@@ -1,0 +1,16 @@
+# The distillation mixture with synthetic_solutions_thinking in place of the first solution set (README §6.4), 100M tokens.
+# Written by synthetic_rephrase.write_recipe_with_solutions_source: 11.8M train tokens,
+# seen about 2.50 times each; the rest of the 40% goes to replay_web_edu.
+token_budget: 100007936
+context_length: 8192
+components:
+  synthetic_solutions_thinking: 0.2938
+  reasoning_qa: 0.15
+  math_web: 0.1
+  code: 0.1
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.2062
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1

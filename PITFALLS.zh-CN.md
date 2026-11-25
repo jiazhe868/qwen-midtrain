@@ -74,7 +74,7 @@
 
 **根本原因。** 话题其实保留了下来：去掉每个集合的平均方向之后，改写的分散程度是母段落的 92%。改写共有的是一个方向，即谈论一段文字时的腔调，而它最常见的标志就是提及来源本身：原样请求得到的 144 条改写中，有 83 条在前 400 个词里提到"这段文字""原文"或"作者"。请求以"Passage:"给出来源，教师就一直指着它说话。"不要提到这段文字"这条指令，只对照改写的开头几个词检查过。
 
-**修复。** v3 的请求要求教师以这份材料作者的身份来写，不提任何来源，并保留材料自己的名字、地点、日期和数字。仍然指向看不见的来源的改写（"The text states that..."）会被丢弃（`synthetic_rephrase.py` 中的 `hidden_source_reference`）。在同样的 150 个段落上，Vendi 比值从 0.73 升到 0.86，v3 的样本在两个来源上都通过了门槛（README §7.3）。
+**修复。** v3 的请求要求教师以这份材料作者的身份来写，不提任何来源，并保留材料自己的名字、地点、日期和数字。仍然指向看不见的来源的改写（"The text states that..."）会被丢弃（`synthetic_rephrase.py` 中的 `hidden_source_reference`）。在同样的 150 个段落上，Vendi 比值从 0.73 升到 0.86，v3 的样本在两个来源上都通过了门槛（README 附录 D）。
 
 **永久回归测试。** `tests/test_synthetic_rephrase.py::test_rewrites_that_point_at_a_hidden_source_are_dropped`、`::test_ordinary_uses_of_text_passage_and_author_are_kept`。
 

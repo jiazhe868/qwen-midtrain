@@ -1,7 +1,7 @@
 """Compare wordings of the teacher's request on the same passages: which wording keeps the rewrites as varied as the
 real passages they come from?
 
-Why this script exists. The first two batches of rewrites failed the diversity gate (README §7.3). The rewrites kept
+Why this script exists. The first two batches of rewrites failed the diversity gate (README Appendix D). The rewrites kept
 their topics (92% of the parents' spread once each set's mean direction is removed) but shared one direction, the
 register of talking about a text. Each wording below is sent for the same 150 passages, each passage in the one style
 the v2 batch gave it, and every result is measured against the same passages: the Vendi ratio and bigram-entropy drop

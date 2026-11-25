@@ -1,4 +1,4 @@
-# A question-answer-heavy mixture of the dose experiment (README §1.2), 300M tokens.
+# A question-answer-heavy mixture of the dose experiment (README §3.3), 300M tokens.
 #
 # Why. In the first dose runs (300M tokens) every mixture made the 0.8B model worse than the base, and the replay-only
 # control did too, so web text was no neutral anchor (its own held-out loss rose 0.9%). This recipe keeps web text

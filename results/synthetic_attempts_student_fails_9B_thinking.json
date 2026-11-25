@@ -1,0 +1,75 @@
+{
+ "problem_set": "student_fails_9B_thinking",
+ "groups": {
+  "cn_k12": {
+   "attempts": 686,
+   "problems": 343,
+   "right_share": 0.7128,
+   "cut_share": 0.0102,
+   "solved_problem_share": 0.7493
+  },
+  "gsm8k": {
+   "attempts": 884,
+   "problems": 442,
+   "right_share": 0.6606,
+   "cut_share": 0.0509,
+   "solved_problem_share": 0.6968
+  },
+  "math": {
+   "attempts": 4458,
+   "problems": 2229,
+   "right_share": 0.7456,
+   "cut_share": 0.1882,
+   "solved_problem_share": 0.8026
+  },
+  "math/level_1": {
+   "attempts": 34,
+   "problems": 17,
+   "right_share": 0.8824,
+   "cut_share": 0.0,
+   "solved_problem_share": 0.8824
+  },
+  "math/level_2": {
+   "attempts": 206,
+   "problems": 103,
+   "right_share": 0.8786,
+   "cut_share": 0.0146,
+   "solved_problem_share": 0.8835
+  },
+  "math/level_3": {
+   "attempts": 554,
+   "problems": 277,
+   "right_share": 0.852,
+   "cut_share": 0.0614,
+   "solved_problem_share": 0.8845
+  },
+  "math/level_4": {
+   "attempts": 1040,
+   "problems": 520,
+   "right_share": 0.8173,
+   "cut_share": 0.1087,
+   "solved_problem_share": 0.8615
+  },
+  "math/level_5": {
+   "attempts": 2624,
+   "problems": 1312,
+   "right_share": 0.6825,
+   "cut_share": 0.2626,
+   "solved_problem_share": 0.7546
+  },
+  "orca_math": {
+   "attempts": 722,
+   "problems": 361,
+   "right_share": 0.7535,
+   "cut_share": 0.0554,
+   "solved_problem_share": 0.7978
+  },
+  "synthetic_math": {
+   "attempts": 444,
+   "problems": 222,
+   "right_share": 0.8829,
+   "cut_share": 0.045,
+   "solved_problem_share": 0.9009
+  }
+ }
+}

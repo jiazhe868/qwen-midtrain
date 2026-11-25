@@ -2,7 +2,7 @@
 #
 # Every source is a small first slice of a much larger public dataset: the experiments train on 20M-200M tokens per
 # run, so a pool of about 2.5B tokens leaves every run far from repeating a document. The roles are the mixture
-# components of the study (README §3): replay stands in for the pretraining distribution, curated is real long-form
+# components of the study (README §3.1): replay stands in for the pretraining distribution, curated is real long-form
 # text of high value, hard is math and code. Synthetic rephrasings and procedural reasoning traces are built by
 # synthetic_rephrase.py and reasoning_primitives.py and join the pool as their own sources.
 #

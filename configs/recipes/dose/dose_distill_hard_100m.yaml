@@ -1,4 +1,4 @@
-# The distillation mixture with the hard problems solved again (README §1.2), 100M tokens.
+# The distillation mixture with the hard problems solved again (README §4.4), 100M tokens.
 #
 # Why. The first pass capped the teacher's answers at 1,024 tokens. That cut off 38% of the MATH attempts and 72% at
 # level 5, so the kept solutions are mostly easy problems, and MATH-500 did not move at 9B. Here 10% of the tokens come

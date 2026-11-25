@@ -1,4 +1,4 @@
-# The distillation mixture with a wider problem set (README §1.2), 100M tokens.
+# The distillation mixture with a wider problem set (README §4.4), 100M tokens.
 #
 # Why. The first distillation run raised GSM8K by 6.8 points at 0.8B and MATH-500 by 1.4 within its noise. Its
 # solutions answer two distributions only, GSM8K's and MATH's. Here the same 40% of solution tokens is split in half:

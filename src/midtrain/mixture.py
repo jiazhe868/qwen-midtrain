@@ -23,7 +23,7 @@ A sequence is a slice of one source's stream: its documents in the seeded order,
 document can continue into the next sequence of the same source, as in ordinary pretraining. A long sequence is the
 first `sequence_length` tokens of one pack, so that its documents are the ones the pack put together.
 
-No document that the decontamination gate flagged (data_hygiene.py, README §11) can reach a run: every stream leaves
+No document that the decontamination gate flagged (data_hygiene.py, README §2.5) can reach a run: every stream leaves
 flagged documents out, and a recipe that names a source the gate has not scanned stops with an error. The first gate
 run flagged 6,030 of 2,686,237 documents (2026-11-20); most matches are number sequences that also occur in a
 benchmark's examples, and all of them are dropped, because 0.2% of the pool costs nothing and a real leak would.

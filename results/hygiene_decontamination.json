@@ -126,6 +126,10 @@
      "documents": 74,
      "tokens": 58050
     },
+    "synthetic_solutions_thinking": {
+     "documents": 137,
+     "tokens": 421107
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -236,6 +240,10 @@
      "synthetic_solutions_hard": {
       "documents": 4,
       "tokens": 5585
+     },
+     "synthetic_solutions_thinking": {
+      "documents": 1,
+      "tokens": 4658
      }
     },
     "hellaswag": {
@@ -296,6 +304,10 @@
      "synthetic_solutions_numina": {
       "documents": 11,
       "tokens": 8049
+     },
+     "synthetic_solutions_thinking": {
+      "documents": 13,
+      "tokens": 57272
      },
      "textbooks": {
       "documents": 96,
@@ -359,6 +371,10 @@
       "documents": 62,
       "tokens": 49250
      },
+     "synthetic_solutions_thinking": {
+      "documents": 117,
+      "tokens": 332000
+     },
      "textbooks": {
       "documents": 50,
       "tokens": 278010
@@ -409,6 +425,10 @@
       "documents": 5,
       "tokens": 3711
      },
+     "synthetic_solutions_thinking": {
+      "documents": 6,
+      "tokens": 28147
+     },
      "textbooks": {
       "documents": 89,
       "tokens": 525725
@@ -458,6 +478,10 @@
      "synthetic_solutions_hard": {
       "documents": 12,
       "tokens": 21384
+     },
+     "synthetic_solutions_thinking": {
+      "documents": 2,
+      "tokens": 5887
      },
      "textbooks": {
       "documents": 51,
@@ -572,6 +596,10 @@
      "documents": 74,
      "tokens": 58050
     },
+    "synthetic_solutions_thinking": {
+     "documents": 137,
+     "tokens": 421107
+    },
     "textbooks": {
      "documents": 248,
      "tokens": 1816074
@@ -640,6 +668,10 @@
    "documents": 21445,
    "tokens": 12967589
   },
+  "synthetic_solutions_thinking": {
+   "documents": 5332,
+   "tokens": 11799714
+  },
   "textbooks": {
    "documents": 94096,
    "tokens": 226955391
@@ -656,25 +688,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 5974,
-   "words": 4282,
-   "mostly_numbers": 2808,
+   "numbers": 5998,
+   "words": 4376,
+   "mostly_numbers": 2827,
    "alphabet": 872
   },
   "by_task": {
    "mbpp": {
-    "numbers": 3944,
+    "numbers": 3950,
     "alphabet": 872,
     "mostly_numbers": 60,
     "words": 108
    },
    "math500": {
-    "words": 2612,
-    "numbers": 143,
-    "mostly_numbers": 2491
+    "words": 2703,
+    "numbers": 150,
+    "mostly_numbers": 2510
    },
    "humaneval": {
-    "numbers": 5536,
+    "numbers": 5549,
     "mostly_numbers": 340,
     "words": 193,
     "alphabet": 75
@@ -683,7 +715,7 @@
     "words": 722
    },
    "mmlu_pro": {
-    "words": 355,
+    "words": 357,
     "mostly_numbers": 8
    },
    "triviaqa": {
@@ -693,7 +725,7 @@
     "words": 4
    },
    "gsm8k": {
-    "words": 59
+    "words": 60
    },
    "arc_challenge": {
     "words": 102

@@ -16,11 +16,11 @@ What the file does, in the order the stages run:
     compare   two runs question by question: both answered the same questions with the same sampling, so their
               difference is known far better than either score alone
     compare-with-base  every run of one size minus its base model, on the greedy final evaluation, the generic
-              probe, the knowledge guard and the losses (the dose experiment, README §1.2)
+              probe, the knowledge guard and the losses (the dose experiment, README §5)
 
 The factors are ratios (replay share of all tokens, rewritten share of the non-replay text, ...) because the
 questions are about ratios. The law is fitted on absolute shares, with replay as what remains, so a coefficient
-reads: the change of a measurement when this component takes one unit of share from replay (README §6.3).
+reads: the change of a measurement when this component takes one unit of share from replay (README Appendix C).
 
 Commands (after `source scripts/env.sh`):
     $MIDTRAIN_PYTHON -m midtrain.mixing_law design configs/designs/screen18.yaml
@@ -308,7 +308,7 @@ def fit_mixing_law(runs: list[dict], values: np.ndarray) -> dict:
             "explained_share_of_pure_noise": (design_matrix.shape[1] - 1) / (len(values) - 1)}
 
 
-# Pairs written down before the results (README §13): P8 asks whether a loss ranks the runs as the probe does, P11
+# Pairs written down before the results (README Appendix H): P8 asks whether a loss ranks the runs as the probe does, P11
 # whether the fine-tune of the probe shrinks the differences that few-shot generation shows before it.
 loss_and_probe_pairs = [("loss/replay_web", "probe/mean/pass@16"), ("loss/math_web", "probe/math500/pass@16"),
                         ("loss/math_web", "probe/gsm8k/pass@16"), ("loss/code", "probe/mbpp/pass@16"),
@@ -527,7 +527,7 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
     base_final = read_json_if_present(folders["final_eval"] / f"{base_name}.json")
     base_probe = read_json_if_present(folders["probe_generic"] / f"{base_name}.json")
     # the other probes, each compared like the generic one: the same fine-tune sampled with longer answer limits
-    # (README §6.4), and the fine-tune that also holds math solutions (README §5.9)
+    # (README §6.4), and the fine-tune that also holds math solutions (README §6.4)
     other_probes = {"generic_probe_long": "probe_generic_long", "math_probe": "probe_math"}
     base_of_other_probe = {block: read_json_if_present(folders[folder] / f"{base_name}.json")
                            for block, folder in other_probes.items()}
@@ -681,7 +681,7 @@ def main() -> None:
     compare_parser = commands.add_parser("compare")
     compare_parser.add_argument("first_run")
     compare_parser.add_argument("second_run")
-    dose_parser = commands.add_parser("compare-with-base", help="every run of a size minus its base: README §1.2")
+    dose_parser = commands.add_parser("compare-with-base", help="every run of a size minus its base: README §5")
     dose_parser.add_argument("--model-size", required=True)
     arguments = parser.parse_args()
     if arguments.command == "compare":

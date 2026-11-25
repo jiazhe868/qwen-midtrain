@@ -148,7 +148,7 @@ factor_labels = {
     "schedule": {"en": "schedule", "zh": "时间安排"},
 }
 level_words = {"none": "无", "random": "随机", "semantic": "语义", "uniform": "均匀", "late": "靠后", "early": "靠前"}
-# The rows contrast what the mixture moves with what it does not (README §1.2): few-shot generation of the trained
+# The rows contrast what the mixture moves with what it does not (README §3.2): few-shot generation of the trained
 # checkpoint, the same tasks after the probe's fine-tune, the knowledge guard, and the math loss as a positive control.
 design_rows = [("regression/few_shot_mean/pass@1", {"en": "Δ few-shot pass@1", "zh": "Δ 少样本 pass@1"}),
                ("probe/mean/pass@1", {"en": "Δ probe pass@1", "zh": "Δ 探针 pass@1"}),
@@ -167,7 +167,7 @@ def level_tick_label(level, language: str) -> str:
 def draw_design_main_effects(language: str) -> bool:
     """Small multiples: one row per measurement, one column per factor. Each point is the mean over the runs at one
     level, minus the mean over all runs, so that both model sizes share one axis. The grey band is the range of the
-    empty column, the size of an effect of nothing (README §6.2)."""
+    empty column, the size of an effect of nothing (README §3.2)."""
     import yaml
 
     design = yaml.safe_load((repository_root / "configs" / "designs" / "screen18.yaml").read_text())

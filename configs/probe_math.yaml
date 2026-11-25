@@ -1,4 +1,4 @@
-# The math probe (README §5.9): the generic probe's fine-tune with 4,000 of the teacher's checked solutions of
+# The math probe (README §6.4): the generic probe's fine-tune with 4,000 of the teacher's checked solutions of
 # NuminaMath problems added. The generic probe holds no math, so it shows what a model brings to a fine-tune. This
 # one asks the opposite question: when the fine-tune itself teaches worked math solutions, of problems that are not
 # from the tested tasks, does a model that was mid-trained on solutions still come out ahead? If the base model
@@ -8,7 +8,7 @@
 # Why a second probe. The first one trains on the training solutions of the tasks it then tests (GSM8K, MATH, MBPP):
 # about 15,000 worked solutions at a learning rate of 2e-5. Across the 18 runs of the 0.8B design it made the
 # mixtures indistinguishable: the spread of few-shot pass@1 shrank 2.9-fold through it and the order of the runs was
-# lost (README §1.2, 11-21). A probe that teaches the test measures the probe. This one teaches the chat format and
+# lost (README §2.3, 11-21). A probe that teaches the test measures the probe. This one teaches the chat format and
 # instruction following only, so what a model shows afterwards on math and code comes from its checkpoint. The code
 # instructions stay: they are general Python tasks, none from HumanEval or MBPP.
 #

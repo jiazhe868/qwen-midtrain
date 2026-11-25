@@ -1,4 +1,4 @@
-# The distillation mixture with one solution per problem instead of up to four (README §1.2), 100M tokens.
+# The distillation mixture with one solution per problem instead of up to four (README §4.2), 100M tokens.
 # Same problems, same 40% share, a quarter of the distinct solutions, so each is seen about four times as often:
 # do several different solutions of one problem teach more than one solution repeated? The subset lists the
 # first solution of each problem (subsets/synthetic_solutions/one_per_problem, written 11-24).

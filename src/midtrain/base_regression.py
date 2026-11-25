@@ -8,10 +8,10 @@ groups of numbers:
                    log-likelihood of the answer letter, with five examples and without. Cloze: the log-likelihood of
                    each answer's own text after the question, per character, with no letters at all
     few-shot work  math and code solved from few-shot prompts, 16 samples per question: pass@1 and pass@16 of the
-                   checkpoint with no fine-tune in between (README §13 P11 compares their spread with the probe's)
+                   checkpoint with no fine-tune in between (README Appendix H, P11, compares their spread with the probe's)
     use of context how much the few-shot examples help (accuracy with shots minus accuracy without), and how much
                    the loss on the last 2,048 tokens of a long document falls when 14,336 tokens of context are
-                   given compared with 2,048. These are where long-context training should show (README §9).
+                   given compared with 2,048. These are where long-context training should show (README Appendix E).
 
 Lettered multiple choice is scored from one forward pass per question: the prompt ends in `Answer:` and the logits
 of the candidate letters at that position are compared. No text is generated, so there is no answer extraction to
@@ -57,7 +57,7 @@ few_shot_generation_settings = {
         "triviaqa": {"item_count": 1000, "maximum_new_tokens": 24, "sample_count": 1, "temperature": 0.0},
     },
 }
-# The final evaluation of the dose experiment (README §1.3): every test item once, greedy, with the few-shot prompts
+# The final evaluation of the dose experiment (README §2.2): every test item once, greedy, with the few-shot prompts
 # of the regression suite. Sampled pass@1 on 200-250 items ranks runs well enough; a claim about the size of a gain
 # wants the whole test set and the decoding that published base-model results use. The answer limits are longer than
 # in the sampled suite, because a model trained on worked solutions writes longer ones; the cut share is recorded.

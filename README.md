@@ -23,18 +23,18 @@ and nothing at 9B (§5.5).
 
 Large language models are usually built in three stages. Pretraining teaches a model language and knowledge from
 trillions of tokens of text. Post-training then turns the model into an assistant and sharpens its reasoning. Between
-the two, many teams add a short middle stage called **mid-training**, in which the model reads a chosen mixture of
+the two, many teams add a short middle stage called mid-training, in which the model reads a chosen mixture of
 high-quality text.
 
 The aim of mid-training is to give post-training a better starting point. For a strong open model such as Qwen3.5,
-that is harder than it sounds. The model has already read most of the good text that is publicly available. Its
+that is difficult. The model has probably been trained on most of the good text that is publicly available. Its
 pretraining has also ended in a settled state, and new training can disturb that state before it adds anything.
 
-This project tested two kinds of data on the Qwen3.5 base models. The first kind was **public text**: math web pages,
+This project tested two kinds of data on the Qwen3.5 base models. The first kind was public text: math web pages,
 question-answer pairs, Wikipedia, textbooks, code and general web text. No mixture of public text made the 0.8B model
 better. With a larger learning rate the mixtures made it worse, and with a small one they changed nothing.
 
-The second kind was **distilled data**. A larger model with 27B parameters, the "teacher", wrote step-by-step
+The second kind was distilled data. A larger model with 27B parameters, the "teacher", wrote step-by-step
 solutions to the training problems of two math benchmarks, GSM8K and MATH. Only solutions with the right final answer
 were kept. In the few-shot test, this data raised GSM8K accuracy by 6.8 points for the 0.8B model, 4.3 for the 2B
 model and 5.3 for the 9B model. The 4B model gained only 1.4 points, which is within the noise. The gain also appeared
@@ -83,9 +83,9 @@ mid-training    a smaller, chosen mixture at the end of pretraining; the model s
 post-training   a fine-tune on conversations, then reinforcement learning (RL) on problems with checkable answers
 ```
 
-During pretraining, the **learning rate** controls how large each update to the model's weights is. It rises at the
+During pretraining, the learning rate controls how large each update to the model's weights is. It rises at the
 start of training and then falls slowly toward zero. Near the end, the updates are tiny, and the model settles into a
-stable state. This slow cooling is called **annealing**, and a model released after it is said to be annealed.
+stable state. This slow cooling is called annealing, and a model released after it is said to be annealed.
 
 Mid-training is usually done as a final phase of pretraining on a narrower mixture. The reports of several open models
 describe it. OLMo 2 trains its final stage, 50B tokens and more, on a curated mix of web text, math and synthetic data.
@@ -93,7 +93,7 @@ Llama 3 anneals on small sets of high-quality math and code. The Qwen reports de
 science, code and reasoning. The usual recipe has three parts:
 
 1. more text from the domains that matter, such as math and code;
-2. some **replay** of general text, so that the model does not forget what it knew;
+2. some replay of general text, so that the model does not forget what it knew;
 3. a learning rate that decays to zero over the stage.
 
 Two outcomes decide whether mid-training worked. The first is what post-training can reach from the new starting
@@ -106,8 +106,8 @@ its skills outside the targeted domains should not get worse.
 The common view is that more good text makes a model better. For a released base model like Qwen3.5, three facts
 make this less certain.
 
-**First, the model has probably read this text already.** Qwen3.5 was trained on tens of trillions of tokens. The
-best public datasets that a mid-training mixture would use, such as FineWeb-Edu, Wikipedia, FineMath and StackExchange,
+**First, the model has probably been trained on this text already.** Qwen3.5 was trained on tens of trillions of
+tokens. The public datasets that a mid-training mixture would use, such as FineWeb-Edu, Wikipedia, FineMath and StackExchange,
 are of the same kind as the data in its own final stage. A model that has seen a book once may learn little from
 reading it a second time.
 
@@ -140,23 +140,25 @@ The answers, in the order the sections present them:
   was 1.4 points, within the noise. General knowledge stayed the same.
 - **The solutions are what helped (§5.2).** A run on general text alone gained nothing. A run on the same mixture
   without the solutions gained nothing either.
+- **The result repeats (§5.8).** Three seeds of the 0.8B distillation run gain 6.3 to 7.3 points on few-shot GSM8K,
+  and the controls stay near zero with either seed.
 - **The gain carried partly to new problems (§5.3).** On SVAMP, a set of word problems written by other people, the
   gain was 1.6, 3.4, 1.4 and 5.1 points from the smallest model to the largest. At 4B and 9B, all of the GSM8K gain
   carried over. The MATH-500 test did not move when the model was asked directly, and code did not move at all.
-- **At 0.8B and 2B, a fine-tune revealed more of the gain (§5.4).** After a short generic fine-tune, GSM8K rose by
+- **For the two smallest models, a fine-tune revealed more of the gain (§5.4).** After a short generic fine-tune, GSM8K rose by
   up to 11.8 points and MATH-500 by up to 7.6. Most of this extra gain is reliability: the model got the right answer
   more often on problems it could already sometimes solve (§5.6).
 - **The larger the model, the less of the gain survived the fine-tune (§5.5).** After the same fine-tune, GSM8K
   gained 2.4 points at 4B. The distilled 9B model was no better than the fine-tuned base model: the fine-tune alone
   gave the base model the same skill. The solutions had taught the 9B model mostly what it already knew.
-- **The first set of solutions had a hole (§4.4).** The teacher's answers were limited to 1,024 tokens. That limit cut
+- **The first set of solutions lacked the hardest problems (§4.4).** The teacher's answers were limited to 1,024 tokens. That limit cut
   off 72% of its attempts on the hardest MATH problems, so those problems are nearly missing from the data. A second
   pass, with room for 4,096 tokens, starts today.
 
-> **Status, 2026-11-25.** The results of all four sizes are in, with their controls (the 9B control waits for the
-> cluster) and two check runs on the hard problems. Running now: two more 9B runs, one on targeted solutions and one
-> at a learning rate of 1e-5. Next: a 9B run on the teacher's thinking traces (§6.4). This file is updated with every
-> result.
+> **Status.** As of 2026-11-25, the results of all four sizes are in, with their controls (the 9B control is
+> running), and the 0.8B result has been repeated with three seeds (§5.8). Running now: three more 9B runs (targeted
+> solutions, a learning rate of 1e-5, the teacher's thinking traces) and the experiments listed in §6.4. This file is
+> updated with every result.
 
 ### 1.4 Models, data and compute
 
@@ -179,7 +181,7 @@ Every later number depends on how a model is judged. So the measurement comes be
 
 ### 2.1 Why loss is not enough
 
-**Loss** measures how well a model predicts the next word of a text. A lower loss on held-out text means the model
+Loss measures how well a model predicts the next word of a text. A lower loss on held-out text means the model
 finds that text less surprising. In pretraining it is natural to watch the loss and keep the model with the lowest one.
 
 For mid-training, loss is a weak guide. Loss shows which kind of text a run moved the model toward. It does not show
@@ -188,7 +190,7 @@ whether the model became a better starting point for post-training. Two results 
 and almost none of the differences after a fine-tune. And in §5.2, a run with the teacher's solutions and a run without
 them changed the losses by the same amounts, yet only the first run got better on the tests.
 
-Loss is still useful. It is the fastest warning that a run went wrong, so every run records it.
+Loss is still useful. It shows early when a run goes wrong, so every run records it.
 
 ### 2.2 Four ways to look at a model
 
@@ -210,13 +212,13 @@ functions, tasks with constraints, summaries, rewrites and everyday chat. None o
 none is a math problem. After the fine-tune, the model answers a fixed sample of test questions: 200 from GSM8K, 250
 from MATH-500, all 164 of HumanEval and 200 from MBPP. It answers each question 16 times at temperature 1, which means
 it samples a different answer each time. This shows what post-training can reach from the model. Two numbers come
-out of it. **pass@1** is the chance that one sampled answer is right. **pass@16** is the share of questions the model
+out of it. pass@1 is the chance that one sampled answer is right. pass@16 is the share of questions the model
 solves at least once in 16 tries.
 
 **4. Knowledge and loss.** Five multiple-choice sets (MMLU-Pro, ARC-Challenge, HellaSwag, CommonsenseQA and CMMLU)
-and TriviaQA test what the model knows. The multiple-choice sets are scored by **cloze**: the model's likelihood of
+and TriviaQA test what the model knows. The multiple-choice sets are scored by cloze: the model's likelihood of
 each answer's own text, with no answer letters. Small models prefer some letters over others, and cloze removes that
-bias (PITFALLS B4). The loss on held-out text from every source is recorded too. It is given in **bits per byte**:
+bias (PITFALLS B4). The loss on held-out text from every source is recorded too. It is given in bits per byte:
 the average number of bits the model needs to encode one byte of the text. Lower is better.
 
 | view | what it asks | code |
@@ -235,10 +237,10 @@ def estimate_pass_at_k(correct_sample_count: int, sample_count: int, k: int) -> 
     return 1.0 - math.comb(sample_count - correct_sample_count, k) / math.comb(sample_count, k)
 ```
 
-### 2.3 A probe that taught the test
+### 2.3 A probe that trained on the tested tasks
 
 The first version of the fine-tuning test did not use instruction conversations. It fine-tuned each model on about
-15,000 training solutions of GSM8K, MATH and MBPP, and then tested on those same tasks. This looked like the most
+15,000 training solutions of GSM8K, MATH and MBPP, and then tested on those same tasks. This looked like a
 direct way to measure what post-training can reach.
 
 It turned out to measure something else. On the 0.8B base model, this "in-domain" probe scored lower than the generic
@@ -268,18 +270,18 @@ models can be compared question by question: on each question, one model may be 
 may score the same. The average of these per-question differences is the gain.
 
 To know whether a gain is real, the comparison is repeated 2,000 times on random resamples of the questions. The
-middle 95% of the results is the **95% interval** shown in every table. If the interval does not include zero, the
+middle 95% of the results is the 95% interval shown in every table. If the interval does not include zero, the
 difference is larger than the luck of which questions happen to be in the test (`mixing_law.py compare-with-base`,
 which writes `results/comparisons/dose_vs_base_<size>.json`).
 
 This interval has a limit. It covers the choice of questions, not the randomness of training. A second training run
-with a different data order could give a somewhat different model. Repeated runs with other seeds wait for the
-cluster (§6.4).
+with a different data order could give a somewhat different model. Section 5.8 reports the first
+repeats with other seeds.
 
 ### 2.5 What is kept out of training
 
 A test only measures skill if its questions were never in the training data. If a test question appears in the
-training text, the model can answer it from memory. This leak is called **contamination**.
+training text, the model can answer it from memory. This leak is called contamination.
 
 Every document in the training pool is checked against every test question, including the few-shot examples. A
 document that shares any sequence of 13 words with a test text is flagged, and the sampler never uses it. The current
@@ -302,7 +304,7 @@ has a role:
 - **hard text**: two slices of FineMath (web pages with mathematics) and educational code;
 - **question-answer text**: 2.29M questions with worked answers from WebInstructSub.
 
-A **recipe** sets the share of each source, for example "30% math, 20% code, 50% replay". The sampler then fills every
+A recipe sets the share of each source, for example "30% math, 20% code, 50% replay". The sampler then fills every
 training sequence from the source that is furthest behind its target. So the shares a run actually sees match the
 recipe almost exactly (Appendix B).
 
@@ -314,7 +316,7 @@ The common way to tune a mixture is to change one share at a time. For mixtures 
 must add up to one, so raising one share lowers others. The shares also interact: the best amount of math text may
 depend on the learning rate.
 
-Therefore, I varied seven factors at once in an **orthogonal design**, a classical plan from experimental statistics.
+Therefore, I varied seven factors at once in an orthogonal design, a classical plan from experimental statistics.
 In such a plan, every level of every factor appears with every level of every other factor equally often. Eighteen
 runs were enough to estimate the effect of each factor. The factors were the learning rate, the share of replay, the
 share of teacher rewrites, the share of math and code, the share of math within that, long-context packing, and when
@@ -347,7 +349,7 @@ tokens it took from replay. Teacher rewrites raised few-shot GSM8K pass@16 by 1.
 learning rate, 3e-6, beat 1e-5 on every loss. The in-domain probe then erased all of these differences. The obvious
 next step was a larger dose.
 
-### 3.3 Three hundred million tokens: the learning-rate wall
+### 3.3 Three hundred million tokens: the learning-rate limit
 
 Published mid-training stages use hundreds of millions of tokens or more. So the next experiment gave the 0.8B model
 300M tokens, 7.5 times as much as before. The mixture was rich in reasoning: FineMath (25%), WebInstructSub (25%),
@@ -359,7 +361,7 @@ peak learning rates, 1e-5, 3e-5 and 1e-4, next to a control run on replay text a
 The left panel shows the change in few-shot accuracy against the base model, for each learning rate. The right panel
 shows the change in knowledge. Lower is worse.
 
-The picture is clear. Every run at a learning rate of 1e-5 or higher ended below the base model. The higher the
+The pattern is consistent. Every run at a learning rate of 1e-5 or higher ended below the base model. The higher the
 learning rate, the larger the damage:
 
 | run (300M tokens) | GSM8K | MATH-500 | HumanEval | MBPP | knowledge (cloze) | FineWeb-Edu loss |
@@ -413,14 +415,14 @@ nothing it has not already learnt.**
 
 ## 4. Distillation: the options and our pipeline
 
-If the model has already learnt the public text, the text to add is text it has not seen. The most direct source of
+If the model has already learnt the public text, the text to add is text it has not seen. A direct source of
 such text is a stronger model. A stronger model can solve problems the smaller one cannot, and it can write out the
 steps. This section explains the main ways a stronger model can teach a weaker one, the choices involved, and exactly
 what this study did.
 
 ### 4.1 The ways a stronger model can teach
 
-**Distillation** means training a smaller model, the **student**, to behave like a larger one, the **teacher**. The
+Distillation means training a smaller model, the student, to behave like a larger one, the teacher. The
 methods differ in what the student learns from.
 
 **Soft-label distillation.** In the original form (Hinton et al., 2015), the student learns to match the teacher's
@@ -458,7 +460,7 @@ sequence-level            text the teacher wrote, with the usual next-token loss
 on-policy                 the student's own text, scored or corrected by the teacher  needs the teacher in the loop
 ```
 
-This study used **sequence-level distillation with verification**. It is the cheapest of the four. It fits into
+This study used sequence-level distillation with verification. It is the cheapest of the four. It fits into
 ordinary mid-training without any change to the training code. And verification removes most of the teacher's
 errors.
 
@@ -469,11 +471,11 @@ lists the main choices, what this study picked, and whether the pick was tested.
 
 | choice | options | this study | status |
 |---|---|---|---|
-| teacher | model, size, weight precision, thinking mode, sampling | Qwen3.8-27B with 4-bit weights, thinking mode off, temperature 1.0 | the strongest model that fits on one 40 GB GPU; other teachers untested |
+| teacher | model, size, weight precision, thinking mode, sampling | Qwen3.8-27B with 4-bit weights, thinking mode off, temperature 1.0; thinking mode on for the fourth set (§4.4) | the largest model that fits on one 40 GB GPU; other teachers untested |
 | what the teacher writes | rewrites of real text, solutions to existing problems, new problems | solutions to existing problems with known answers; rewrites were tested separately (Appendix D) | tested: solutions help, rewrites do not |
 | verification | none, final answer, unit tests, a judge | the final answer must match the reference, checked by the same grader the tests use | cheap and exact for math; a wrong argument that ends at the right number still passes |
 | problems | where they come from, how hard, how many | the training splits of GSM8K and MATH (14,262 problems); later NuminaMath-1.5 (20,000) and the hard problems again (2,591) | §4.4 |
-| answer length | how many tokens the teacher may write | 1,024; then 4,096 for the hard problems | 1,024 was too short (§4.4) |
+| answer length | how many tokens the teacher may write | 1,024; then 4,096 for the hard problems; 8,192 with thinking | 1,024 was too short (§4.4) |
 | copies per problem | how many different solutions of one problem to keep | up to 4 (2 for NuminaMath) | one copy per problem is in the cluster sweep |
 | format | chat format or plain text; whether the question counts in the loss | plain "Question: … Answer: …" text; every token counts | chat tokens in mid-training data can break base-model tests (OLMo 3); other formats untested |
 | how it is used | a fine-tune or part of mid-training; share; amount; learning rate | 40% of a 100M-token mid-training mixture; peak learning rate 3e-6 | share, amount and rate are in the cluster sweep |
@@ -580,11 +582,11 @@ The blue bars show the share of the teacher's attempts that were right. The grey
 1,024-token limit before finishing. The groups are GSM8K, the five difficulty levels of MATH (L1 easiest, L5 hardest)
 and three sources of NuminaMath (`results/synthetic_attempts_*.json`).
 
-**The first set has a hole at the top.** The 1,024-token limit was chosen with GSM8K in mind, and GSM8K solutions are
+**The first set lacks the hardest problems.** The 1,024-token limit was chosen with GSM8K in mind, and GSM8K solutions are
 short. MATH solutions are longer, and the harder the problem, the longer the solution. At level 1, only 3% of the
 attempts were cut off. At level 4 it was 42%, and at level 5 it was 72%, where only 27% of the attempts were right.
-The teacher did not fail these problems. It ran out of room. As a result, the kept MATH solutions are mostly easy
-ones, and the hardest problems are nearly missing. This is the likeliest reason why MATH-500 did not move at 9B
+The teacher did not get these problems wrong: its attempts reached the token limit before they finished. As a result, the kept MATH solutions are mostly easy
+ones, and the hardest problems are nearly missing. This is a likely reason why MATH-500 did not move at 9B
 (§5.1).
 
 **The second set widens the problems.** GSM8K and MATH cover only two kinds of problems. The second set draws 20,000
@@ -601,7 +603,7 @@ teacher saw them, the contamination check removed 960 of the 26,000 drawn proble
 right solutions of 11,367 problems (12.9M tokens). The same 1,024-token limit cut off 37% of these attempts overall,
 and about half of the attempts on cn_k12 and synthetic_math.
 
-**A third pass fills the hole.** 2,591 problems of the first set were solved again. They are the 2,347 problems with
+**A third pass adds the hard problems.** 2,591 problems of the first set were solved again. They are the 2,347 problems with
 no right attempt, plus the MATH problems of levels 4 and 5 with only one right attempt. Of the 2,591, 1,442 are level
 5 and 602 are level 4. This time the teacher could write 4,096 tokens, four attempts each, at temperature 0.8.
 
@@ -618,6 +620,15 @@ with the first set alone. Only pass@16 on MATH-500 at 2B rose a little more, +4.
 noise too (`results/comparisons/dose_vs_base_<size>.json`). One reading is that the small models cannot yet use
 solutions of problems this hard.
 
+**A fourth set records the teacher's reasoning.** The first three sets hold only the solutions the teacher wrote. For
+the 3,597 problems that the 9B base model fails (§5.5), the teacher was also run in its thinking mode, in which it
+reasons at length before it writes the solution. Each problem got two attempts at temperature 0.6, with up to 8,192
+tokens. 74% of the 7,194 attempts were right, and 2,842 of the problems were solved. At MATH level 5, 68% of the
+attempts were right and 26% were cut off. A kept document holds the question, the reasoning and the solution as plain
+text, without the tags that mark the reasoning in the teacher's chat format. The 5,332 kept documents hold 11.8M
+tokens (`results/synthetic_attempts_student_fails_9B_thinking.json`,
+`results/synthetic_solutions_thinking_summary.json`). A 9B run on them is training (§6.4).
+
 ### 4.5 What we did not try, and why
 
 - **Soft-label distillation.** It needs the teacher's probabilities on every training token. For 100M tokens, that is
@@ -629,8 +640,8 @@ solutions of problems this hard.
   teacher could write programs, and a sandbox could run their tests. It did not fit into the time available.
 - **Checking each step of a solution.** A judge model could reject a solution whose reasoning is wrong even when its
   final number is right. The final-answer check lets such solutions through.
-- **A thinking-mode teacher, or a stronger teacher.** Thinking traces are long and use a different format. A teacher
-  stronger than the 27B model does not fit on the workstation's GPUs at a useful speed.
+- **A stronger teacher.** A teacher stronger than the 27B model does not fit on the workstation's GPUs at a useful
+  speed. The 27B teacher's thinking mode was added later (§4.4).
 
 ---
 
@@ -654,19 +665,20 @@ fine-tune. Knowledge is the cloze score, in points. A bold value has an interval
 
 What to notice:
 
-- **GSM8K rises at three of the four sizes**, by 4 to 7 points. At 4B it rises by only 1.4, within the noise. For the
+- GSM8K rises at three of the four sizes, by 4 to 7 points. At 4B it rises by only 1.4, within the noise. For the
   9B model, which already solves 87.1% of GSM8K, the rise means that the share of problems it gets wrong falls from
   12.9% to 7.6%. That is 41% fewer mistakes.
-- **Knowledge stays the same.** It moves by less than one point at any size. The held-out loss also falls on 9 of 11
+- Knowledge stays the same. It moves by less than one point at any size. The held-out loss also falls on 9 of 11
   public sources at every size.
-- **MATH-500 and code do not move in the few-shot test.** Their changes stay within the noise.
-- **After the fine-tune, MATH-500 rises too**, by 7.6 points at 2B and 3.0 at 4B. Section 5.4 explains why the two
+- MATH-500 and code do not move in the few-shot test. Their changes stay within the noise.
+- After the fine-tune, MATH-500 rises too, by 7.6 points at 2B and 3.0 at 4B. Section 5.4 explains why the two
   tests differ.
-- **At 9B, the fine-tune removes the gain.** After it, the distilled 9B model scores the same as the fine-tuned base
+- At 9B, the fine-tune removes the gain. After it, the distilled 9B model scores the same as the fine-tuned base
   model on GSM8K and MATH-500. Section 5.5 looks at why.
 
-**Mid-training on checked solutions from a stronger model raises the base model's few-shot GSM8K score at 0.8B, 2B
-and 9B, at no cost in knowledge. After a fine-tune, the gain shrinks as the model grows, and at 9B it is gone.**
+**Mid-training on checked solutions from a stronger model raises the base model's few-shot score at no cost in
+knowledge, and the gain that survives a fine-tune shrinks as the model grows.** The few-shot GSM8K score rises at
+0.8B, 2B and 9B. After a fine-tune, the gain is gone at 9B.
 
 ### 5.2 Where the gain comes from
 
@@ -674,8 +686,8 @@ The distillation recipe differs from the public-text runs of §3 in two ways. It
 the rest of the mixture: the other 60% is mostly question-answer text, math pages and code, with little replay. Either
 change could be the cause.
 
-Two control runs separate the two. Both use the same budget and the same learning rate. The **replay-only control**
-trains on general text alone: FineWeb-Edu and Chinese Wikipedia. The **ablation** keeps the recipe but gives the
+Two control runs separate the two. Both use the same budget and the same learning rate. The replay-only control
+trains on general text alone: FineWeb-Edu and Chinese Wikipedia. The ablation keeps the recipe but gives the
 solutions' 40% to general web text (`configs/recipes/dose/dose_nosolutions_100m.yaml`).
 
 | run, minus base (100M tokens, LR 3e-6) | GSM8K | MATH-500 | HumanEval | probe GSM8K | probe MATH-500 | knowledge |
@@ -688,7 +700,7 @@ solutions' 40% to general web text (`configs/recipes/dose/dose_nosolutions_100m.
 | 4B distillation | +1.4 [−0.5, +3.3] | −2.2 [−6.0, +1.4] | −3.0 [−7.3, +1.2] | **+2.4 [+0.9, +4.0]** | **+3.0 [+1.4, +4.7]** | −0.7 |
 | 4B replay only | +0.3 [−1.1, +1.7] | −2.8 [−6.4, +1.0] | −5.5 [−11.6, +0.6] | +0.5 [−1.0, +1.9] | +0.7 [−0.9, +2.3] | +0.9 |
 
-The answer is clear. Continued training by itself does nothing: the replay-only controls stay level at all three sizes.
+The result is unambiguous. Continued training alone does nothing: the replay-only controls stay level at all three sizes.
 The rest of the mixture does nothing either: without the solutions, the same mixture gains nothing and even loses 4.4
 points on MATH-500. **The solutions carry the gain.**
 
@@ -728,14 +740,14 @@ examples in the prompt, so only the problems change.
 
 What to notice:
 
-- **The larger the model, the more of the gain carries over.** On SVAMP, the 0.8B model keeps about a quarter of its
+- The larger the model, the more of the gain carries over. On SVAMP, the 0.8B model keeps about a quarter of its
   GSM8K gain, the 2B model about four fifths, and the 4B and 9B models all of it.
-- **ASDiv-A does not move.** The base models already solve 90 to 98% of it, so there is little room.
-- **Public text hurts here.** Every public-text mixture lowered SVAMP.
-- **Few-shot MATH-500 moves at no size.** The hole in the first solution set (§4.4) is the likeliest reason.
-- **Code never moves.** The recipe contains no code solutions.
+- ASDiv-A does not move. The base models already solve 90 to 98% of it, so there is little room.
+- Public text hurts here. Every public-text mixture lowered SVAMP.
+- Few-shot MATH-500 moves at no size. The missing hard problems of the first solution set (§4.4) are a likely reason.
+- Code never moves. The recipe contains no code solutions.
 
-**A wider problem set moves the gain to other problems. It does not make the gain larger.** The second solution set
+A wider problem set moves the gain to other problems. It does not make the gain larger. The second solution set
 (§4.4) replaced half of the first set, keeping the solutions at 40% of the tokens:
 
 | solutions in the mixture (0.8B) | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 |
@@ -762,9 +774,11 @@ asks. At 0.8B, the two views disagree about the best learning rate:
 |---|---|---|---|---|---|
 | LR 3e-6 | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 |
 | LR 1e-5 | **+6.7 [+3.9, +9.4]** | −1.0 [−4.6, +2.4] | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.5 |
+| LR 3e-5 | **+5.3 [+2.4, +8.1]** | +0.4 [−3.4, +4.4] | **+14.9 [+11.9, +17.9]** | **+7.2 [+4.9, +9.4]** | −2.6 |
 
 In the few-shot test, both learning rates gain the same on GSM8K, and neither gains on MATH-500. After the fine-tune,
-the 1e-5 run gains twice as much on GSM8K, and it gains 7.1 points on MATH-500.
+the 1e-5 run gains twice as much on GSM8K, and it gains 7.1 points on MATH-500. A run at 3e-5, added later, continues
+the trend: it gains 14.9 points on GSM8K after the fine-tune and loses 2.6 points of knowledge.
 
 The answers themselves explain the difference:
 
@@ -774,16 +788,17 @@ The left panel shows the average answer length after the generic fine-tune. The 
 answers that reach the probe's length limit. Each panel compares the 0.8B base model with the two distillation runs.
 
 In the few-shot test, every model copies the format of the eight short examples in the prompt, which people wrote.
-After the fine-tune, each model answers in its own way. The 1e-5 model writes long worked solutions, like its
+After the fine-tune, each model answers in its own style. The 1e-5 model writes long worked solutions, like its
 teacher's. On MATH-500 its answers are 64% longer than the base model's, and a third of them reach the length limit
 and count as wrong. Even so, it solves more problems. The skill the solutions taught shows up only when the prompt
 lets the model use it.
 
 At 2B, the lower learning rate already achieves what 1e-5 achieved at 0.8B: after the fine-tune, MATH-500 rises by 7.6
-points. One possible reading is that the larger model absorbs the solutions more easily.
+points. One possible reading is that the larger model learns more from the same solutions.
 
-**The learning rate trades the base model's own scores against what a fine-tune can reach. 3e-6 keeps the few-shot
-scores and the knowledge. 1e-5 doubles the gain after the fine-tune and costs half a point of knowledge.**
+**The learning rate trades the base model's own scores against what a fine-tune can reach.** 3e-6 keeps the few-shot
+scores and the knowledge. 1e-5 doubles the gain after the fine-tune and costs half a point of knowledge. 3e-5 gains
+more on GSM8K after the fine-tune and costs 2.6 points of knowledge.
 
 ### 5.5 At 9B, a fine-tune gives the same gain
 
@@ -807,14 +822,14 @@ gap between the two rows in each column (`few_shot_greedy_on_probe_items` in
 | base model | 86.5 | 89.9 | 51.2 | 65.2 |
 | distillation run | 94.5 | 89.8 | 54.4 | 65.2 |
 
-Two things stand out. First, the fine-tune lifts the base model a lot: by 14 points on MATH-500, although the
+Two observations follow. First, the fine-tune lifts the base model a lot: by 14 points on MATH-500, although the
 fine-tune contains no math at all. So the 9B base model already had this skill. The few-shot prompt did not bring it
 out, and a short fine-tune did. Second, after the fine-tune both models end at the same level.
 
 The answers show how the solutions helped in the few-shot test. The distilled 9B model writes GSM8K answers that are
 51% longer than its base model's (394 against 261 characters): it writes out its working, like the teacher. At 0.8B
 and 2B, the few-shot answers grew by only 7 to 8%. After the fine-tune, the 9B base model also writes out its working
-(604 characters), and it catches up (`mean_completion_characters` in `results/final_eval/` and
+(604 characters), and it reaches the same accuracy (`mean_completion_characters` in `results/final_eval/` and
 `results/probe_generic/`).
 
 The 2B model behaves differently. The same fine-tune lifts its base model by only 1.4 points on MATH-500 (from 37.2
@@ -822,7 +837,7 @@ to 38.6 on the probe's questions). It lifts the distilled 2B model by 12.6 point
 distilled 2B model keeps most of its lead through the fine-tune: 7.0 points before it and 5.6 after. At 2B, the
 solutions added a skill that the fine-tune alone does not reach.
 
-The 4B model sits in between. After the fine-tune it gains 2.4 points on GSM8K and 3.0 on MATH-500, about half of
+The 4B model lies between the two. After the fine-tune it gains 2.4 points on GSM8K and 3.0 on MATH-500, about half of
 the 2B model's gain. The table lines up the four sizes with how much larger the 27B teacher is than each student:
 
 | student | teacher's size ÷ student's size | GSM8K after the fine-tune | MATH-500 after the fine-tune |
@@ -835,14 +850,14 @@ the 2B model's gain. The table lines up the four sizes with how much larger the 
 From 2B on, the gain that survives the fine-tune falls as the student grows. The 0.8B model is the exception on
 MATH-500: at this learning rate it gains nothing there, and at 1e-5 it gains 7.1 points (§5.4).
 
-**At 9B, the teacher's solutions taught mostly what the model already knew, and a short fine-tune brings that out
-just as well.** The closer the student comes to the teacher's size, the less the teacher's solutions carry that is
-new to it.
+**For the largest student, the teacher's solutions taught mostly what the model already knew, and a short fine-tune
+elicits it equally well.** The closer the student comes to the teacher's size, the less the teacher's solutions carry
+that is new to it.
 
-**Perplexity on the teacher's text tells the same story.** Training leaves the teacher-written text out of its own
+**Perplexity on the teacher's text is consistent with this.** Training leaves the teacher-written text out of its own
 validation, so I measured it separately: the loss of every model on held-out teacher solutions, in bits per byte
-(`base_regression.py teacher-text-loss`, `results/teacher_text_loss/`). The hard-problem solutions of §4.4 make the
-cleanest test, because none of these runs trained on them.
+(`base_regression.py teacher-text-loss`, `results/teacher_text_loss/`). The hard-problem solutions of §4.4 make a
+clean test, because none of these runs trained on them.
 
 | model | base, first set | distilled, first set | base, hard set | distilled, hard set | replay only, hard set |
 |---|---|---|---|---|---|
@@ -858,7 +873,7 @@ did. At 9B that did not turn into a gain after the fine-tune. Perplexity on the 
 the teacher's style a model takes on. Training on general text raises it by about a tenth. (On the first set, the
 distilled numbers are lower partly because a held-out solution can share its problem with trained ones.)
 
-**Which problems can still teach the 9B?** This result sets the next experiments at 9B (§6.4). The solutions that can
+**Which problems can still teach the largest student?** This result sets the next experiments at 9B (§6.4). The solutions that can
 still teach the 9B model are those of problems it cannot solve by itself. To find them, I asked the 9B base model
 every problem the teacher had been given: 25,621 problems, four answers each, in the training format with four teacher
 solutions as examples, graded by the teacher's own check (`synthetic_rephrase.py student-check`,
@@ -874,8 +889,8 @@ solutions as examples, graded by the teacher's own check (`synthetic_rephrase.py
 
 The 9B base model already solves most of what the teacher was given. It fails 3,597 problems, mostly at MATH levels 4
 and 5. Their solutions from all three sets come to 14.2M tokens, 82% of them from the hard pass of §4.4
-(`results/student_subset_9B_base.json`). One caveat: more than half of the 9B model's level-5 answers ran out of
-room, so this set leans toward problems that need long answers. A larger learning rate is the other lever: at 0.8B it
+(`results/student_subset_9B_base.json`). One caveat: more than half of the 9B model's level-5 answers reached the
+token limit, so this set is biased toward problems that need long answers. A larger learning rate is the other option: at 0.8B it
 doubled the gain that survives the fine-tune (§5.4).
 
 ### 5.6 Reliability, not reach
@@ -912,6 +927,50 @@ Three checks say no.
    `results/comparisons/dose_vs_base_0.8B.json`).
 3. The gain carries over to SVAMP, which no solution touches.
 
+### 5.8 Repeats: how much the numbers move between runs
+
+Each number above comes from one training run. A second run that reads the documents in another order gives a
+slightly different model, and the intervals in the tables do not cover that difference (§2.4). So the three main 0.8B
+runs were trained again with other seeds. The seed changes only the order of the documents.
+
+How to read the table. Each row is one run minus the base model. The GSM8K, MATH-500 and SVAMP columns are few-shot
+accuracy, and the probe columns are pass@1 after the generic fine-tune. A bold value has an interval that excludes
+zero.
+
+| 0.8B run, minus base | seed | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 | knowledge |
+|---|---|---|---|---|---|---|---|
+| distillation | 1 | **+6.8 [+4.3, +9.3]** | +1.4 [−2.0, +4.8] | +1.6 [−1.2, +4.5] | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 |
+| distillation | 2 | **+6.3 [+3.6, +8.9]** | −0.6 [−4.2, +3.0] | **+4.2 [+1.3, +7.1]** | **+7.8 [+5.5, +10.0]** | +0.8 [−0.6, +2.1] | −0.6 |
+| distillation | 3 | **+7.3 [+4.5, +9.9]** | −0.4 [−4.0, +3.2] | +2.7 [−0.1, +5.6] | **+6.9 [+4.8, +9.1]** | +1.6 [0.0, +3.1] | −0.3 |
+| replay only | 1 | +0.3 [−1.7, +2.2] | +0.4 [−3.0, +4.2] | −1.4 [−3.3, +0.6] | +0.1 [−1.8, +2.1] | 0.0 [−1.3, +1.2] | +0.6 |
+| replay only | 2 | +0.3 [−1.6, +2.2] | +1.0 [−2.2, +4.2] | +1.6 [−0.2, +3.5] | +0.7 [−1.4, +2.8] | −0.4 [−1.6, +0.8] | +0.4 |
+| without the solutions | 1 | −0.5 [−2.6, +1.4] | **−4.4 [−7.8, −1.0]** | **−2.5 [−4.6, −0.4]** | −1.0 [−3.0, +0.9] | **−3.5 [−4.8, −2.2]** | +0.5 |
+| without the solutions | 2 | −1.5 [−3.6, +0.6] | −1.4 [−4.4, +1.8] | +0.7 [−1.6, +3.0] | **−2.4 [−4.5, −0.3]** | **−2.8 [−4.2, −1.6]** | +0.2 |
+
+What to notice:
+
+- The gain of the distillation run repeats. Few-shot GSM8K rises by 6.3 to 7.3 points with the three seeds, and by 5.7
+  to 7.8 points after the fine-tune. The seeds differ by about one point before the fine-tune and by about two points
+  after it.
+- The replay-only control stays near zero with both seeds.
+- SVAMP varies more between seeds than GSM8K does, from +1.6 to +4.2. One SVAMP number at this size should be read
+  with that spread in mind.
+- Without the solutions, few-shot MATH-500 falls by 4.4 points with the first seed and by 1.4 with the second, which
+  is within the noise. After the fine-tune, both seeds lose about three points on MATH-500.
+
+The 2B distillation run has a second seed too:
+
+| 2B run, minus base | seed | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 | knowledge |
+|---|---|---|---|---|---|---|---|
+| distillation | 1 | **+4.3 [+2.0, +6.8]** | −1.4 [−5.0, +2.0] | **+3.4 [+1.0, +5.9]** | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | −0.5 |
+| distillation | 2 | **+4.0 [+1.7, +6.5]** | +1.6 [−2.2, +5.4] | **+3.8 [+1.6, +6.2]** | **+4.0 [+1.9, +6.0]** | **+5.1 [+3.5, +6.7]** | −0.3 |
+
+The few-shot gains repeat closely: 4.3 and 4.0 points on GSM8K, and 3.4 and 3.8 points on SVAMP. After the fine-tune,
+the second seed gains less than the first: 4.0 against 5.6 points on GSM8K, and 5.1 against 7.6 points on MATH-500.
+Both remain well outside the noise.
+
+Seeds for the 4B and 9B runs are training (§6.4).
+
 ---
 
 ## 6. Conclusions
@@ -934,7 +993,7 @@ Three checks say no.
 
 ### 6.2 Lessons that carry beyond this project
 
-- **Measure what post-training will see, with a test that does not teach the test.** A fine-tune on the tested
+- **Measure what post-training will see, with a test that does not train on the tested tasks.** A fine-tune on the tested
   tasks' own solutions hid every difference between models. A few-shot test hid half the gain of the 1e-5 run.
 - **Check the gain after a fine-tune, at the size you care about.** The few-shot gain at 9B was as large as at 0.8B
   and 2B, and a short fine-tune erased it. A few-shot test alone would have called the 9B run a success.
@@ -951,7 +1010,8 @@ Three checks say no.
 
 ### 6.3 Limitations, plainly
 
-- Each setting was trained once. The intervals cover the choice of test questions, not the randomness of training.
+- Most settings were trained once. The intervals cover the choice of test questions, not the randomness of training.
+  The 0.8B and 2B runs that were repeated differ by up to 2.5 points between seeds (§5.8).
 - The gain is largest on GSM8K, whose training problems the teacher solved. SVAMP and the fine-tuned MATH-500 show
   transfer; code shows none.
 - The student check gave the 9B base model 1,024 tokens per answer, and 54% of its level-5 answers were cut off, so
@@ -964,27 +1024,32 @@ Three checks say no.
 
 ### 6.4 What comes next
 
-Running on the workstation, each changing one thing from the first 9B run (§5.5); results on 11-26:
+Three 9B runs are training. Each changes one thing from the first 9B run (§5.5), and their results are due on 11-26:
 
 - **targeted solutions**: only the solutions of the 3,597 problems the 9B base model fails, from all three solution
   sets (14.2M tokens, seen 2.5 times each; `configs/recipes/dose/dose_distill_targeted_9B_base_100m.yaml`);
-- **a larger learning rate**: the same recipe as the first 9B run, at 1e-5.
+- **a larger learning rate**: the same recipe as the first 9B run, at 1e-5;
+- **the teacher's thinking mode**: the fourth set of §4.4, the teacher's reasoning followed by its solution, for the
+  same 3,597 problems. This run uses sequences of 8,192 tokens, so that a long trace stays in one sequence with its
+  question. It is also tested with answers of up to 4,096 tokens (`configs/probe_generic_long.yaml`), and so is the 9B
+  base model.
 
-Next, on 11-26:
+The cluster allocation ends on 11-30. Until then its nodes run the following:
 
-- **the teacher's thinking mode**: the teacher reasons in its thinking mode on the same 3,597 problems, and a 9B run
-  trains on its reasoning followed by its solution. These traces run to several thousand tokens, so this run uses
-  sequences of 8,192 tokens and is also tested with answers of up to 4,096 tokens (`configs/probe_generic_long.yaml`),
-  and so is the 9B base model;
-- the seven 0.8B runs that the cluster trained on 11-24 are evaluated here (the cluster could not start its
-  inference server: its compute nodes have no CUDA compiler, which vLLM's default sampler needs; now fixed).
-
-Waiting for the cluster (jobs expected from 11-26):
-
-- the 9B replay-only control;
-- second and third runs of the 0.8B and 2B experiments, with other seeds;
-- a sweep of the learning rate at 0.8B, from 1e-6 to 3e-5;
-- a sweep of design choices at 0.8B: 20% and 60% solutions, 50M and 200M tokens, and one solution per problem.
+- **more runs of the largest model**: the 9B replay-only control, targeted solutions at 1e-5, all three solution sets together, second
+  seeds, public text only, and the first recipe with 200M tokens;
+- **a direct test of the main lesson**, at 0.8B, 2B and 4B: the first solution set is split by what the student
+  already solves. One run trains on the teacher's solutions of the problems the student fails, one on the teacher's
+  solutions of the problems it solves, and one on the student's own right answers to those problems;
+- **a second fine-tuning test** (`configs/probe_math.yaml`): the generic fine-tune with 4,000 teacher solutions of
+  other math problems added. It asks whether the base model reaches the distilled model when the fine-tune itself
+  teaches worked solutions;
+- **repeats**: second seeds at 2B and 4B, the generic probe run twice on the same checkpoints, and the long-answer
+  probe at every size;
+- **sweeps on the smallest model**: at 0.8B, learning rates from 1e-6 to 3e-5, 20% and 60% solutions, 50M and 200M tokens, and one
+  solution per problem;
+- **public text at larger sizes and doses**: 300M tokens at 2B, 100M tokens at 4B and 9B, and one billion tokens at
+  0.8B.
 
 ---
 
@@ -1071,7 +1136,7 @@ The counts below are the training split; a small validation split of each source
 **What replay stands for.** Replay is meant to resemble the data the model was pretrained on. That data is not
 public, so a web crawl with some Chinese text stands in for it. The stand-in is narrow. In the first pilot, training
 on web text alone at a learning rate of 1e-5 made the 0.8B model about 2% worse on code, papers and math, and 0.7%
-better on web text. **Web replay is not a neutral anchor for this model: it pulls the model toward the web.**
+better on web text. Web replay is not a neutral anchor for this model: it moves the model toward web text.
 
 ### B. The continued-pretraining loop
 
@@ -1080,7 +1145,7 @@ A small custom training loop (`train_continue.py`) was simpler than a general tr
 | problem | why it breaks training here | solution |
 |---|---|---|
 | The vocabulary has 248,320 words. Computing the outputs for 16,384 tokens at once needs about 16 GB | out of memory on a 40 GB GPU | the loss is computed in chunks of 1,024 tokens on a detached copy of the hidden states, and the gradient goes back through the model once (`chunked_language_model_loss`) |
-| A learning rate of 1e-5 times a typical gradient is smaller than the precision of 16-bit weights | updates round to zero, and training silently stops | 16-bit working weights, with 32-bit master weights and Adam moments in the optimizer (`MasterWeightAdamW`) |
+| A learning rate of 1e-5 times a typical gradient is smaller than the precision of 16-bit weights | updates round to zero, and training stops without an error | 16-bit working weights, with 32-bit master weights and Adam moments in the optimizer (`MasterWeightAdamW`) |
 | The serving engine needs the checkpoint in the base model's full layout | a text-only checkpoint was refused at load time | `save_checkpoint` writes the trained tensors under the base model's names and copies every other tensor and file from the base |
 
 **Master weights on the CPU.** From 2B up, the 32-bit master weights and Adam moments do not fit next to the model on
@@ -1121,7 +1186,7 @@ over all settings of the others. Testing every combination would need 1,458 runs
 | 7 | when the non-replay text is shown | evenly, late, early |
 | 8 | (empty) | its "effect" shows the size of an effect of nothing |
 
-For each measurement, a regression on the token shares gives a **mixing law**:
+For each measurement, a regression on the token shares gives a mixing law:
 
 ```math
 y \;=\; b_0 \;+\; \sum_j b_j\, s_j \;+\; c_{\text{late}} + c_{\text{early}} + c_{\text{lr}}
@@ -1130,7 +1195,7 @@ y \;=\; b_0 \;+\; \sum_j b_j\, s_j \;+\; c_{\text{late}} + c_{\text{early}} + c_
 Here $`s_j`$ is the share of component $`j`$ (rewritten text, curated text, math, code, random packs, semantic packs),
 and replay is what remains. $`b_j`$ is the change in the measurement when one unit of replay is replaced by component
 $`j`$. With 10 parameters and 18 runs, 8 degrees of freedom are left to estimate the noise. Together, the $`b_j`$ of
-all measurements form an **interference matrix**: what each component gives its own domain and what it costs the
+all measurements form an interference matrix: what each component gives its own domain and what it costs the
 others.
 
 `mixing_law.py` turns the design file (`configs/designs/screen18.yaml`) into 18 recipes and queue tasks. It turns the
@@ -1159,8 +1224,8 @@ the teacher added by itself helped most (`results/synthetic_request_variants.jso
 to write as the author, to keep the source's names and numbers, and drops any rewrite that still points at a hidden
 source. It passed the check, with Vendi ratios of 0.83 and 0.82 (`results/synthetic_sample_check_v3_4500.json`).
 
-**One repeated phrase can move a diversity score more than any added variety. Find what the documents share before
-adding variety** (PITFALLS A3).
+One repeated phrase can move a diversity score more than any added variety. Find what the documents share before
+adding variety (PITFALLS A3).
 
 ### E. Built for later: curation, long-context packing, priming
 
@@ -1206,8 +1271,16 @@ atomic on a shared file system. It runs the task and moves it to `done` or `fail
 
 Cluster jobs are submitted before their tasks exist, and they read the queue when they start. The wait in the cluster
 queue is the slowest part of an experiment. The allocation's priority was near zero after an earlier project, so a
-new job waits until its age gives it priority. The jobs submitted on 11-20 are expected to start around 11-26. The 9B
-runs therefore moved to the workstation, two GPUs each, and the cluster takes the repeated runs and sweeps.
+new job waits until its age gives it priority. The jobs submitted on 11-20 started on 11-25. The first 9B
+runs therefore ran on the workstation, two GPUs each. A cluster node has three GPUs and no other user, and it trains
+the 9B model at about 1,750 tokens per second, against 1,100 on the workstation.
+
+Two incidents on the cluster are recorded here. On 11-24, seven runs trained there and every evaluation failed. The
+inference server's default sampler compiles a CUDA kernel when it is first used, and the compute nodes have no CUDA
+compiler. The server's PyTorch sampler needs none (`VLLM_USE_FLASHINFER_SAMPLER=0`). On 11-25, a dozen 9B tasks were
+queued and no one-GPU task ran. A node that saw a pending whole-node task stopped taking one-GPU tasks, so that the
+node task could start. Now a node that works on one-GPU tasks stays on them, and whole-node tasks are taken by nodes
+that start or that have just finished one.
 
 ### H. Predictions written before the results
 
@@ -1234,7 +1307,7 @@ measurement that would prove it wrong. They stay unchanged, with outcomes from t
 ```
 configs/
   sources.yaml            the public sources of the pool: files, licences, how much to take
-  probe.yaml, probe_generic.yaml   the two fine-tuning probes and their tests
+  probe*.yaml             the fine-tuning probes and their tests: in-domain, generic, long answers, with math solutions
   recipes/                one YAML per mixture; recipes/dose/ holds the dose and distillation recipes
   designs/                the screening design
 docs/conventions.md       the contracts between the modules: file layouts, schemas

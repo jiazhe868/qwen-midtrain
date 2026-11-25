@@ -1,6 +1,6 @@
-# The replay-only control of the dose experiment (README §1.3): educational web text and Chinese Wikipedia, 300M
+# The replay-only control of the dose experiment (README §3.3): educational web text and Chinese Wikipedia, 300M
 # tokens. The 0.8B design showed that 40M tokens move the losses but not what a fine-tuned model can do, and that
-# plain web replay pulls the model toward the web (README §1.2); the replay here is the FineWeb-Edu sample.
+# plain web replay pulls the model toward the web (README Appendix A); the replay here is the FineWeb-Edu sample.
 token_budget: 300023808           # 9,156 steps of 32,768 tokens
 context_length: 4096
 components:

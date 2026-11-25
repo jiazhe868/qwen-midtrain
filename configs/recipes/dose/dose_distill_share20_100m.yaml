@@ -1,4 +1,4 @@
-# The distillation mixture with 20% solutions instead of 40% (README §1.2), 100M tokens: a point of
+# The distillation mixture with 20% solutions instead of 40% (README §4.2), 100M tokens: a point of
 # the dose-response of the active ingredient. The other components keep their proportions to each other
 # (each scaled by 1.333), so only the solution share changes. Written by the sweep set-up of 11-24.
 token_budget: 100007936
