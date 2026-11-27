@@ -55,11 +55,11 @@ turn_start, turn_end = "<|im_start|>", "<|im_end|>"
 probe_variants = {
     "in_domain": {"configuration": "probe.yaml", "data_folder": "probe", "results_folder": "probe"},
     "generic": {"configuration": "probe_generic.yaml", "data_folder": "probe_generic", "results_folder": "probe_generic"},
-    # the generic probe's fine-tune with longer answer limits, for models trained on long thinking traces (README §6.4)
+    # the generic probe's fine-tune with longer answer limits, for models trained on long thinking traces (README §5.11)
     "generic_long": {"configuration": "probe_generic_long.yaml", "data_folder": "probe_generic",
                      "results_folder": "probe_generic_long"},
     # the generic probe's data plus the teacher's solutions of other math problems (NuminaMath): does a gain from
-    # mid-training on solutions survive a fine-tune that itself contains math solutions? (README §6.4)
+    # mid-training on solutions survive a fine-tune that itself contains math solutions? (README §5.9)
     "math": {"configuration": "probe_math.yaml", "data_folder": "probe_math", "results_folder": "probe_math"},
 }
 active_probe_variant = {"name": "in_domain"}

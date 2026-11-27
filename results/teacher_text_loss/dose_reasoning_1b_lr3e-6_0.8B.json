@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_reasoning_1b_lr3e-6_0.8B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.6671,
+   "bits_per_byte": 0.3291
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.6229,
+   "bits_per_byte": 0.322
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.5161,
+   "bits_per_byte": 0.3254
+  }
+ }
+}

@@ -1,4 +1,4 @@
-# The math probe (README §6.4): the generic probe's fine-tune with 4,000 of the teacher's checked solutions of
+# The math probe (README §5.9): the generic probe's fine-tune with 4,000 of the teacher's checked solutions of
 # NuminaMath problems added. The generic probe holds no math, so it shows what a model brings to a fine-tune. This
 # one asks the opposite question: when the fine-tune itself teaches worked math solutions, of problems that are not
 # from the tested tasks, does a model that was mid-trained on solutions still come out ahead? If the base model

@@ -866,7 +866,7 @@ def check_student_on_training_problems(student_checkpoint: str, student_name: st
     chunks, so a stopped check continues where it ended.
 
     `first_set_only` leaves NuminaMath out, and `save_right_answers` keeps the text of the student's right answers:
-    both for the 2B decomposition (README §6.4), which trains the 2B model on its own right answers."""
+    both for the 2B decomposition (README §5.10), which trains the 2B model on its own right answers."""
     from midtrain import sft_probe
     from midtrain.eval_tasks import find_last_boxed_content, is_math_answer_equivalent
 
@@ -1011,7 +1011,7 @@ def write_subsets_the_student_cannot_solve(student_name: str, maximum_student_ri
 
 def write_first_set_decomposition(student_name: str, maximum_student_right_of_fails: int = 1) -> dict:
     """Split the first solution set by what the student can already do: a direct test of the main lesson, that
-    mid-training helps when the data teaches what the model does not know (README §6.4).
+    mid-training helps when the data teaches what the model does not know (README §5.10).
 
     Three recipes come out, each with one kind of solutions in place of the first set:
       fails    the teacher's solutions of the problems the student answers right at most once in four tries
@@ -1041,7 +1041,7 @@ def write_first_set_decomposition(student_name: str, maximum_student_right_of_fa
         components = {source: round(share, 4), **base_recipe["components"]}
         components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - components[source], 4)
         assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
-        lines = [f"# The first solution set split by what the student ({student_name}) can already do (README §6.4): `{kind}`.",
+        lines = [f"# The first solution set split by what the student ({student_name}) can already do (README §5.10): `{kind}`.",
                  f"# Written by `synthetic_rephrase.py decompose-first-set`: {kept_tokens / 1e6:.1f}M tokens, seen about",
                  f"# {passes_of_the_full_run:.2f} times each as in the full run; the rest of its 40% goes to replay_web_edu.",
                  f"token_budget: {token_budget}", f"context_length: {base_recipe['context_length']}", "components:"]
@@ -1117,7 +1117,7 @@ def write_recipe_with_solutions_source(pool_source: str, recipe_name: str, targe
     components = {pool_source: share, **base_recipe["components"]}
     components["replay_web_edu"] = round(components["replay_web_edu"] + first_set_share - share, 4)
     assert abs(sum(components.values()) - 1.0) < 1e-6, f"shares sum to {sum(components.values())}"
-    lines = [f"# The distillation mixture with {pool_source} in place of the first solution set (README §6.4), 100M tokens.",
+    lines = [f"# The distillation mixture with {pool_source} in place of the first solution set (README §5.11), 100M tokens.",
              f"# Written by synthetic_rephrase.write_recipe_with_solutions_source: {token_source_tokens / 1e6:.1f}M train tokens,",
              f"# seen about {share * token_budget / token_source_tokens:.2f} times each; the rest of the 40% goes to replay_web_edu.",
              f"token_budget: {token_budget}", f"context_length: {context_length or base_recipe['context_length']}",

@@ -1,0 +1,27 @@
+{
+ "student": "0.8B_base",
+ "passes_over_each_kept_solution": 1.73,
+ "kinds": {
+  "fails": {
+   "train_documents": 27397,
+   "train_tokens": 15901976,
+   "share": 0.2751,
+   "problems": 7479,
+   "recipe": "configs/recipes/dose/dose_distill_fails_0.8B_base_100m.yaml"
+  },
+  "solves": {
+   "train_documents": 17521,
+   "train_tokens": 7211604,
+   "share": 0.1247,
+   "problems": 4428,
+   "recipe": "configs/recipes/dose/dose_distill_solves_0.8B_base_100m.yaml"
+  },
+  "self": {
+   "documents": 12141,
+   "tokens": 3723949,
+   "share": 0.0644,
+   "problems": 4428,
+   "recipe": "configs/recipes/dose/dose_distill_self_0.8B_base_100m.yaml"
+  }
+ }
+}

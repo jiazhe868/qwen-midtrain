@@ -1,0 +1,18 @@
+# The first solution set split by what the student (0.8B_base) can already do (README §5.10): `solves`.
+# Written by `synthetic_rephrase.py decompose-first-set`: 7.2M tokens, seen about
+# 1.73 times each as in the full run; the rest of its 40% goes to replay_web_edu.
+token_budget: 100007936
+context_length: 4096
+components:
+  synthetic_solutions: 0.1247
+  reasoning_qa: 0.15
+  math_web: 0.1
+  code: 0.1
+  textbooks: 0.05
+  wiki_en: 0.05
+  replay_web_edu: 0.3753
+  wiki_zh: 0.05
+schedule: uniform
+seed: 1
+subsets:
+  synthetic_solutions: solves_0.8B_base

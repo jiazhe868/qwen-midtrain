@@ -1,0 +1,27 @@
+{
+ "student": "4B_base",
+ "passes_over_each_kept_solution": 1.73,
+ "kinds": {
+  "fails": {
+   "train_documents": 3324,
+   "train_tokens": 2381076,
+   "share": 0.0412,
+   "problems": 1131,
+   "recipe": "configs/recipes/dose/dose_distill_fails_4B_base_100m.yaml"
+  },
+  "solves": {
+   "train_documents": 41594,
+   "train_tokens": 20732504,
+   "share": 0.3586,
+   "problems": 10776,
+   "recipe": "configs/recipes/dose/dose_distill_solves_4B_base_100m.yaml"
+  },
+  "self": {
+   "documents": 36881,
+   "tokens": 15208354,
+   "share": 0.2631,
+   "problems": 10776,
+   "recipe": "configs/recipes/dose/dose_distill_self_4B_base_100m.yaml"
+  }
+ }
+}

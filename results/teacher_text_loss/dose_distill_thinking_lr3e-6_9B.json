@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_distill_thinking_lr3e-6_9B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.4092,
+   "bits_per_byte": 0.2019
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.4073,
+   "bits_per_byte": 0.2106
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.3158,
+   "bits_per_byte": 0.1991
+  }
+ }
+}

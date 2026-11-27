@@ -1,4 +1,4 @@
-# The distillation mixture with all three solution sets in place of the first one (README §6.4), 100M tokens.
+# The distillation mixture with all three solution sets in place of the first one (README §5.11), 100M tokens.
 # The 40% of solutions is shared in proportion to each set's tokens (first set 23.1M, NuminaMath 12.9M, hard pass
 # 14.0M), so every solution is seen equally often, about 0.8 times. It asks whether more and harder solutions help
 # without choosing them by what the student fails (the targeted recipe does that).

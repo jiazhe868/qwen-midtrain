@@ -54,6 +54,12 @@ work_on_this_node() {
   all_gpus="${MIDTRAIN_WORKER_GPUS:-$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | paste -sd, -)}"
   [[ -n "${all_gpus}" ]] || { echo "$(hostname -s): no GPU visible"; return 1; }
   idle_seconds=$(( ${MIDTRAIN_WORKER_IDLE_MINUTES:-0} * 60 ))
+  # A node on which no code sandbox works fails every task at its first code test, after the hours of training
+  # (11-26: ten tasks on one cluster node, all trained and none evaluated). Such a node takes no task.
+  if ! bash -c "source '${script_directory}/../env.sh' >/dev/null 2>&1 && \"\${MIDTRAIN_PYTHON}\" -c 'import sys; from midtrain.eval_tasks import find_working_sandbox_backend; sys.exit(0 if find_working_sandbox_backend() else 1)'"; then
+    echo "$(date '+%m-%d %H:%M') $(hostname -s): no working code sandbox, so this node takes no task"
+    return 1
+  fi
   while true; do
     while task_path="$(claim_next_task node)"; do
       run_claimed_task "${task_path}" "${all_gpus}"

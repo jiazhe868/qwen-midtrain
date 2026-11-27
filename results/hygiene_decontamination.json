@@ -126,6 +126,18 @@
      "documents": 74,
      "tokens": 58050
     },
+    "synthetic_solutions_self_0.8B_base": {
+     "documents": 66,
+     "tokens": 25809
+    },
+    "synthetic_solutions_self_2B_base": {
+     "documents": 181,
+     "tokens": 98916
+    },
+    "synthetic_solutions_self_4B_base": {
+     "documents": 413,
+     "tokens": 244771
+    },
     "synthetic_solutions_thinking": {
      "documents": 137,
      "tokens": 421107
@@ -241,6 +253,18 @@
       "documents": 4,
       "tokens": 5585
      },
+     "synthetic_solutions_self_0.8B_base": {
+      "documents": 11,
+      "tokens": 3475
+     },
+     "synthetic_solutions_self_2B_base": {
+      "documents": 26,
+      "tokens": 8164
+     },
+     "synthetic_solutions_self_4B_base": {
+      "documents": 36,
+      "tokens": 12655
+     },
      "synthetic_solutions_thinking": {
       "documents": 1,
       "tokens": 4658
@@ -304,6 +328,14 @@
      "synthetic_solutions_numina": {
       "documents": 11,
       "tokens": 8049
+     },
+     "synthetic_solutions_self_2B_base": {
+      "documents": 6,
+      "tokens": 3154
+     },
+     "synthetic_solutions_self_4B_base": {
+      "documents": 13,
+      "tokens": 8698
      },
      "synthetic_solutions_thinking": {
       "documents": 13,
@@ -371,6 +403,18 @@
       "documents": 62,
       "tokens": 49250
      },
+     "synthetic_solutions_self_0.8B_base": {
+      "documents": 53,
+      "tokens": 21412
+     },
+     "synthetic_solutions_self_2B_base": {
+      "documents": 140,
+      "tokens": 82063
+     },
+     "synthetic_solutions_self_4B_base": {
+      "documents": 327,
+      "tokens": 198434
+     },
      "synthetic_solutions_thinking": {
       "documents": 117,
       "tokens": 332000
@@ -425,6 +469,14 @@
       "documents": 5,
       "tokens": 3711
      },
+     "synthetic_solutions_self_2B_base": {
+      "documents": 2,
+      "tokens": 1368
+     },
+     "synthetic_solutions_self_4B_base": {
+      "documents": 11,
+      "tokens": 7309
+     },
      "synthetic_solutions_thinking": {
       "documents": 6,
       "tokens": 28147
@@ -478,6 +530,18 @@
      "synthetic_solutions_hard": {
       "documents": 12,
       "tokens": 21384
+     },
+     "synthetic_solutions_self_0.8B_base": {
+      "documents": 2,
+      "tokens": 922
+     },
+     "synthetic_solutions_self_2B_base": {
+      "documents": 9,
+      "tokens": 5535
+     },
+     "synthetic_solutions_self_4B_base": {
+      "documents": 32,
+      "tokens": 21581
      },
      "synthetic_solutions_thinking": {
       "documents": 2,
@@ -596,6 +660,18 @@
      "documents": 74,
      "tokens": 58050
     },
+    "synthetic_solutions_self_0.8B_base": {
+     "documents": 66,
+     "tokens": 25809
+    },
+    "synthetic_solutions_self_2B_base": {
+     "documents": 181,
+     "tokens": 98916
+    },
+    "synthetic_solutions_self_4B_base": {
+     "documents": 413,
+     "tokens": 244771
+    },
     "synthetic_solutions_thinking": {
      "documents": 137,
      "tokens": 421107
@@ -668,6 +744,18 @@
    "documents": 21445,
    "tokens": 12967589
   },
+  "synthetic_solutions_self_0.8B_base": {
+   "documents": 12141,
+   "tokens": 3723949
+  },
+  "synthetic_solutions_self_2B_base": {
+   "documents": 21167,
+   "tokens": 7740357
+  },
+  "synthetic_solutions_self_4B_base": {
+   "documents": 36881,
+   "tokens": 15208354
+  },
   "synthetic_solutions_thinking": {
    "documents": 5332,
    "tokens": 11799714
@@ -688,25 +776,25 @@
  "flagged_file_name": "decontamination_flagged.parquet",
  "ngram_flags_by_kind_of_match": {
   "all_tasks": {
-   "numbers": 5998,
-   "words": 4376,
-   "mostly_numbers": 2827,
-   "alphabet": 872
+   "numbers": 6047,
+   "words": 4934,
+   "mostly_numbers": 2878,
+   "alphabet": 874
   },
   "by_task": {
    "mbpp": {
-    "numbers": 3950,
-    "alphabet": 872,
+    "numbers": 3961,
+    "alphabet": 874,
     "mostly_numbers": 60,
     "words": 108
    },
    "math500": {
-    "words": 2703,
-    "numbers": 150,
-    "mostly_numbers": 2510
+    "words": 3148,
+    "numbers": 177,
+    "mostly_numbers": 2558
    },
    "humaneval": {
-    "numbers": 5549,
+    "numbers": 5568,
     "mostly_numbers": 340,
     "words": 193,
     "alphabet": 75
@@ -715,8 +803,8 @@
     "words": 722
    },
    "mmlu_pro": {
-    "words": 357,
-    "mostly_numbers": 8
+    "words": 397,
+    "mostly_numbers": 11
    },
    "triviaqa": {
     "words": 148
@@ -725,7 +813,7 @@
     "words": 4
    },
    "gsm8k": {
-    "words": 60
+    "words": 133
    },
    "arc_challenge": {
     "words": 102

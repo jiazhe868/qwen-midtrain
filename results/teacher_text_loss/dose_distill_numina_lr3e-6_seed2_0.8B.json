@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_distill_numina_lr3e-6_seed2_0.8B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.4006,
+   "bits_per_byte": 0.1976
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.3718,
+   "bits_per_byte": 0.1922
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.3761,
+   "bits_per_byte": 0.2371
+  }
+ }
+}

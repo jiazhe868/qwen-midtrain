@@ -1,0 +1,17 @@
+{
+ "run_name": "dose_distill_lr1e-5_4B",
+ "loss": {
+  "synthetic_solutions": {
+   "nats_per_token": 0.1843,
+   "bits_per_byte": 0.0909
+  },
+  "synthetic_solutions_numina": {
+   "nats_per_token": 0.3067,
+   "bits_per_byte": 0.1586
+  },
+  "synthetic_solutions_hard": {
+   "nats_per_token": 0.2633,
+   "bits_per_byte": 0.166
+  }
+ }
+}

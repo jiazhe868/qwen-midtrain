@@ -362,7 +362,7 @@ def best_mixture_under_constraint(design: dict, target_law: dict, guard_law: dic
 
     The search never leaves the ranges of the design: the law is a fit, not a theory, and outside the runs that
     produced it nothing supports it. With a linear law the best point lies on the edge of the ranges; the caller
-    should read that as "the range was too small on this side" and extend the design there (README §6.4)."""
+    should read that as "the range was too small on this side" and extend the design there (README Appendix C)."""
     factors = design["factors"]
     grids = {}
     for factor_name, factor in factors.items():
@@ -527,7 +527,7 @@ def compare_runs_with_their_base(model_size: str, without_items_matched_by: str 
     base_final = read_json_if_present(folders["final_eval"] / f"{base_name}.json")
     base_probe = read_json_if_present(folders["probe_generic"] / f"{base_name}.json")
     # the other probes, each compared like the generic one: the same fine-tune sampled with longer answer limits
-    # (README §6.4), and the fine-tune that also holds math solutions (README §6.4)
+    # (README §5.11), and the fine-tune that also holds math solutions (README §5.9)
     other_probes = {"generic_probe_long": "probe_generic_long", "math_probe": "probe_math"}
     base_of_other_probe = {block: read_json_if_present(folders[folder] / f"{base_name}.json")
                            for block, folder in other_probes.items()}

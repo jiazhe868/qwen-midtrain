@@ -1,4 +1,4 @@
-# The generic probe with longer answer limits (README §6.4). The fine-tune and its data are the generic probe's own;
+# The generic probe with longer answer limits (README §5.11). The fine-tune and its data are the generic probe's own;
 # only the sampling changes: 2,048 tokens for GSM8K and 4,096 for MATH-500 instead of 512 and 1,024, so that a model
 # trained on the teacher's long thinking traces is not marked wrong for being cut off. It is run with
 # `sft_probe evaluate --variant generic_long` on a probe checkpoint kept by `sft_probe run --keep-probe-checkpoint`.

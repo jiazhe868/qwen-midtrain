@@ -18,7 +18,7 @@ of the candidate letters at that position are compared. No text is generated, so
 get wrong, and 5,600 questions take minutes. Small models have letter preferences, though: the 0.8B base picks "B"
 more often after five examples (33 of 80 ARC questions against 27 without), and after the first design run its
 zero-shot lettered HellaSwag fell 6.4 points while the five-example score did not move (11-20). Cloze scoring has no
-letters to prefer, which is why it is the knowledge guard of the mixture search (README §6.4).
+letters to prefer, which is why it is the knowledge guard of the mixture search (README Appendix C).
 
 Commands (after `source scripts/env.sh`):
     CUDA_VISIBLE_DEVICES=0 $MIDTRAIN_PYTHON -m midtrain.base_regression run \
