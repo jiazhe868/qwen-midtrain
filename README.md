@@ -176,7 +176,8 @@ The answers, in the order the sections present them:
 > **Status.** As of 2026-11-27, nearly all planned runs are done. They cover four sizes with controls, repeats with
 > other seeds, eleven 9B runs, sweeps at 0.8B, and two tests of what the solutions teach (§5.9, §5.10). These later
 > tests narrowed the main conclusion, as the abstract says. Still running: a second seed of the 9B run on thinking
-> traces. This file is updated with every result.
+> traces, a third seed of the 0.8B replay-only control, and the math probe of ten more models (§6.4). This file is
+> updated with every result.
 
 ### 1.4 Models, data and compute
 
@@ -660,8 +661,9 @@ Two check runs (0.8B and 2B) then trained on the recipe with 10% of the tokens t
 (`configs/recipes/dose/dose_distill_hard_100m.yaml`). MATH-500 did not move beyond the noise. In the few-shot test it
 changed by −0.4 points at 0.8B and +0.8 at 2B. After the fine-tune it changed by +1.2 and +6.4, against +0.3 and +7.6
 with the first set alone. Only pass@16 on MATH-500 at 2B rose a little more, +4.0 against +1.2, and that is within the
-noise too (`results/comparisons/dose_vs_base_<size>.json`). One reading is that the small models cannot yet use
-solutions of problems this hard.
+noise too (`results/comparisons/dose_vs_base_<size>.json`). Second seeds of both 2B runs show that this small lead
+came from the seed (§5.8): with them, pass@16 rises by 4.0 points with the hard set and by 4.8 with the first set
+alone. One reading is that the small models cannot yet use solutions of problems this hard.
 
 **A fourth set records the teacher's reasoning.** The first three sets hold only the solutions the teacher wrote. For
 the 3,597 problems that the 9B base model fails (§5.5), the teacher was also run in its thinking mode, in which it
@@ -745,7 +747,9 @@ solutions' 40% to general web text (`configs/recipes/dose/dose_nosolutions_100m.
 
 The result is unambiguous. Continued training alone does nothing: the replay-only controls stay level at all three sizes.
 The rest of the mixture does nothing either: without the solutions, the same mixture gains nothing and even loses 4.4
-points on MATH-500. **The solutions carry the gain.**
+points on MATH-500. **The solutions carry the gain.** One small exception came with a second seed of the 2B control
+(§5.8): at 2B, general text alone costs about two points on MATH-500 after the fine-tune (−1.8 and −2.5 with the two
+seeds).
 
 <p align="center"><img src="assets/dose_results_0.8B_en.png" width="92%"></p>
 
@@ -801,7 +805,9 @@ A wider problem set moves the gain to other problems. It does not make the gain 
 Halving the GSM8K training solutions cost about two points on GSM8K and gained about two points on SVAMP. Nothing else
 changed. The SVAMP gain needs a caution. orca_math writes problems of the same kind as SVAMP. The contamination check
 removes only near-copies, so problems that are close but not copies can still help on SVAMP. The 1,024-token limit
-also means that the kept solutions of the harder sources are the shorter ones.
+also means that the kept solutions of the harder sources are the shorter ones. A second seed of this run (§5.8)
+repeats the GSM8K result (+5.0) and not the SVAMP gain (+1.5 [−1.2, +4.2]). The SVAMP gain of the first seed lies
+within the spread between seeds.
 
 The teacher's rewrites of real passages are a useful counter-example (Appendix D). They are synthetic text from the
 same teacher, and they did not help. They had a small few-shot effect at 40M tokens, which the in-domain probe erased,
@@ -852,6 +858,14 @@ their two-space indentation in 91% of its answers, and the 1e-5 model writes fou
 code still falls (−0.8%), and after the generic fine-tune its MBPP score is within the noise of the base model's (−1.4
 [−3.4, +0.4]). So the model keeps its code knowledge, and its few-shot behaviour changes. At 0.8B the same loss on MBPP
 appears only at 3e-5 (−8.2 points). A larger model is disturbed at a lower learning rate.
+
+At 2B, both seeds of the 1e-5 run lose few-shot MBPP as well, by 8.2 and 7.0 points (§5.8). Their answers end
+normally: 2.3% of them reach the token limit, about as many as with the 3e-6 runs. Few-shot code can also fall at
+3e-6, in another way. The replay-only control trains on general text, without code. It loses 20.6 points on MBPP at
+4B, and 12.8 points with the second 2B seed. In these two runs many answers do not stop: 40% and 31% of them run to
+the 512-token limit, against 0.4% and 1.2% for the base models (`share_cut_at_token_limit` in
+`results/final_eval/<run>.json`). The other four controls stay within 2.3 points of their base on MBPP, and every
+distillation run at 3e-6 within 3.9 points.
 
 ### 5.5 At 9B, a fine-tune gives the same gain
 
@@ -1035,6 +1049,34 @@ Seeds were added at 2B, 4B and 9B as well:
 The few-shot gains repeat at every size. After the fine-tune, the two 4B seeds agree closely (GSM8K +2.4 and +2.2,
 MATH-500 +3.0 and +3.3). Both 9B seeds show no gain on GSM8K, and on MATH-500 the second seed lies 2.3 points below
 its base.
+
+Four more runs have a second seed: the 0.8B run with NuminaMath solutions (§5.3), and three 2B runs, namely the
+replay-only control (§5.2), the run with the hard set (§4.4) and the run at 1e-5 (§5.4):
+
+| run, minus base | seed | GSM8K | MATH-500 | SVAMP | probe GSM8K | probe MATH-500 | knowledge |
+|---|---|---|---|---|---|---|---|
+| 0.8B, first set 20% + NuminaMath 20% | 1 | **+4.4 [+2.0, +6.8]** | −0.4 [−4.0, +3.0] | **+3.6 [+1.0, +6.2]** | **+5.4 [+3.0, +7.8]** | +0.1 [−1.4, +1.5] | +0.2 |
+| 0.8B, first set 20% + NuminaMath 20% | 2 | **+5.0 [+2.6, +7.6]** | −0.8 [−4.4, +3.0] | +1.5 [−1.2, +4.2] | **+5.4 [+3.2, +7.8]** | **+1.7 [+0.2, +3.1]** | −0.6 |
+| 2B replay only | 1 | −0.7 [−2.6, +1.1] | −3.8 [−7.8, 0.0] | 0.0 [−1.7, +1.8] | +0.7 [−1.2, +2.6] | **−1.8 [−3.4, −0.2]** | +0.6 |
+| 2B replay only | 2 | **+2.5 [+0.7, +4.3]** | **−4.8 [−8.8, −1.0]** | +1.2 [−0.5, +2.9] | −0.5 [−2.3, +1.3] | **−2.5 [−4.0, −1.0]** | +0.5 |
+| 2B distillation, with the hard set | 1 | **+5.8 [+3.6, +8.1]** | +0.8 [−2.8, +4.4] | **+2.8 [+0.4, +5.1]** | **+5.3 [+3.2, +7.5]** | **+6.4 [+4.6, +8.0]** | −0.4 |
+| 2B distillation, with the hard set | 2 | **+3.5 [+1.1, +5.8]** | +0.8 [−3.2, +4.6] | **+3.7 [+1.5, +5.9]** | **+3.7 [+1.7, +5.8]** | **+5.2 [+3.5, +6.8]** | −0.3 |
+| 2B distillation, at 1e-5 | 1 | **+4.0 [+1.6, +6.5]** | −2.2 [−6.2, +1.6] | **+4.1 [+1.4, +6.7]** | **+4.8 [+2.5, +7.2]** | **+3.7 [+1.7, +5.5]** | 0.0 |
+| 2B distillation, at 1e-5 | 2 | **+3.6 [+1.1, +6.3]** | +0.8 [−3.6, +5.2] | **+4.9 [+2.2, +7.5]** | **+3.3 [+0.9, +5.7]** | **+4.9 [+3.1, +6.8]** | −0.3 |
+
+What to notice:
+
+- The NuminaMath run repeats on GSM8K (+4.4 and +5.0) and not on SVAMP (+3.6 and +1.5).
+- The hard set adds nothing with the second seed either. After the fine-tune, its second seed gains 5.2 points on
+  MATH-500, and the first set's second seed gains 5.1. On pass@16, the hard set gives +4.0 with both seeds, and the
+  first set +1.2 and +4.8.
+- The 1e-5 run repeats too, and its few-shot MBPP falls with both seeds (−8.2 and −7.0, §5.4).
+- The 2B control loses on MATH-500 with both seeds: by 3.8 and 4.8 points few-shot, and by 1.8 and 2.5 after the
+  fine-tune.
+- The two seeds of the 2B control differ by 3.2 points on few-shot GSM8K. On few-shot MBPP they differ by 10.5
+  points (−2.3 and −12.8), because many answers of the second seed do not stop (§5.4).
+
+(`results/comparisons/dose_vs_base_<size>.json`)
 
 The fine-tuned test has some noise of its own, because its fine-tune and its sampling do not repeat exactly. I ran it
 twice on the same base models. The two runs differ by at most 1.2 points on any task: at 0.8B, GSM8K differs by +1.2
@@ -1284,7 +1326,8 @@ solutions, and in this study clearly only at the smallest size.
 ### 6.3 Limitations, plainly
 
 - Most settings were trained once. The intervals cover the choice of test questions, not the randomness of training.
-  The runs that were repeated differ by up to 2.5 points between seeds (§5.8).
+  The runs that were repeated differ between seeds by up to 3.2 points on the math tasks, and one control differs by
+  10.5 points on few-shot MBPP (§5.8).
 - The gain is largest on GSM8K, whose training problems the teacher solved. SVAMP and the fine-tuned MATH-500 show
   transfer; code shows none.
 - The student check gave the 9B base model 1,024 tokens per answer, and 54% of its level-5 answers were cut off, so
@@ -1302,7 +1345,10 @@ solutions, and in this study clearly only at the smallest size.
 Still running on 11-27:
 
 - a second seed of the 9B run on the teacher's thinking traces, the one 9B run with a gain after the generic
-  fine-tune (§5.11).
+  fine-tune (§5.11);
+- a third seed of the 0.8B replay-only control (§5.8);
+- the math probe (§5.9) of ten more models: more seeds of the distillation runs at 0.8B, 2B and 4B, the second seeds
+  of the 2B runs with the hard set and at 1e-5, four replay-only controls, and a repeat of the 0.8B base model.
 
 Beyond this study, three experiments would test its conclusions further:
 
@@ -1558,7 +1604,7 @@ measurement that would prove it wrong. They stay unchanged, with outcomes from t
 | P7 | text shown early beats text shown late | not supported: late was best on few-shot GSM8K pass@16 |
 | P8 | total loss ranks runs badly, matched loss fairly | half right: neither ranks runs as the probe does |
 | P9 | the two small sizes agree on losses, less on the probe | pending (the 2B design stopped at 9 runs) |
-| P10 | the 9B gains less than the small models | confirmed after the fine-tune: GSM8K gains +5.7, +5.6, +2.4 and −0.1 from 0.8B to 9B (§5.5); in the few-shot test the 9B gains 5.3, between the 0.8B's 6.8 and the 2B's 4.3; the 9B replay-only control waits for the cluster |
+| P10 | the 9B gains less than the small models | confirmed after the fine-tune: GSM8K gains +5.7, +5.6, +2.4 and −0.1 from 0.8B to 9B (§5.5); in the few-shot test the 9B gains 5.3, between the 0.8B's 6.8 and the 2B's 4.3; the 9B replay-only control stays level (§5.11) |
 | P11 | the fine-tune hides part of the difference | confirmed, more strongly than predicted: the spread before the probe was 2.9 times the spread after it |
 | P12 | 3e-6 keeps everything and gains less; 1e-5 gains more and costs knowledge | wrong in the design (3e-6 was better everywhere); right for distillation at 0.8B (§5.4, §5.12); at 9B, 1e-5 costs code and gains nothing (§5.4) |
 
