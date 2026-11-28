@@ -57,8 +57,8 @@ solutions. Most of the gain then disappeared, and the gain from a model's own an
 
 **Most of what mid-training on worked solutions adds is the habit of writing worked solutions, and a fine-tune on
 solutions teaches the same habit.** A smaller part survives such a fine-tune. It comes from the teacher's solutions,
-and at 0.8B mostly from those of problems the student fails. It is largest at 0.8B (GSM8K +4.5, MATH-500 +2.8) and gone
-at 4B and 9B. An earlier version of this file drew a broader lesson from the size trend alone: that mid-training works
+and at 0.8B mostly from those of problems the student fails. It is largest at 0.8B (GSM8K +4.5, MATH-500 +2.8), grows with
+the learning rate, is small at 4B and is gone at 9B. An earlier version of this file drew a broader lesson from the size trend alone: that mid-training works
 when the data teaches something the model does not already know. Section 5.10 shows why that lesson holds only for
 this smaller part.
 
@@ -166,7 +166,7 @@ The answers, in the order the sections present them:
   off 72% of its attempts on the hardest MATH problems, so those problems are nearly missing from the data. A later
   pass, with room for 4,096 tokens, solved 80% of them.
 - **A fine-tune with worked solutions recovers most of the gain (§5.9).** When the fine-tune itself contains 4,000
-  worked math solutions, the 2B model's lead on MATH-500 falls from 7.6 to 1.4 points. At 4B and 9B no lead remains.
+  worked math solutions, the 2B model's lead on MATH-500 falls from 7.6 to 1.4 points. At 4B little remains, and at 9B none.
 - **The student's own answers teach much of it (§5.10).** Trained on its own right answers, the 0.8B model gains
   GSM8K +5.0 after the generic fine-tune. After the fine-tune with solutions, only the teacher's solutions keep a gain,
   mostly those of problems the student fails.
@@ -176,7 +176,7 @@ The answers, in the order the sections present them:
 > **Status.** As of 2026-11-27, nearly all planned runs are done. They cover four sizes with controls, repeats with
 > other seeds, eleven 9B runs, sweeps at 0.8B, and two tests of what the solutions teach (§5.9, §5.10). These later
 > tests narrowed the main conclusion, as the abstract says. Still running: a second seed of the 9B run on thinking
-> traces and the math fine-tune of a few 2B and 4B runs. This file is updated with every result.
+> traces. This file is updated with every result.
 
 ### 1.4 Models, data and compute
 
@@ -1061,11 +1061,16 @@ excludes zero.
 |---|---|---|---|---|---|
 | 0.8B | the teacher's solutions | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | **+4.5 [+2.4, +6.4]** | **+2.8 [+1.3, +4.2]** |
 | 0.8B | the teacher's solutions, at 1e-5 | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | **+8.3 [+6.4, +10.3]** | **+3.6 [+2.0, +5.3]** |
+| 0.8B | the teacher's solutions, at 3e-5 | **+14.9 [+11.9, +17.9]** | **+7.2 [+4.9, +9.4]** | **+10.2 [+7.8, +12.7]** | **+3.1 [+1.4, +4.9]** |
 | 0.8B | its own right answers (§5.10) | **+5.0 [+3.0, +6.9]** | +0.8 [−0.7, +2.1] | +1.1 [−0.8, +2.8] | +0.1 [−1.5, +1.7] |
 | 2B | the teacher's solutions | **+5.6 [+3.2, +7.9]** | **+7.6 [+5.8, +9.3]** | **+3.9 [+1.6, +6.3]** | **+1.4 [+0.1, +2.8]** |
+| 2B | the teacher's solutions, seed 2 | **+4.0 [+1.9, +6.0]** | **+5.1 [+3.5, +6.7]** | **+3.8 [+1.8, +5.8]** | +1.3 [0.0, +2.5] |
+| 2B | the teacher's solutions, at 1e-5 | **+4.8 [+2.5, +7.2]** | **+3.7 [+1.7, +5.5]** | **+5.5 [+3.2, +7.8]** | +1.4 [−0.2, +2.9] |
 | 2B | its own right answers (§5.10) | **+3.3 [+1.1, +5.3]** | **+2.9 [+1.3, +4.5]** | **+2.5 [+0.6, +4.3]** | −0.3 [−1.5, +0.9] |
 | 4B | the teacher's solutions | **+2.4 [+0.9, +4.0]** | **+3.0 [+1.4, +4.7]** | +1.4 [−0.4, +3.2] | −1.4 [−2.8, +0.1] |
+| 4B | the teacher's solutions, at 1e-5 | **+2.2 [+0.3, +4.2]** | **+4.8 [+3.0, +6.8]** | **+2.3 [+0.4, +4.2]** | −0.7 [−1.9, +0.7] |
 | 9B | the teacher's solutions | −0.1 [−1.3, +1.0] | 0.0 [−1.3, +1.4] | 0.0 [−1.5, +1.5] | +0.2 [−1.1, +1.6] |
+| 9B | the teacher's thinking traces (§5.11) | +0.4 [−0.8, +1.6] | **+1.7 [+0.2, +3.1]** | −0.8 [−2.3, +0.8] | −0.1 [−1.4, +1.2] |
 
 What to notice:
 
@@ -1075,7 +1080,13 @@ What to notice:
   sizes.
 - Part of the teacher's gain survives at 0.8B and 2B. At 0.8B it is GSM8K +4.5 and MATH-500 +2.8, and with the higher
   learning rate +8.3 and +3.6. MATH-500 at 0.8B is the one case that grows: the generic probe shows no gain there.
-- At 4B and 9B no gain survives.
+- The surviving part grows with the learning rate: GSM8K +10.2 at 3e-5 for the 0.8B model, and +5.5 at 1e-5 for the
+  2B model (§5.12).
+- At 4B a gain survives only with the higher learning rate (GSM8K +2.3 at 1e-5). At 9B nothing survives, including
+  the small gain of the thinking traces (GSM8K −0.8, MATH-500 −0.1).
+- The math probe has noise of its own. Run twice on the 2B base model, it differs by +1.8 [0.0, +3.6] on GSM8K and
+  +0.6 [−0.7, +1.9] on MATH-500 (the paired difference of `results/probe_math/base_2B.json` and
+  `base_2B_repeat.json`). Math-probe gains of about two points are therefore within its noise.
 
 (`math_probe` in `results/comparisons/dose_vs_base_<size>.json`)
 
@@ -1115,8 +1126,8 @@ are pass@1 after the two fine-tuning tests of §5.9. A bold value has an interva
 | 2B | its own right answers to the solved problems | 7,266 | 7.7M | **+4.4 [+2.1, +6.8]** | **+3.3 [+1.1, +5.3]** | **+2.9 [+1.3, +4.5]** | **+2.5 [+0.6, +4.3]** | −0.3 [−1.5, +0.9] |
 | 4B | all problems (the first run) | 11,907 | 23.1M | +1.4 [−0.5, +3.3] | **+2.4 [+0.9, +4.0]** | **+3.0 [+1.4, +4.7]** | +1.4 [−0.4, +3.2] | −1.4 [−2.8, +0.1] |
 | 4B | the teacher's solutions of problems it fails | 1,131 | 2.4M | +0.4 [−1.4, +2.2] | +1.4 [0.0, +2.7] | +0.7 [−1.0, +2.4] | +0.1 [−1.6, +1.7] | **−1.4 [−2.8, −0.1]** |
-| 4B | the teacher's solutions of problems it solves | 10,776 | 20.7M | **+3.3 [+1.6, +5.2]** | **+2.3 [+0.7, +3.9]** | **+2.3 [+0.7, +3.8]** | pending | pending |
-| 4B | its own right answers to the solved problems | 10,776 | 15.2M | +0.5 [−1.2, +2.4] | **+2.2 [+0.5, +3.8]** | **+1.9 [+0.3, +3.5]** | pending | pending |
+| 4B | the teacher's solutions of problems it solves | 10,776 | 20.7M | **+3.3 [+1.6, +5.2]** | **+2.3 [+0.7, +3.9]** | **+2.3 [+0.7, +3.8]** | +0.8 [−1.1, +2.6] | +0.1 [−1.2, +1.4] |
+| 4B | its own right answers to the solved problems | 10,776 | 15.2M | +0.5 [−1.2, +2.4] | **+2.2 [+0.5, +3.8]** | **+1.9 [+0.3, +3.5]** | **−1.8 [−3.6, −0.1]** | −0.9 [−2.0, +0.3] |
 
 What to notice:
 
@@ -1128,10 +1139,10 @@ What to notice:
   MATH-500 (+6.1 against +2.9).
 - After the math fine-tune, differences appear at 0.8B. The failed problems keep GSM8K +3.5 and MATH-500 +1.7, the
   solved ones +2.5 and +0.3, and the student's own answers +1.1 and +0.1. At 2B the three keep about the same: 2.5 to
-  3.0 points on GSM8K and nothing on MATH-500.
+  3.0 points on GSM8K and nothing on MATH-500, only a little above the math probe's own noise (§5.9). At 4B none of the
+  three keeps a gain.
 
-(`results/comparisons/dose_vs_base_<size>.json`; the math probe of the 4B runs on solved problems and on the student's
-own answers is still running.)
+(`results/comparisons/dose_vs_base_<size>.json`)
 
 The earlier reading was too broad. After a fine-tune without math, most of the gain is a habit: the model writes out
 worked solutions, and its own answers teach that habit almost as well as the teacher's do. A fine-tune that includes
@@ -1172,7 +1183,8 @@ What to notice:
   with twice the tokens.
 - No run gains more than 1.7 points after the fine-tune. The largest change is MATH-500 +1.7 [+0.2, +3.1], with the
   teacher's thinking traces. With answers of up to 4,096 tokens it is +1.5 [+0.1, +3.0]
-  (`configs/probe_generic_long.yaml`, `results/probe_generic_long/`). A second run with another seed is training to check it.
+  (`configs/probe_generic_long.yaml`, `results/probe_generic_long/`). A second run with another seed is training to check it. With the math
+  probe of §5.9 the gain disappears (GSM8K −0.8, MATH-500 −0.1).
 - A learning rate of 1e-5 costs few-shot code (MBPP −10 to −13) and gains nothing after the fine-tune (§5.4).
 - Public text lowers MATH-500 after the fine-tune by 3.5 points, and replay text changes nothing.
 
@@ -1188,21 +1200,22 @@ The smallest model was used to map three settings of the recipe. Each row change
 which used a learning rate of 3e-6, 100M tokens, 40% solutions and up to four solutions per problem.
 
 How to read the table. Each row is one run minus the base model. The first value column is few-shot accuracy, the
-next two are pass@1 after the generic fine-tune. A bold value has an interval that excludes zero.
+next two are pass@1 after the generic fine-tune, and the last two are pass@1 after the math fine-tune of §5.9 (a dash
+where it was not run). A bold value has an interval that excludes zero.
 
-| 0.8B run, minus base | few-shot GSM8K | probe GSM8K | probe MATH-500 | knowledge |
-|---|---|---|---|---|
-| learning rate 1e-6 | **+6.0 [+3.6, +8.4]** | **+5.3 [+3.4, +7.3]** | −1.3 [−2.8, +0.2] | −0.1 |
-| learning rate 3e-6 (the first run) | **+6.8 [+4.3, +9.3]** | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 |
-| learning rate 1e-5, seed 1 | **+6.7 [+3.9, +9.4]** | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.5 |
-| learning rate 1e-5, seed 2 | **+6.1 [+3.3, +8.6]** | **+11.4 [+8.8, +13.8]** | **+7.8 [+5.8, +9.8]** | −1.4 |
-| learning rate 1e-5, seed 3 | **+3.9 [+1.4, +6.6]** | **+12.4 [+9.9, +14.9]** | **+7.9 [+6.0, +9.9]** | −0.8 |
-| learning rate 3e-5 | **+5.3 [+2.4, +8.1]** | **+14.9 [+11.9, +17.9]** | **+7.2 [+4.9, +9.4]** | −2.6 |
-| 50M tokens | **+7.3 [+4.7, +9.7]** | **+5.4 [+3.2, +7.6]** | −0.6 [−1.9, +0.7] | −0.1 |
-| 200M tokens | **+4.8 [+2.2, +7.5]** | **+9.3 [+6.8, +11.7]** | **+3.7 [+2.1, +5.4]** | −0.1 |
-| 20% solutions | **+5.2 [+2.7, +7.6]** | **+4.9 [+2.8, +6.9]** | +0.3 [−1.0, +1.6] | +0.3 |
-| 60% solutions | **+7.3 [+4.7, +9.9]** | **+6.9 [+4.6, +9.2]** | **+2.0 [+0.6, +3.4]** | −0.3 |
-| one solution per problem | **+5.3 [+2.8, +7.7]** | **+6.2 [+3.9, +8.6]** | +0.2 [−1.3, +1.7] | +0.1 |
+| 0.8B run, minus base | few-shot GSM8K | probe GSM8K | probe MATH-500 | knowledge | math probe GSM8K | math probe MATH-500 |
+|---|---|---|---|---|---|---|
+| learning rate 1e-6 | **+6.0 [+3.6, +8.4]** | **+5.3 [+3.4, +7.3]** | −1.3 [−2.8, +0.2] | −0.1 | **+2.0 [+0.2, +3.7]** | +0.8 [−0.5, +2.2] |
+| learning rate 3e-6 (the first run) | **+6.8 [+4.3, +9.3]** | **+5.7 [+3.3, +8.1]** | +0.3 [−1.1, +1.7] | +0.2 | **+4.5 [+2.4, +6.4]** | **+2.8 [+1.3, +4.2]** |
+| learning rate 1e-5, seed 1 | **+6.7 [+3.9, +9.4]** | **+11.8 [+9.2, +14.2]** | **+7.1 [+5.4, +8.9]** | −0.5 | **+8.3 [+6.4, +10.3]** | **+3.6 [+2.0, +5.3]** |
+| learning rate 1e-5, seed 2 | **+6.1 [+3.3, +8.6]** | **+11.4 [+8.8, +13.8]** | **+7.8 [+5.8, +9.8]** | −1.4 | — | — |
+| learning rate 1e-5, seed 3 | **+3.9 [+1.4, +6.6]** | **+12.4 [+9.9, +14.9]** | **+7.9 [+6.0, +9.9]** | −0.8 | — | — |
+| learning rate 3e-5 | **+5.3 [+2.4, +8.1]** | **+14.9 [+11.9, +17.9]** | **+7.2 [+4.9, +9.4]** | −2.6 | **+10.2 [+7.8, +12.7]** | **+3.1 [+1.4, +4.9]** |
+| 50M tokens | **+7.3 [+4.7, +9.7]** | **+5.4 [+3.2, +7.6]** | −0.6 [−1.9, +0.7] | −0.1 | — | — |
+| 200M tokens | **+4.8 [+2.2, +7.5]** | **+9.3 [+6.8, +11.7]** | **+3.7 [+2.1, +5.4]** | −0.1 | **+7.3 [+5.3, +9.3]** | **+2.4 [+1.0, +4.0]** |
+| 20% solutions | **+5.2 [+2.7, +7.6]** | **+4.9 [+2.8, +6.9]** | +0.3 [−1.0, +1.6] | +0.3 | — | — |
+| 60% solutions | **+7.3 [+4.7, +9.9]** | **+6.9 [+4.6, +9.2]** | **+2.0 [+0.6, +3.4]** | −0.3 | **+6.8 [+4.9, +8.6]** | **+2.1 [+0.6, +3.7]** |
+| one solution per problem | **+5.3 [+2.8, +7.7]** | **+6.2 [+3.9, +8.6]** | +0.2 [−1.3, +1.7] | +0.1 | — | — |
 
 What to notice:
 
@@ -1212,6 +1225,9 @@ What to notice:
 - More tokens help after the fine-tune too: 200M tokens give GSM8K +9.3 and MATH-500 +3.7.
 - The share of solutions has a smaller effect, from GSM8K +4.9 at 20% to +6.9 at 60%. One solution per problem, seen
   four times as often, gives about the same as up to four.
+- After the math fine-tune the order stays the same. GSM8K keeps +2.0 at 1e-6, +4.5 at 3e-6, +8.3 at 1e-5 and +10.2
+  at 3e-5, as well as +7.3 with 200M tokens and +6.8 with 60% solutions. A higher learning rate and more solutions both
+  enlarge the part of the gain that a fine-tune with solutions does not replace.
 
 (`results/comparisons/dose_vs_base_0.8B.json`)
 
@@ -1235,8 +1251,8 @@ What to notice:
 5. Most of the gain after that fine-tune is a habit of writing worked solutions. A student's own right answers teach
    much of it (§5.10), and a fine-tune that includes worked solutions replaces most of it (§5.9).
 6. The part that survives a fine-tune with solutions is largest at 0.8B (GSM8K +4.5, MATH-500 +2.8; +8.3 and +3.6 at
-   1e-5), smaller at 2B, and gone at 4B and 9B. At 0.8B it comes mostly from the teacher's solutions of problems the
-   student fails.
+   1e-5), smaller at 2B, small at 4B and gone at 9B. It grows with the learning rate and with the amount of solutions
+   (§5.12). At 0.8B it comes mostly from the teacher's solutions of problems the student fails.
 7. At 0.8B, a higher learning rate trades the base model's own scores for a larger gain after a fine-tune. At 9B, 1e-5
    already costs few-shot code and gains nothing after the fine-tune.
 
@@ -1285,10 +1301,8 @@ solutions, and in this study clearly only at the smallest size.
 
 Still running on 11-27:
 
-- a second seed of the 9B run on the teacher's thinking traces, the one 9B run with a gain after the fine-tune
-  (§5.11);
-- the math probe of the remaining 2B and 4B runs, and a repeat of the math probe on the 2B base model to measure its
-  noise (§5.9, §5.10).
+- a second seed of the 9B run on the teacher's thinking traces, the one 9B run with a gain after the generic
+  fine-tune (§5.11).
 
 Beyond this study, three experiments would test its conclusions further:
 

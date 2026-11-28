@@ -558,6 +558,64 @@
      "questions": 200
     }
    },
+   "math_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 2.34,
+      "low": 0.44,
+      "high": 4.19,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 1.5,
+      "low": -0.5,
+      "high": 4.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": -0.65,
+      "low": -1.88,
+      "high": 0.65,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": -3.2,
+      "low": -6.8,
+      "high": 0.4,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": -0.23,
+      "low": -2.36,
+      "high": 1.91,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 0.61,
+      "low": -3.66,
+      "high": 4.88,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -3.0,
+      "low": -5.44,
+      "high": -0.53,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -1.0,
+      "low": -5.0,
+      "high": 3.0,
+      "questions": 200
+     }
+    }
+   },
    "knowledge_cloze_change": -0.6,
    "loss_change_percent": {
     "code": -0.41,
@@ -1187,6 +1245,64 @@
      "questions": 200
     }
    },
+   "math_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": -1.84,
+      "low": -3.59,
+      "high": -0.12,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -1.0,
+      "low": -3.5,
+      "high": 1.5,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": -0.88,
+      "low": -2.05,
+      "high": 0.33,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": -0.4,
+      "low": -3.2,
+      "high": 2.4,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 2.29,
+      "low": -0.08,
+      "high": 4.88,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 0.61,
+      "low": -3.66,
+      "high": 4.88,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -0.19,
+      "low": -2.0,
+      "high": 1.66,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 1.0,
+      "low": -3.0,
+      "high": 5.0,
+      "questions": 200
+     }
+    }
+   },
    "knowledge_cloze_change": -0.78,
    "loss_change_percent": {
     "code": -1.9,
@@ -1356,6 +1472,64 @@
      "low": -5.51,
      "high": 1.0,
      "questions": 200
+    }
+   },
+   "math_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 0.75,
+      "low": -1.09,
+      "high": 2.62,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -0.5,
+      "low": -3.0,
+      "high": 2.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 0.07,
+      "low": -1.2,
+      "high": 1.4,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": -0.4,
+      "low": -3.6,
+      "high": 2.8,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.46,
+      "low": -1.72,
+      "high": 2.63,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": -1.22,
+      "low": -5.49,
+      "high": 3.05,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": 1.38,
+      "low": -0.34,
+      "high": 3.12,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 2.5,
+      "low": -1.0,
+      "high": 6.0,
+      "questions": 200
+     }
     }
    },
    "knowledge_cloze_change": -1.47,

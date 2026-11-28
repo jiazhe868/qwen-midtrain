@@ -1987,6 +1987,64 @@
      }
     }
    },
+   "math_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": -0.75,
+      "low": -2.34,
+      "high": 0.84,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -1.0,
+      "low": -3.5,
+      "high": 1.5,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": -0.1,
+      "low": -1.43,
+      "high": 1.2,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 1.2,
+      "low": -2.0,
+      "high": 4.4,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.61,
+      "low": -1.22,
+      "high": 2.55,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 0.61,
+      "low": -3.66,
+      "high": 4.88,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": 0.06,
+      "low": -1.75,
+      "high": 1.69,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 2.0,
+      "low": -1.0,
+      "high": 5.0,
+      "questions": 200
+     }
+    }
+   },
    "knowledge_cloze_change": -0.51,
    "loss_change_percent": {
     "code": -2.01,
