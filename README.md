@@ -173,10 +173,11 @@ The answers, in the order the sections present them:
 - **The learning rate matters most after a fine-tune (§5.12).** At 0.8B, GSM8K gains about 5.5 points at 3e-6 and
   about 12 at 1e-5, the same with three seeds.
 
-> **Status.** As of 2026-11-27, nearly all planned runs are done. They cover four sizes with controls, repeats with
+> **Status.** As of 2026-11-28, the planned runs are done. They cover four sizes with controls, repeats with
 > other seeds, eleven 9B runs, sweeps at 0.8B, and two tests of what the solutions teach (§5.9, §5.10). These later
-> tests narrowed the main conclusion, as the abstract says. Still running: a second seed of the 9B run on thinking
-> traces. This file is updated with every result.
+> tests narrowed the main conclusion, as the abstract says. One cluster job, a second seed of the 9B replay-only
+> control, still waits in the queue and runs only if it starts by the morning of 11-29. This file is updated with
+> every result.
 
 ### 1.4 Models, data and compute
 
@@ -1151,6 +1152,7 @@ well:
 | 2B | general text only (§5.2) | +0.7 [−1.2, +2.6] | **−1.8 [−3.4, −0.2]** | +1.1 [−0.8, +3.1] | −0.2 [−1.6, +1.1] |
 | 2B | general text only, seed 2 | −0.5 [−2.3, +1.3] | **−2.5 [−4.0, −1.0]** | +1.1 [−0.8, +2.9] | −0.3 [−1.7, +0.9] |
 | 4B | the teacher's solutions, seed 2 | **+2.2 [+0.5, +3.8]** | **+3.3 [+1.6, +5.0]** | +0.8 [−1.2, +2.7] | +0.6 [−0.9, +2.1] |
+| 9B | the teacher's thinking traces, seed 2 (§5.11) | −0.7 [−1.9, +0.5] | +1.1 [−0.3, +2.7] | +0.2 [−1.4, +1.8] | 0.0 [−1.4, +1.4] |
 
 What to notice:
 
@@ -1162,6 +1164,8 @@ What to notice:
   and +4.3 at 1e-5, against 3.6–3.9 at 3e-6, a difference close to the noise of the probe.
 - The hard set gives no more than the first set: GSM8K +2.4 and +3.4, MATH-500 +1.6 and +1.1 with its two seeds.
 - The 4B model keeps nothing at 3e-6 with its second seed either (GSM8K +0.8, MATH-500 +0.6).
+- The second seed of the 9B run on thinking traces keeps nothing under the math probe either (GSM8K +0.2, MATH-500
+  0.0).
 - General text alone gains nothing under the math probe. In the four controls, GSM8K moves by 0.0 to +1.1 and
   MATH-500 by −0.2 to −0.3. The 2B control's loss on MATH-500 after the generic probe (−1.8 and −2.5) is gone.
 - At 0.8B the math probe repeats more closely than at 2B. Run twice on the 0.8B base model, it differs by +0.6 [−1.2,
@@ -1261,8 +1265,9 @@ What to notice:
   with twice the tokens.
 - No run gains more than 1.7 points after the fine-tune. The largest change is MATH-500 +1.7 [+0.2, +3.1], with the
   teacher's thinking traces. With answers of up to 4,096 tokens it is +1.5 [+0.1, +3.0]
-  (`configs/probe_generic_long.yaml`, `results/probe_generic_long/`). A second run with another seed is training to check it. With the math
-  probe of §5.9 the gain disappears (GSM8K −0.8, MATH-500 −0.1).
+  (`configs/probe_generic_long.yaml`, `results/probe_generic_long/`). A second run with another seed gives +1.1
+  [−0.3, +2.7], and +1.4 [+0.1, +2.8] with the longer answers. With the math probe of §5.9 the gain disappears with
+  both seeds (GSM8K −0.8 and +0.2, MATH-500 −0.1 and 0.0).
 - A learning rate of 1e-5 costs few-shot code (MBPP −10 to −13) and gains nothing after the fine-tune (§5.4).
 - Public text lowers MATH-500 after the fine-tune by 3.5 points, and replay text changes nothing.
 
@@ -1278,8 +1283,8 @@ The smallest model was used to map three settings of the recipe. Each row change
 which used a learning rate of 3e-6, 100M tokens, 40% solutions and up to four solutions per problem.
 
 How to read the table. Each row is one run minus the base model. The first value column is few-shot accuracy, the
-next two are pass@1 after the generic fine-tune, and the last two are pass@1 after the math fine-tune of §5.9 (a dash
-where it was not run). A bold value has an interval that excludes zero.
+next two are pass@1 after the generic fine-tune, and the last two are pass@1 after the math fine-tune of §5.9. A bold
+value has an interval that excludes zero.
 
 | 0.8B run, minus base | few-shot GSM8K | probe GSM8K | probe MATH-500 | knowledge | math probe GSM8K | math probe MATH-500 |
 |---|---|---|---|---|---|---|
@@ -1289,11 +1294,11 @@ where it was not run). A bold value has an interval that excludes zero.
 | learning rate 1e-5, seed 2 | **+6.1 [+3.3, +8.6]** | **+11.4 [+8.8, +13.8]** | **+7.8 [+5.8, +9.8]** | −1.4 | **+8.2 [+5.8, +10.6]** | **+2.3 [+0.8, +4.0]** |
 | learning rate 1e-5, seed 3 | **+3.9 [+1.4, +6.6]** | **+12.4 [+9.9, +14.9]** | **+7.9 [+6.0, +9.9]** | −0.8 | **+7.3 [+5.3, +9.3]** | **+3.8 [+2.0, +5.7]** |
 | learning rate 3e-5 | **+5.3 [+2.4, +8.1]** | **+14.9 [+11.9, +17.9]** | **+7.2 [+4.9, +9.4]** | −2.6 | **+10.2 [+7.8, +12.7]** | **+3.1 [+1.4, +4.9]** |
-| 50M tokens | **+7.3 [+4.7, +9.7]** | **+5.4 [+3.2, +7.6]** | −0.6 [−1.9, +0.7] | −0.1 | — | — |
+| 50M tokens | **+7.3 [+4.7, +9.7]** | **+5.4 [+3.2, +7.6]** | −0.6 [−1.9, +0.7] | −0.1 | **+2.7 [+0.9, +4.3]** | +0.6 [−0.8, +2.1] |
 | 200M tokens | **+4.8 [+2.2, +7.5]** | **+9.3 [+6.8, +11.7]** | **+3.7 [+2.1, +5.4]** | −0.1 | **+7.3 [+5.3, +9.3]** | **+2.4 [+1.0, +4.0]** |
-| 20% solutions | **+5.2 [+2.7, +7.6]** | **+4.9 [+2.8, +6.9]** | +0.3 [−1.0, +1.6] | +0.3 | — | — |
+| 20% solutions | **+5.2 [+2.7, +7.6]** | **+4.9 [+2.8, +6.9]** | +0.3 [−1.0, +1.6] | +0.3 | **+2.9 [+1.1, +4.8]** | +1.1 [−0.4, +2.6] |
 | 60% solutions | **+7.3 [+4.7, +9.9]** | **+6.9 [+4.6, +9.2]** | **+2.0 [+0.6, +3.4]** | −0.3 | **+6.8 [+4.9, +8.6]** | **+2.1 [+0.6, +3.7]** |
-| one solution per problem | **+5.3 [+2.8, +7.7]** | **+6.2 [+3.9, +8.6]** | +0.2 [−1.3, +1.7] | +0.1 | — | — |
+| one solution per problem | **+5.3 [+2.8, +7.7]** | **+6.2 [+3.9, +8.6]** | +0.2 [−1.3, +1.7] | +0.1 | **+4.3 [+2.5, +6.0]** | **+2.1 [+0.6, +3.6]** |
 
 What to notice:
 
@@ -1306,6 +1311,10 @@ What to notice:
 - After the math fine-tune the order stays the same. GSM8K keeps +2.0 at 1e-6, +4.5 at 3e-6, +8.3 at 1e-5 (+8.2 and
   +7.3 with the other two seeds) and +10.2 at 3e-5, as well as +7.3 with 200M tokens and +6.8 with 60% solutions. A higher learning rate and more solutions both
   enlarge the part of the gain that a fine-tune with solutions does not replace.
+- With the math fine-tune, the part that remains grows with the amount of solutions. GSM8K keeps +2.7 with 50M
+  tokens, +4.5 with 100M and +7.3 with 200M. It keeps +2.9 with 20% solutions, +4.5 with 40% and +6.8 with 60%. After
+  the generic fine-tune, 50M and 100M tokens gave about the same (+5.4 and +5.7), and so did 20% and 40% solutions
+  (+4.9 and +5.7). One solution per problem keeps +4.3, about as much as up to four.
 
 (`results/comparisons/dose_vs_base_0.8B.json`)
 
@@ -1380,10 +1389,10 @@ solutions, and in this study clearly only at the smallest size.
 
 ### 6.4 What comes next
 
-Still running on 11-27:
+Waiting on 11-28:
 
-- a second seed of the 9B run on the teacher's thinking traces, the one 9B run with a gain after the generic
-  fine-tune (§5.11).
+- a second seed of the 9B replay-only control (§5.11), queued on the cluster. It runs only if it starts by the
+  morning of 11-29.
 
 Beyond this study, three experiments would test its conclusions further:
 

@@ -2061,6 +2061,293 @@
    },
    "tokens_seen": 100007936
   },
+  "dose_distill_thinking_lr3e-6_seed2_9B": {
+   "few_shot_greedy": {
+    "gsm8k": {
+     "run": 87.11,
+     "base": 87.11,
+     "difference": 0.0,
+     "low": -1.59,
+     "high": 1.52,
+     "questions": 1319,
+     "without_matched_items": {
+      "difference": 0.0,
+      "low": -1.52,
+      "high": 1.52,
+      "questions": 1316
+     }
+    },
+    "math500": {
+     "run": 56.0,
+     "base": 55.2,
+     "difference": 0.8,
+     "low": -3.0,
+     "high": 4.6,
+     "questions": 500,
+     "without_matched_items": {
+      "difference": 1.57,
+      "low": -2.24,
+      "high": 5.59,
+      "questions": 447
+     }
+    },
+    "humaneval": {
+     "run": 54.88,
+     "base": 58.54,
+     "difference": -3.66,
+     "low": -9.76,
+     "high": 1.83,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 69.65,
+     "base": 73.15,
+     "difference": -3.5,
+     "low": -7.39,
+     "high": 0.0,
+     "questions": 257
+    },
+    "svamp": {
+     "run": 87.1,
+     "base": 87.5,
+     "difference": -0.4,
+     "low": -2.1,
+     "high": 1.3,
+     "questions": 1000
+    },
+    "asdiv_a": {
+     "run": 96.63,
+     "base": 97.62,
+     "difference": -0.99,
+     "low": -1.97,
+     "high": 0.0,
+     "questions": 1218
+    }
+   },
+   "generic_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": -0.69,
+      "low": -1.91,
+      "high": 0.47,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 0.5,
+      "low": -1.0,
+      "high": 2.5,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 1.12,
+      "low": -0.35,
+      "high": 2.7,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 2.0,
+      "low": -1.2,
+      "high": 5.2,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.84,
+      "low": -1.03,
+      "high": 2.71,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 0.0,
+      "low": -3.05,
+      "high": 3.05,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -0.69,
+      "low": -2.56,
+      "high": 1.0,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 0.5,
+      "low": -2.5,
+      "high": 3.5,
+      "questions": 200
+     }
+    }
+   },
+   "few_shot_greedy_on_probe_items": {
+    "gsm8k": {
+     "run": 89.0,
+     "base": 86.5,
+     "difference": 2.5,
+     "low": -2.0,
+     "high": 7.0,
+     "questions": 200
+    },
+    "math500": {
+     "run": 53.2,
+     "base": 51.2,
+     "difference": 2.0,
+     "low": -3.2,
+     "high": 7.6,
+     "questions": 250
+    },
+    "humaneval": {
+     "run": 54.88,
+     "base": 58.54,
+     "difference": -3.66,
+     "low": -9.76,
+     "high": 1.83,
+     "questions": 164
+    },
+    "mbpp": {
+     "run": 70.0,
+     "base": 74.5,
+     "difference": -4.5,
+     "low": -9.0,
+     "high": -0.5,
+     "questions": 200
+    }
+   },
+   "generic_probe_long": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 0.25,
+      "low": -0.81,
+      "high": 1.31,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -1.5,
+      "low": -3.5,
+      "high": 0.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 1.45,
+      "low": 0.07,
+      "high": 2.83,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 1.6,
+      "low": -0.8,
+      "high": 4.0,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 1.49,
+      "low": -0.57,
+      "high": 3.62,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 2.44,
+      "low": 0.0,
+      "high": 5.49,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -0.06,
+      "low": -1.69,
+      "high": 1.59,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 1.5,
+      "low": -1.5,
+      "high": 4.5,
+      "questions": 200
+     }
+    }
+   },
+   "math_probe": {
+    "gsm8k": {
+     "pass@1": {
+      "difference": 0.25,
+      "low": -1.38,
+      "high": 1.81,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": -0.5,
+      "low": -2.5,
+      "high": 1.0,
+      "questions": 200
+     }
+    },
+    "math500": {
+     "pass@1": {
+      "difference": 0.03,
+      "low": -1.4,
+      "high": 1.35,
+      "questions": 250
+     },
+     "pass@16": {
+      "difference": 0.8,
+      "low": -2.8,
+      "high": 4.0,
+      "questions": 250
+     }
+    },
+    "humaneval": {
+     "pass@1": {
+      "difference": 0.57,
+      "low": -1.49,
+      "high": 2.86,
+      "questions": 164
+     },
+     "pass@16": {
+      "difference": 0.61,
+      "low": -3.05,
+      "high": 4.28,
+      "questions": 164
+     }
+    },
+    "mbpp": {
+     "pass@1": {
+      "difference": -0.62,
+      "low": -2.41,
+      "high": 1.03,
+      "questions": 200
+     },
+     "pass@16": {
+      "difference": 0.0,
+      "low": -4.0,
+      "high": 4.0,
+      "questions": 200
+     }
+    }
+   },
+   "knowledge_cloze_change": -0.44,
+   "loss_change_percent": {
+    "code": -1.94,
+    "forum_qa": 0.42,
+    "math_web": -0.95,
+    "math_web_extra": -1.72,
+    "papers": 0.16,
+    "reasoning_qa": -13.6,
+    "replay_web": -0.29,
+    "replay_web_edu": -0.3,
+    "textbooks": -1.49,
+    "wiki_en": -0.25,
+    "wiki_zh": -0.84
+   },
+   "tokens_seen": 100007936
+  },
   "dose_reasoning_100m_lr3e-6_9B": {
    "few_shot_greedy": {
     "gsm8k": {
