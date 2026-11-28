@@ -322,6 +322,8 @@ words = {
     "loss_change": {"en": "Δ held-out bits per byte (%)", "zh": "留出每字节比特数变化（%）"},
     "pass_at_1": {"en": "Δ pass@1", "zh": "Δ pass@1"},
     "pass_at_16": {"en": "Δ pass@16", "zh": "Δ pass@16"},
+    "generic_probe": {"en": "generic probe", "zh": "通用探针"},
+    "math_probe": {"en": "math probe", "zh": "数学探针"},
 }
 run_labels = {
     "base": {"en": "base", "zh": "基座"},
@@ -396,6 +398,76 @@ def draw_scaling_gains(language: str) -> bool:
         place_end_labels(panel, label_entries)
     panels[0].set_ylabel(words["gain_points"][language])
     save_figure(figure, "scaling_gains", language)
+    return True
+
+
+def distillation_seeds_with_both_probes(model_size: str) -> list[dict]:
+    """The 3e-6 distillation runs of one size (seed 1 has no seed in its name) that went through the generic probe
+    and the math probe, as their entries of results/comparisons/dose_vs_base_<size>.json. A run with only one of
+    the two probes is left out, so that both panels of draw_math_probe_by_size hold the same runs."""
+    comparison = comparison_of_size(model_size)
+    if not comparison:
+        return []
+    run_names = [f"dose_distill_lr3e-6_{model_size}"] + [f"dose_distill_lr3e-6_seed{seed}_{model_size}" for seed in range(2, 6)]
+    return [comparison["runs"][name] for name in run_names
+            if name in comparison["runs"] and "generic_probe" in comparison["runs"][name]
+            and "math_probe" in comparison["runs"][name]]
+
+
+def draw_math_probe_by_size(language: str) -> bool:
+    """The companion of draw_scaling_gains for README §5.9: the 3e-6 distillation runs minus their base at each
+    size, after the generic probe (left) and after the math probe, whose fine-tune also holds 4,000 worked solutions
+    (right). Dots are single seeds and the short bar across them their mean; the seeds show how far one run can be
+    trusted (the 0.8B gain on MATH-500 under the math probe is +2.8 with seed 1 and +1.0 with seed 2)."""
+    seeds_by_size = {size: distillation_seeds_with_both_probes(size) for size in model_sizes}
+    sizes = [size for size in model_sizes if seeds_by_size[size]]
+    if not sizes:
+        return False
+    task_names = ("gsm8k", "math500")
+    apply_shared_style(language)
+    figure, panels = plt.subplots(1, 2, figsize=(7.4, 3.0), sharey=True)
+    final_means = {}
+    for panel, probe in zip(panels, ("generic_probe", "math_probe")):
+        panel.axhline(0, color="#52514e", linewidth=0.8)
+        for offset, task_name in zip((-0.12, 0.12), task_names):
+            identity = task_identities[task_name]
+            mean_xs, mean_ys = [], []
+            for index, size in enumerate(sizes):
+                seed_values = [run[probe][task_name]["pass@1"]["difference"] for run in seeds_by_size[size]]
+                # seeds side by side, a little apart, so that two equal values stay two dots
+                spread = np.linspace(-0.04, 0.04, len(seed_values)) if len(seed_values) > 1 else np.zeros(1)
+                panel.plot(index + offset + spread, seed_values, linestyle="none", marker=identity["marker"],
+                           markersize=3.8, color=identity["color"], alpha=0.8, markeredgecolor="white",
+                           markeredgewidth=0.4, zorder=3)
+                mean_value = float(np.mean(seed_values))
+                # the mean as a short bar across the seeds: a large marker would hide the seed closest to it
+                panel.plot([index + offset - 0.09, index + offset + 0.09], [mean_value, mean_value],
+                           color=identity["color"], linewidth=2.0, solid_capstyle="butt", zorder=2)
+                mean_xs.append(index + offset)
+                mean_ys.append(mean_value)
+            panel.plot(mean_xs, mean_ys, color=identity["color"], linewidth=0.8, alpha=0.5, zorder=1)
+            final_means[probe, task_name] = mean_ys[-1]
+        panel.set_xticks(range(len(sizes)), sizes)
+        panel.set_xlim(-0.4, len(sizes) - 1 + 1.1)
+        panel.set_title(words[probe][language], fontsize=8.5, color=ink_color)
+        panel.set_xlabel(words["model_size"][language])
+        panel.grid(axis="x", visible=False)
+    # end labels once both panels are drawn, because the shared y-range is final only then. At 9B both tasks end
+    # near zero, so two labels closer than 12% of the range are moved apart, one above and one below their middle,
+    # which also keeps them off the zero line.
+    low, high = panels[0].get_ylim()
+    minimum_gap = 0.12 * (high - low)
+    for panel, probe in zip(panels, ("generic_probe", "math_probe")):
+        (lower_value, lower_task), (upper_value, upper_task) = sorted(
+            (final_means[probe, task_name], task_name) for task_name in task_names)
+        if upper_value - lower_value < minimum_gap:
+            middle = (lower_value + upper_value) / 2
+            lower_value, upper_value = middle - minimum_gap / 2, middle + minimum_gap / 2
+        for value, task_name in ((lower_value, lower_task), (upper_value, upper_task)):
+            panel.annotate(task_identities[task_name]["label"], (len(sizes) - 1 + 0.3, value), fontsize=7,
+                           color=task_identities[task_name]["color"], va="center", ha="left", annotation_clip=False)
+    panels[0].set_ylabel(words["gain_points"][language])
+    save_figure(figure, "math_probe_by_size", language)
     return True
 
 
@@ -569,7 +641,7 @@ def main() -> None:
     drawn = []
     for language in ("en", "zh"):
         for draw in (draw_pilot_loss_change, draw_probe_pass_at_k, draw_design_main_effects, draw_dose_results,
-                     draw_scaling_gains, draw_public_text_learning_rate, draw_teacher_attempts,
+                     draw_scaling_gains, draw_math_probe_by_size, draw_public_text_learning_rate, draw_teacher_attempts,
                      draw_answer_length_after_probe, draw_loss_by_source, draw_reliability_vs_reach):
             if draw(language):
                 drawn.append(f"{draw.__name__.removeprefix('draw_')}_{language}")

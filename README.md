@@ -1172,6 +1172,11 @@ What to notice:
   +2.2] on GSM8K and +0.5 [−0.9, +1.9] on MATH-500 (the paired difference of `results/probe_math/base_0.8B.json` and
   `base_0.8B_repeat.json`).
 
+<p align="center"><img src="assets/math_probe_by_size_en.png" width="88%"></p>
+
+Each dot is one run of the 3e-6 recipe minus its base model, and the short bar is the mean of its seeds: three at
+0.8B and 2B, two at 4B and one at 9B. The left panel uses the generic probe and the right panel the math probe.
+
 **A fine-tune that teaches worked solutions recovers most of what mid-training on worked solutions gave.** What
 remains comes from the teacher's solutions and is largest for the smallest model.
 
